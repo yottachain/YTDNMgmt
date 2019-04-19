@@ -1,0 +1,4 @@
+package: github.com/yottachain/YTDNMgmt
+import:
+- package: go.mongodb.org/mongo-driver/mongo
+  version: v1.0.0

@@ -1,0 +1,63 @@
+hash: e76f23e89a360e93c03b9ac4824eb549735d4725f6ce59b814c55ecc148a8fe3
+updated: 2019-04-14T18:11:07.6811899+08:00
+imports:
+- name: github.com/go-stack/stack
+  version: 2fee6af1a9795aafbe0253a0cfbdf668e1fb8a9a
+- name: github.com/golang/snappy
+  version: 2a8bb927dd31d8daada140a5d09578521ce5c36a
+- name: github.com/mongodb/mongo-go-driver
+  version: 1c3b9b9a41eecdf056560e07b68e6407b8d598c3
+  subpackages:
+  - mongo
+  - mongo/options
+- name: github.com/xdg/scram
+  version: 7eeb5667e42c09cb51bf7b7c28aea8c56767da90
+- name: github.com/xdg/stringprep
+  version: 73f8eece6fdcd902c185bf651de50f3828bed5ed
+- name: go.mongodb.org/mongo-driver
+  version: 1c3b9b9a41eecdf056560e07b68e6407b8d598c3
+  subpackages:
+  - bson
+  - bson/bsoncodec
+  - bson/bsonrw
+  - bson/bsontype
+  - bson/primitive
+  - event
+  - internal
+  - mongo
+  - mongo/options
+  - mongo/readconcern
+  - mongo/readpref
+  - mongo/writeconcern
+  - tag
+  - version
+  - x/bsonx
+  - x/bsonx/bsoncore
+  - x/mongo/driver
+  - x/mongo/driver/auth
+  - x/mongo/driver/auth/internal/gssapi
+  - x/mongo/driver/session
+  - x/mongo/driver/topology
+  - x/mongo/driver/uuid
+  - x/network/address
+  - x/network/command
+  - x/network/compressor
+  - x/network/connection
+  - x/network/connstring
+  - x/network/description
+  - x/network/result
+  - x/network/wiremessage
+- name: golang.org/x/crypto
+  version: 88737f569e3a9c7ab309cdc09a07fe7fc87233c3
+  subpackages:
+  - pbkdf2
+- name: golang.org/x/sync
+  version: 56d357773e8497dfd526f0727e187720d1093757
+  subpackages:
+  - semaphore
+- name: golang.org/x/text
+  version: f4905fbd45b6790792202848439271c74074bbfd
+  subpackages:
+  - transform
+  - unicode/norm
+testImports: []
