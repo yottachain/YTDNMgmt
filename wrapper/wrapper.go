@@ -3,17 +3,26 @@ package main
 /*
 #cgo CFLAGS: -std=c99
 
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <unistd.h>
 #include <string.h>
+#include <unistd.h>
 
 typedef struct node {
 	int id;
 	char *nodeid;
 	char *pubkey;
+	char *owner;
 	char **addrs;
 	int addrsize;
+	int32_t cpu;
+	int32_t memory;
+	int32_t bandwidth;
+	int64_t maxDataSpace;
+	int64_t assignedSpace;
+	int64_t productiveSpace;
+	int64_t usedSpace;
 	char *error;
 } node;
 
@@ -137,6 +146,32 @@ func NewInstance(urls *C.char) *C.char {
 	return nil
 }
 
+//export RegisterNode
+func RegisterNode(node *C.node) *C.node {
+	length := int(node.addrsize)
+	tmpslice := (*[1 << 30]*C.char)(unsafe.Pointer(node.addrs))[:length:length]
+	addrs := make([]string, length)
+	for i, s := range tmpslice {
+		addrs[i] = C.GoString(s)
+	}
+	gnode := nodemgmt.NewNode(int32(node.id), C.GoString(node.nodeid), C.GoString(node.pubkey), C.GoString(node.owner), addrs, int32(node.cpu), int32(node.memory), int32(node.bandwidth), int64(node.maxDataSpace), int64(node.assignedSpace), int64(node.productiveSpace), int64(node.usedSpace))
+	gnode, err := nodeDao.RegisterNode(gnode)
+	return createNodeStruct(*gnode, err)
+}
+
+//export UpdateNode
+func UpdateNode(node *C.node) *C.node {
+	length := int(node.addrsize)
+	tmpslice := (*[1 << 30]*C.char)(unsafe.Pointer(node.addrs))[:length:length]
+	addrs := make([]string, length)
+	for i, s := range tmpslice {
+		addrs[i] = C.GoString(s)
+	}
+	gnode := nodemgmt.NewNode(int32(node.id), C.GoString(node.nodeid), C.GoString(node.pubkey), C.GoString(node.owner), addrs, int32(node.cpu), int32(node.memory), int32(node.bandwidth), int64(node.maxDataSpace), int64(node.assignedSpace), int64(node.productiveSpace), int64(node.usedSpace))
+	gnode, err := nodeDao.UpdateNode(gnode)
+	return createNodeStruct(*gnode, err)
+}
+
 //export AllocNodes
 func AllocNodes(shardCount C.int) *C.allocnoderet {
 	if nodeDao == nil {
@@ -243,6 +278,9 @@ func createNodeStruct(node nodemgmt.Node, err error) *C.node {
 	if node.PubKey != "" {
 		(*ptr).pubkey = C.CString(node.PubKey)
 	}
+	if node.Owner != "" {
+		(*ptr).owner = C.CString(node.Owner)
+	}
 	if node.Addrs != nil && len(node.Addrs) != 0 {
 		caddrs := C.makeCharArray(C.int(len(node.Addrs)))
 		for i, s := range node.Addrs {
@@ -250,6 +288,27 @@ func createNodeStruct(node nodemgmt.Node, err error) *C.node {
 		}
 		(*ptr).addrs = caddrs
 		(*ptr).addrsize = C.int(len(node.Addrs))
+	}
+	if node.CPU > 0 {
+		(*ptr).cpu = C.int32_t(node.CPU)
+	}
+	if node.Memory > 0 {
+		(*ptr).memory = C.int32_t(node.Memory)
+	}
+	if node.Bandwidth > 0 {
+		(*ptr).bandwidth = C.int32_t(node.Bandwidth)
+	}
+	if node.MaxDataSpace > 0 {
+		(*ptr).maxDataSpace = C.int64_t(node.MaxDataSpace)
+	}
+	if node.AssignedSpace > 0 {
+		(*ptr).assignedSpace = C.int64_t(node.AssignedSpace)
+	}
+	if node.ProductiveSpace > 0 {
+		(*ptr).productiveSpace = C.int64_t(node.ProductiveSpace)
+	}
+	if node.UsedSpace > 0 {
+		(*ptr).usedSpace = C.int64_t(node.UsedSpace)
 	}
 	return ptr
 }
@@ -263,10 +322,20 @@ func FreeNode(ptr *C.node) {
 		if (*ptr).pubkey != nil {
 			C.free(unsafe.Pointer((*ptr).pubkey))
 		}
+		if (*ptr).owner != nil {
+			C.free(unsafe.Pointer((*ptr).owner))
+		}
 		if (*ptr).addrs != nil {
 			C.freeCharArray((*ptr).addrs, (*ptr).addrsize)
 			(*ptr).addrs = nil
 		}
+		(*ptr).cpu = 0
+		(*ptr).memory = 0
+		(*ptr).bandwidth = 0
+		(*ptr).maxDataSpace = 0
+		(*ptr).assignedSpace = 0
+		(*ptr).productiveSpace = 0
+		(*ptr).usedSpace = 0
 		if (*ptr).error != nil {
 			C.free(unsafe.Pointer((*ptr).error))
 			(*ptr).error = nil
