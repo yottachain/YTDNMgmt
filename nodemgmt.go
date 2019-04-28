@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"strings"
-	"time"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -17,8 +16,8 @@ type NodeDaoImpl struct {
 
 // create a new instance of NodeDaoImpl
 func NewInstance(urls string) (*NodeDaoImpl, error) {
-	ctx, _ := context.WithTimeout(context.Background(), 10*time.Second)
-	client, err := mongo.Connect(ctx, options.Client().ApplyURI(urls))
+	//ctx, _ := context.WithTimeout(context.Background(), 10*time.Second)
+	client, err := mongo.Connect(context.Background(), options.Client().ApplyURI(urls))
 	if err != nil {
 		return nil, err
 	}
@@ -28,8 +27,8 @@ func NewInstance(urls string) (*NodeDaoImpl, error) {
 // generate a new id for Node collection
 func newID(client *mongo.Client) (int32, error) {
 	collection := client.Database(MetaDB).Collection(SeqTab)
-	ctx, _ := context.WithTimeout(context.Background(), 5*time.Second)
-	_, err := collection.InsertOne(ctx, bson.M{"_id": NodeIdxType, "seq": 0})
+	//ctx, _ := context.WithTimeout(context.Background(), 5*time.Second)
+	_, err := collection.InsertOne(context.Background(), bson.M{"_id": NodeIdxType, "seq": 0})
 	if err != nil {
 		errstr := err.Error()
 		if !strings.ContainsAny(errstr, "duplicate key error") {
@@ -38,7 +37,7 @@ func newID(client *mongo.Client) (int32, error) {
 	}
 	opts := new(options.FindOneAndUpdateOptions)
 	opts = opts.SetReturnDocument(options.After)
-	result := collection.FindOneAndUpdate(ctx, bson.M{"_id": NodeIdxType}, bson.M{"$inc": bson.M{"seq": 1}}, opts)
+	result := collection.FindOneAndUpdate(context.Background(), bson.M{"_id": NodeIdxType}, bson.M{"$inc": bson.M{"seq": 1}}, opts)
 	m := make(map[string]int32)
 	err = result.Decode(&m)
 	if err != nil {
@@ -62,8 +61,8 @@ func (self *NodeDaoImpl) RegisterNode(node *Node) (*Node, error) {
 		return nil, err
 	}
 	node.ID = id
-	ctx, _ := context.WithTimeout(context.Background(), 5*time.Second)
-	_, err = collection.InsertOne(ctx, node)
+	//ctx, _ := context.WithTimeout(context.Background(), 5*time.Second)
+	_, err = collection.InsertOne(context.Background(), node)
 	if err != nil {
 		return nil, err
 	}
@@ -75,7 +74,7 @@ func (self *NodeDaoImpl) RegisterNode(node *Node) (*Node, error) {
 }
 
 // UpdateNode update data info by data node status
-func (self *NodeDaoImpl) UpdateNode(node *Node) (*Node, error) {
+func (self *NodeDaoImpl) UpdateNodeStatus(node *Node) (*Node, error) {
 	if node == nil {
 		return nil, errors.New("node is null")
 	}
@@ -83,16 +82,25 @@ func (self *NodeDaoImpl) UpdateNode(node *Node) (*Node, error) {
 		return nil, errors.New("node ID cannot be null")
 	}
 	collection := self.client.Database(YottaDB).Collection(NodeTab)
-	ctx, _ := context.WithTimeout(context.Background(), 5*time.Second)
+	//ctx, _ := context.WithTimeout(context.Background(), 5*time.Second)
 	opts := new(options.FindOneAndUpdateOptions)
 	opts = opts.SetReturnDocument(options.After)
-	result := collection.FindOneAndUpdate(ctx, bson.M{"_id": node.ID}, bson.M{"$set": bson.M{"cpu": node.CPU, "memory": node.Memory, "bandwidth": node.Bandwidth, "maxDataSpace": node.MaxDataSpace, "assignedSpace": node.AssignedSpace, "usedSpace": node.UsedSpace, "addrs": node.Addrs}}, opts)
+	result := collection.FindOneAndUpdate(context.Background(), bson.M{"_id": node.ID}, bson.M{"$set": bson.M{"cpu": node.CPU, "memory": node.Memory, "bandwidth": node.Bandwidth, "maxDataSpace": node.MaxDataSpace, "assignedSpace": node.AssignedSpace, "usedSpace": node.UsedSpace, "addrs": node.Addrs}}, opts)
 	n := new(Node)
 	err := result.Decode(&n)
 	if err != nil {
 		return nil, err
 	}
 	return n, nil
+}
+
+func (self *NodeDaoImpl) IncrUsedSpace(id int32, incr int64) error {
+	if incr < 0 {
+		return errors.New("incremental space cannot be minus")
+	}
+	collection := self.client.Database(YottaDB).Collection(NodeTab)
+	_, err := collection.UpdateOne(context.Background(), bson.M{"_id": id}, bson.M{"$inc": bson.M{"usedSpace": incr}})
+	return err
 }
 
 // AllocNodes by shard cound

@@ -159,8 +159,8 @@ func RegisterNode(node *C.node) *C.node {
 	return createNodeStruct(*gnode, err)
 }
 
-//export UpdateNode
-func UpdateNode(node *C.node) *C.node {
+//export UpdateNodeStatus
+func UpdateNodeStatus(node *C.node) *C.node {
 	length := int(node.addrsize)
 	tmpslice := (*[1 << 30]*C.char)(unsafe.Pointer(node.addrs))[:length:length]
 	addrs := make([]string, length)
@@ -168,8 +168,17 @@ func UpdateNode(node *C.node) *C.node {
 		addrs[i] = C.GoString(s)
 	}
 	gnode := nodemgmt.NewNode(int32(node.id), C.GoString(node.nodeid), C.GoString(node.pubkey), C.GoString(node.owner), addrs, int32(node.cpu), int32(node.memory), int32(node.bandwidth), int64(node.maxDataSpace), int64(node.assignedSpace), int64(node.productiveSpace), int64(node.usedSpace))
-	gnode, err := nodeDao.UpdateNode(gnode)
+	gnode, err := nodeDao.UpdateNodeStatus(gnode)
 	return createNodeStruct(*gnode, err)
+}
+
+//export IncrUsedSpace
+func IncrUsedSpace(id C.int32_t, incr C.int64_t) *C.char {
+	err := nodeDao.IncrUsedSpace(int32(id), int64(incr))
+	if err != nil {
+		return C.CString(err.Error())
+	}
+	return nil
 }
 
 //export AllocNodes

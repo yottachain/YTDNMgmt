@@ -3,7 +3,8 @@ package YTDNMgmt
 //All operations of node management
 type NodeDao interface {
 	RegisterNode(node *Node) (*Node, error)
-	UpdateNode(node *Node) (*Node, error)
+	UpdateNodeStatus(node *Node) (*Node, error)
+	IncrUsedSpace(id int32, incr int64) error
 	AllocNodes(shardCount int32) ([]Node, error)
 	GetNodes(nodeIDs []int32) ([]Node, error)
 	GetSuperNodes() ([]SuperNode, error)
