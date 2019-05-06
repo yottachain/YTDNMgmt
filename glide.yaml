@@ -2,3 +2,5 @@ package: github.com/yottachain/YTDNMgmt
 import:
 - package: go.mongodb.org/mongo-driver/mongo
   version: v1.0.0
+- package: github.com/eoscanada/eos-go
+  version: v0.8.11

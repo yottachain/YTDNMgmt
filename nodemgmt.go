@@ -157,7 +157,7 @@ func (self *NodeDaoImpl) AllocNodes(shardCount int32) ([]Node, error) {
 func (self *NodeDaoImpl) GetNodes(nodeIDs []int32) ([]Node, error) {
 	cond := bson.A{}
 	for _, id := range nodeIDs {
-		cond = append(cond, bson.D{{"id", id}})
+		cond = append(cond, bson.D{{"_id", id}})
 	}
 	nodes := make([]Node, 0)
 	collection := self.client.Database(YottaDB).Collection(NodeTab)
@@ -200,7 +200,7 @@ func (self *NodeDaoImpl) GetSuperNodes() ([]SuperNode, error) {
 // GetSuperNodePrivateKey get private key of super node with certain ID
 func (self *NodeDaoImpl) GetSuperNodePrivateKey(id int32) (string, error) {
 	collection := self.client.Database(YottaDB).Collection(SuperNodeTab)
-	cur, err := collection.Find(context.Background(), bson.D{{"id", id}})
+	cur, err := collection.Find(context.Background(), bson.D{{"_id", id}})
 	if err != nil {
 		return "", err
 	}
