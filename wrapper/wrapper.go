@@ -156,7 +156,7 @@ func RegisterNode(node *C.node) *C.node {
 	}
 	gnode := nodemgmt.NewNode(int32(node.id), C.GoString(node.nodeid), C.GoString(node.pubkey), C.GoString(node.owner), addrs, int32(node.cpu), int32(node.memory), int32(node.bandwidth), int64(node.maxDataSpace), int64(node.assignedSpace), int64(node.productiveSpace), int64(node.usedSpace))
 	gnode, err := nodeDao.RegisterNode(gnode)
-	return createNodeStruct(*gnode, err)
+	return createNodeStruct(gnode, err)
 }
 
 //export UpdateNodeStatus
@@ -169,7 +169,7 @@ func UpdateNodeStatus(node *C.node) *C.node {
 	}
 	gnode := nodemgmt.NewNode(int32(node.id), C.GoString(node.nodeid), C.GoString(node.pubkey), C.GoString(node.owner), addrs, int32(node.cpu), int32(node.memory), int32(node.bandwidth), int64(node.maxDataSpace), int64(node.assignedSpace), int64(node.productiveSpace), int64(node.usedSpace))
 	gnode, err := nodeDao.UpdateNodeStatus(gnode)
-	return createNodeStruct(*gnode, err)
+	return createNodeStruct(gnode, err)
 }
 
 //export IncrUsedSpace
@@ -251,7 +251,7 @@ func createAllocnoderet(nodes []nodemgmt.Node, err error) *C.allocnoderet {
 	size := len(nodes)
 	cnodes := C.makeNodeArray(C.int(size))
 	for i, s := range nodes {
-		C.setArrayNode(cnodes, createNodeStruct(s, nil), C.int(i))
+		C.setArrayNode(cnodes, createNodeStruct(&s, nil), C.int(i))
 	}
 	(*ptr).nodes = cnodes
 	(*ptr).size = C.int(size)
@@ -273,7 +273,7 @@ func FreeAllocnoderet(ptr *C.allocnoderet) {
 	}
 }
 
-func createNodeStruct(node nodemgmt.Node, err error) *C.node {
+func createNodeStruct(node *nodemgmt.Node, err error) *C.node {
 	ptr := (*C.node)(C.malloc(C.size_t(unsafe.Sizeof(C.node{}))))
 	C.memset(unsafe.Pointer(ptr), 0, C.size_t(unsafe.Sizeof(C.node{})))
 	if err != nil {
