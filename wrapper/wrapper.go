@@ -215,7 +215,7 @@ func GetSuperNodes() *C.allocsupernoderet {
 }
 
 //export GetSuperNodePrivateKey
-func GetSuperNodePrivateKey(id C.int) *C.stringwitherror {
+func GetSuperNodePrivateKey(id C.int32_t) *C.stringwitherror {
 	if nodeDao == nil {
 		return createStringwitherror("", errors.New("Node management module has not started"))
 	}
@@ -239,6 +239,19 @@ func GetSuperNodeIDByPubKey(pubkey *C.char) *C.intwitherror {
 	}
 	id, err := nodeDao.GetSuperNodeIDByPubKey(C.GoString(pubkey))
 	return createIntwitherror(id, err)
+}
+
+//export AddDNI
+func AddDNI(id C.int32_t, shard *C.char, size C.longlong) *C.char {
+	if nodeDao == nil {
+		return C.CString("Node management module has not started")
+	}
+	shardSlice := (*[1 << 30]byte)(unsafe.Pointer(shard))[:int64(size):int64(size)]
+	err := nodeDao.AddDNI(int32(id), shardSlice)
+	if err != nil {
+		return C.CString(err.Error())
+	}
+	return nil
 }
 
 func createAllocnoderet(nodes []nodemgmt.Node, err error) *C.allocnoderet {

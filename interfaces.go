@@ -11,4 +11,5 @@ type NodeDao interface {
 	GetSuperNodePrivateKey(id int32) (string, error)
 	GetNodeIDByPubKey(pubkey string) (int32, error)
 	GetSuperNodeIDByPubKey(pubkey string) (int32, error)
+	AddDNI(id int32, shard []byte) error
 }
