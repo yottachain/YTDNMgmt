@@ -253,3 +253,21 @@ func (self *NodeDaoImpl) GetSuperNodeIDByPubKey(pubkey string) (int32, error) {
 	}
 	return 0, errors.New("No result")
 }
+
+func (self *NodeDaoImpl) AddDNI(id int32, shard []byte) error {
+	collection := self.client.Database(YottaDB).Collection(DNITab)
+	_, err := collection.InsertOne(context.Background(), bson.M{"_id": id, "shards": bson.A{shard}})
+	if err != nil {
+		errstr := err.Error()
+		if !strings.ContainsAny(errstr, "duplicate key error") {
+			return err
+		}
+	} else {
+		return nil
+	}
+	_, err = collection.UpdateOne(context.Background(), bson.M{"_id": id}, bson.M{"$addToSet": bson.M{"shards": shard}})
+	if err != nil {
+		return err
+	}
+	return nil
+}

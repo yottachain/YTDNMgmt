@@ -55,6 +55,7 @@ const (
 	YottaDB      = "yotta"
 	NodeTab      = "Node"
 	SuperNodeTab = "SuperNode"
+	DNITab       = "DNI"
 )
 
 // index type of node and supernode collection
