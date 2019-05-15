@@ -14,6 +14,8 @@ type NodeDaoImpl struct {
 	client *mongo.Client
 }
 
+var incr int64 = 0
+
 // create a new instance of NodeDaoImpl
 func NewInstance(urls string) (*NodeDaoImpl, error) {
 	//ctx, _ := context.WithTimeout(context.Background(), 10*time.Second)
@@ -26,6 +28,14 @@ func NewInstance(urls string) (*NodeDaoImpl, error) {
 
 // generate a new id for Node collection
 func newID(client *mongo.Client) (int32, error) {
+	if incr == 0 {
+		collection := client.Database(YottaDB).Collection(SuperNodeTab)
+		c, err := collection.CountDocuments(context.Background(), bson.D{})
+		if err != nil {
+			return 0, err
+		}
+		incr = c
+	}
 	collection := client.Database(MetaDB).Collection(SeqTab)
 	//ctx, _ := context.WithTimeout(context.Background(), 5*time.Second)
 	_, err := collection.InsertOne(context.Background(), bson.M{"_id": NodeIdxType, "seq": 0})
@@ -37,7 +47,7 @@ func newID(client *mongo.Client) (int32, error) {
 	}
 	opts := new(options.FindOneAndUpdateOptions)
 	opts = opts.SetReturnDocument(options.After)
-	result := collection.FindOneAndUpdate(context.Background(), bson.M{"_id": NodeIdxType}, bson.M{"$inc": bson.M{"seq": 1}}, opts)
+	result := collection.FindOneAndUpdate(context.Background(), bson.M{"_id": NodeIdxType}, bson.M{"$inc": bson.M{"seq": incr}}, opts)
 	m := make(map[string]int32)
 	err = result.Decode(&m)
 	if err != nil {
