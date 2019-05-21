@@ -131,15 +131,16 @@ var nodeDao nodemgmt.NodeDao
 var mu sync.Mutex
 
 //export NewInstance
-func NewInstance(urls *C.char) *C.char {
+func NewInstance(mongodbURL *C.char, eosURL *C.char) *C.char {
 	mu.Lock()
 	defer mu.Unlock()
 	if nodeDao != nil {
 		return C.CString("Node management module has started")
 	}
-	gurls := C.GoString(urls)
+	murl := C.GoString(mongodbURL)
+	eurl := C.GoString(eosURL)
 	var err error
-	nodeDao, err = nodemgmt.NewInstance(gurls)
+	nodeDao, err = nodemgmt.NewInstance(murl, eurl)
 	if err != nil {
 		return C.CString(err.Error())
 	}

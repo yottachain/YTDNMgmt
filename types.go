@@ -26,6 +26,7 @@ type Node struct {
 	ProductiveSpace int64 `bson:"productiveSpace"`
 	//used space of data node
 	UsedSpace int64 `bson:"usedSpace"`
+	Timestamp int64 `bson:"timestamp"`
 }
 
 // NewNode create a node struct
@@ -47,15 +48,21 @@ type SuperNode struct {
 	Addrs []string `bson:"addrs"`
 }
 
+// ContractInfo instance
+type ContractInfo struct {
+	ID      int32  `bson:"_id"`
+	User    string `bson:"user"`
+	PrivKey string `bson:"privkey"`
+}
+
 // relative DB and collection name
 const (
-	MetaDB = "metadata"
-	SeqTab = "sequence"
-
-	YottaDB      = "yotta"
-	NodeTab      = "Node"
-	SuperNodeTab = "SuperNode"
-	DNITab       = "DNI"
+	YottaDB         = "yotta"
+	NodeTab         = "Node"
+	SuperNodeTab    = "SuperNode"
+	DNITab          = "DNI"
+	SequenceTab     = "Sequence"
+	ContractInfoTab = "ContractInfo"
 )
 
 // index type of node and supernode collection
@@ -63,3 +70,6 @@ var (
 	NodeIdxType      = 100
 	SuperNodeIdxType = 101
 )
+
+// interval time of data node reporting status
+var IntervalTime int64 = 60
