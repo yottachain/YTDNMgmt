@@ -111,6 +111,8 @@ func (self *NodeDaoImpl) RegisterNode(node *Node) (*Node, error) {
 		return nil, err
 	}
 	node.ID = id
+	node.MaxDataSpace = 67108864  //1T
+	node.AssignedSpace = 67108864 //1T
 	node.Weight = 0
 	node.Timestamp = time.Now().Unix()
 	//ctx, _ := context.WithTimeout(context.Background(), 5*time.Second)
@@ -482,4 +484,55 @@ func (self *NodeDaoImpl) AddDNI(id int32, shard []byte) error {
 		return err
 	}
 	return nil
+}
+
+func (self *NodeDaoImpl) ActiveNodesList() ([]Node, error) {
+	nodes := make([]Node, 0)
+	collection := self.client.Database(YottaDB).Collection(NodeTab)
+	cur, err := collection.Find(context.Background(), bson.M{"timestamp": bson.M{"$gt": time.Now().Unix() - IntervalTime*2}})
+	if err != nil {
+		return nil, err
+	}
+	defer cur.Close(context.Background())
+	for cur.Next(context.Background()) {
+		result := new(Node)
+		err := cur.Decode(result)
+		if err != nil {
+			return nil, err
+		}
+		nodes = append(nodes, *result)
+	}
+	return nodes, nil
+}
+
+// Statistics of data nodes
+func (self *NodeDaoImpl) Statistics() (*NodeStat, error) {
+	collection := self.client.Database(YottaDB).Collection(NodeTab)
+	active, err := collection.CountDocuments(context.Background(), bson.M{"timestamp": bson.M{"$gt": time.Now().Unix() - IntervalTime*2}})
+	if err != nil {
+		return nil, err
+	}
+	total, err := collection.CountDocuments(context.Background(), bson.M{})
+	if err != nil {
+		return nil, err
+	}
+	pipeline := mongo.Pipeline{
+		{{"$project", bson.D{{"maxDataSpace", 1}, {"assignedSpace", 1}, {"productiveSpace", 1}, {"usedSpace", 1}, {"_id", 0}}}},
+		{{"$group", bson.D{{"_id", ""}, {"maxTotal", bson.D{{"$sum", "$maxDataSpace"}}}, {"assignedTotal", bson.D{{"$sum", "$assignedSpace"}}}, {"productiveTotal", bson.D{{"$sum", "$productiveSpace"}}}, {"usedTotal", bson.D{{"$sum", "$usedSpace"}}}}}},
+	}
+	cur, err := collection.Aggregate(context.Background(), pipeline)
+	if err != nil {
+		return nil, err
+	}
+	result := new(NodeStat)
+	defer cur.Close(context.Background())
+	if cur.Next(context.Background()) {
+		err := cur.Decode(&result)
+		if err != nil {
+			return nil, err
+		}
+	}
+	result.ActiveMiners = active
+	result.TotalMiners = total
+	return result, nil
 }

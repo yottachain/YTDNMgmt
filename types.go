@@ -58,6 +58,16 @@ type ContractInfo struct {
 	PrivKey string `bson:"privkey"`
 }
 
+// NodeStat statistics of data node
+type NodeStat struct {
+	ActiveMiners    int64 `bson:"activeMiners"`
+	TotalMiners     int64 `bson:"totalMiners"`
+	MaxTotal        int64 `bson:"maxTotal"`
+	AssignedTotal   int64 `bson:"assignedTotal"`
+	ProductiveTotal int64 `bson:"productiveTotal"`
+	UsedTotal       int64 `bson:"usedTotal"`
+}
+
 // relative DB and collection name
 const (
 	YottaDB         = "yotta"
