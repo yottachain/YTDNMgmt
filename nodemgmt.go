@@ -486,6 +486,7 @@ func (self *NodeDaoImpl) AddDNI(id int32, shard []byte) error {
 	return nil
 }
 
+// ActiveNodesList show id and public IP of all active data nodes
 func (self *NodeDaoImpl) ActiveNodesList() ([]Node, error) {
 	nodes := make([]Node, 0)
 	collection := self.client.Database(YottaDB).Collection(NodeTab)

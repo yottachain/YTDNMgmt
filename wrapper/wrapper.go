@@ -48,6 +48,16 @@ typedef struct allocsupernoderet {
 	char *error;
 } allocsupernoderet;
 
+typedef struct nodestatret {
+	int64_t activeMiners;
+	int64_t totalMiners;
+	int64_t maxTotal;
+	int64_t assignedTotal;
+	int64_t productiveTotal;
+	int64_t usedTotal;
+	char *error;
+} nodestatret;
+
 typedef struct stringwitherror {
 	char *str;
 	char *error;
@@ -255,6 +265,24 @@ func AddDNI(id C.int32_t, shard *C.char, size C.longlong) *C.char {
 	return nil
 }
 
+//export ActiveNodesList
+func ActiveNodesList() *C.allocnoderet {
+	if nodeDao == nil {
+		return createAllocnoderet(nil, errors.New("Node management module has not started"))
+	}
+	nodes, err := nodeDao.ActiveNodesList()
+	return createAllocnoderet(nodes, err)
+}
+
+//export Statistics
+func Statistics() *C.nodestatret {
+	if nodeDao == nil {
+		return createNodestatret(nil, errors.New("Node management module has not started"))
+	}
+	stat, err := nodeDao.Statistics()
+	return createNodestatret(stat, err)
+}
+
 func createAllocnoderet(nodes []nodemgmt.Node, err error) *C.allocnoderet {
 	ptr := (*C.allocnoderet)(C.malloc(C.size_t(unsafe.Sizeof(C.allocnoderet{}))))
 	C.memset(unsafe.Pointer(ptr), 0, C.size_t(unsafe.Sizeof(C.allocnoderet{})))
@@ -279,6 +307,33 @@ func FreeAllocnoderet(ptr *C.allocnoderet) {
 			C.freeNodeArray((*ptr).nodes, (*ptr).size)
 			(*ptr).nodes = nil
 		}
+		if (*ptr).error != nil {
+			C.free(unsafe.Pointer((*ptr).error))
+			(*ptr).error = nil
+		}
+		C.free(unsafe.Pointer(ptr))
+	}
+}
+
+func createNodestatret(nodeStat *nodemgmt.NodeStat, err error) *C.nodestatret {
+	ptr := (*C.nodestatret)(C.malloc(C.size_t(unsafe.Sizeof(C.nodestatret{}))))
+	C.memset(unsafe.Pointer(ptr), 0, C.size_t(unsafe.Sizeof(C.nodestatret{})))
+	if err != nil {
+		(*ptr).error = C.CString(err.Error())
+		return ptr
+	}
+	(*ptr).activeMiners = C.int64_t(nodeStat.ActiveMiners)
+	(*ptr).totalMiners = C.int64_t(nodeStat.TotalMiners)
+	(*ptr).maxTotal = C.int64_t(nodeStat.MaxTotal)
+	(*ptr).assignedTotal = C.int64_t(nodeStat.AssignedTotal)
+	(*ptr).productiveTotal = C.int64_t(nodeStat.ProductiveTotal)
+	(*ptr).usedTotal = C.int64_t(nodeStat.UsedTotal)
+	return ptr
+}
+
+//export FreeNodestatret
+func FreeNodestatret(ptr *C.nodestatret) {
+	if ptr != nil {
 		if (*ptr).error != nil {
 			C.free(unsafe.Pointer((*ptr).error))
 			(*ptr).error = nil
