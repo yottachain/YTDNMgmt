@@ -26,6 +26,9 @@ type Node struct {
 	ProductiveSpace int64 `bson:"productiveSpace"`
 	//used space of data node
 	UsedSpace int64 `bson:"usedSpace"`
+	//weight for allocate data node
+	Weight float64 `bson:"weight"`
+	//timestamp of status updating operation
 	Timestamp int64 `bson:"timestamp"`
 }
 
