@@ -229,11 +229,11 @@ func (self *NodeDaoImpl) AllocNodes(shardCount int32) ([]Node, error) {
 				if err != nil {
 					continue
 				}
-				// err = self.eostx.AddSpace(result.Owner, uint64(result.ID), uint64(assignable))
-				// if err != nil {
-				// 	self.IncrProductiveSpace(result.ID, -1*assignable)
-				// 	continue
-				// }
+				err = self.eostx.AddSpace(result.Owner, uint64(result.ID), uint64(assignable))
+				if err != nil {
+					self.IncrProductiveSpace(result.ID, -1*assignable)
+					continue
+				}
 				result.ProductiveSpace += assignable
 			}
 
@@ -468,6 +468,7 @@ func (self *NodeDaoImpl) GetSuperNodeIDByPubKey(pubkey string) (int32, error) {
 	return 0, errors.New("No result")
 }
 
+// AddDNI add digest of one shard
 func (self *NodeDaoImpl) AddDNI(id int32, shard []byte) error {
 	collection := self.client.Database(YottaDB).Collection(DNITab)
 	_, err := collection.InsertOne(context.Background(), bson.M{"_id": id, "shards": bson.A{shard}})
@@ -483,7 +484,26 @@ func (self *NodeDaoImpl) AddDNI(id int32, shard []byte) error {
 	if err != nil {
 		return err
 	}
-	return nil
+
+	pipeline := mongo.Pipeline{
+		{{"$match", bson.D{{"_id", id}}}},
+		{{"$project", bson.D{{"cnt", bson.D{{"$size", "$shards"}}}}}},
+	}
+	cur, err := collection.Aggregate(context.Background(), pipeline)
+	if err != nil {
+		return err
+	}
+	result := new(ShardCount)
+	defer cur.Close(context.Background())
+	if cur.Next(context.Background()) {
+		err := cur.Decode(&result)
+		if err != nil {
+			return err
+		}
+	}
+	collection = self.client.Database(YottaDB).Collection(NodeTab)
+	_, err = collection.UpdateOne(context.Background(), bson.M{"_id": result.ID}, bson.M{"$set": bson.M{"usedSpace": result.Cnt}})
+	return err
 }
 
 // ActiveNodesList show id and public IP of all active data nodes

@@ -68,6 +68,12 @@ type NodeStat struct {
 	UsedTotal       int64 `bson:"usedTotal"`
 }
 
+// ShardCount shards count of one data node
+type ShardCount struct {
+	ID  int32 `bson:"_id"`
+	Cnt int64 `bson:"cnt"`
+}
+
 // relative DB and collection name
 const (
 	YottaDB         = "yotta"
