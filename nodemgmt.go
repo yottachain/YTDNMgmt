@@ -146,7 +146,7 @@ func (self *NodeDaoImpl) UpdateNodeStatus(node *Node) (*Node, error) {
 	if err != nil {
 		return nil, err
 	}
-	weight := math.Sqrt(2*math.Pow(float64(node.CPU)/100, 2) + 2*math.Pow(float64(node.Memory)/100, 2) + 2*math.Pow(float64(node.Bandwidth)/100, 2) + math.Pow(float64(node.UsedSpace)/float64(node.AssignedSpace), 2))
+	weight := math.Sqrt(2*math.Pow(float64(node.CPU)/100, 2) + 2*math.Pow(float64(node.Memory)/100, 2) + 2*math.Pow(float64(node.Bandwidth)/100, 2) + math.Pow(float64(n.UsedSpace)/float64(n.AssignedSpace), 2))
 	opts := new(options.FindOneAndUpdateOptions)
 	opts = opts.SetReturnDocument(options.After)
 	result := collection.FindOneAndUpdate(context.Background(), bson.M{"_id": node.ID}, bson.M{"$set": bson.M{"cpu": node.CPU, "memory": node.Memory, "bandwidth": node.Bandwidth, "maxDataSpace": node.MaxDataSpace, "addrs": node.Addrs, "weight": weight, "timestamp": time.Now().Unix()}}, opts)
@@ -183,16 +183,7 @@ func (self *NodeDaoImpl) IncrProductiveSpace(id int32, incr int64) error {
 
 // AllocNodes by shard cound
 func (self *NodeDaoImpl) AllocNodes(shardCount int32) ([]Node, error) {
-	// TODO: allocated nodes must have enough space
 	collection := self.client.Database(YottaDB).Collection(NodeTab)
-	// c, err := collection.CountDocuments(context.Background(), bson.M{"timestamp": bson.M{"$gt": time.Now().Unix() - IntervalTime*2}})
-	// if err != nil {
-	// 	return nil, err
-	// }
-	// if c == 0 {
-	// 	return nil, errors.New("No enough data nodes can be allocted")
-	// }
-
 	nodes := make([]Node, 0)
 	m := make(map[int32]int64)
 	var i int64
@@ -253,119 +244,6 @@ func (self *NodeDaoImpl) AllocNodes(shardCount int32) ([]Node, error) {
 
 	return nil, errors.New("No enough data nodes can be allocted")
 }
-
-// // AllocNodes by shard cound
-// func (self *NodeDaoImpl) AllocNodes(shardCount int32) ([]Node, error) {
-// 	//ctx, _ := context.WithTimeout(context.Background(), 30*time.Second)
-// 	// TODO: allocated nodes must have enough space
-// 	collection := self.client.Database(YottaDB).Collection(NodeTab)
-// 	c, err := collection.CountDocuments(context.Background(), bson.M{"timestamp": bson.M{"$gt": time.Now().Unix() - IntervalTime*2}})
-// 	if err != nil {
-// 		return nil, err
-// 	}
-// 	if c == 0 {
-// 		return nil, errors.New("No enough data nodes can be allocted")
-// 	}
-// 	nodes := make([]Node, 0)
-// 	tnodes := make([]Node, 0)
-// 	cur, err := collection.Find(context.Background(), bson.M{"timestamp": bson.M{"$gt": time.Now().Unix() - IntervalTime*2}})
-// 	if err != nil {
-// 		return nil, err
-// 	}
-// 	defer cur.Close(context.Background())
-// 	m := make(map[int32]int64)
-// 	var i int64
-// 	for cur.Next(context.Background()) {
-// 		result := new(Node)
-// 		err := cur.Decode(result)
-// 		if err != nil {
-// 			return nil, err
-// 		}
-// 		// if result.AssignedSpace <= result.ProductiveSpace {
-// 		// 	continue
-// 		// }
-
-// 		m[result.ID] += 1
-// 		// increase 1GB when remain space less than 1/8 GB
-// 		if result.UsedSpace+m[result.ID]+8192 >= result.ProductiveSpace {
-// 			assignable := result.AssignedSpace - result.ProductiveSpace
-// 			if assignable == 0 {
-// 				continue
-// 			}
-// 			if assignable >= 65536 {
-// 				assignable = 65536
-// 			}
-// 			err := self.IncrProductiveSpace(result.ID, assignable)
-// 			if err != nil {
-// 				continue
-// 			}
-// 			// err = self.eostx.AddSpace(result.Owner, uint64(result.ID), uint64(assignable))
-// 			// if err != nil {
-// 			// 	//self.IncrProductiveSpace(result.ID, -assignable)
-// 			// 	continue
-// 			// }
-// 			result.ProductiveSpace += assignable
-// 		}
-
-// 		nodes = append(nodes, *result)
-// 		tnodes = append(tnodes, *result)
-// 		i += 1
-// 		if i == int64(shardCount) {
-// 			return nodes, nil
-// 		}
-// 	}
-
-// 	if len(nodes) == 0 {
-// 		return nil, errors.New("No enough data nodes can be allocted")
-// 	}
-
-// 	for _, tnode := range tnodes {
-// 		left := int64(shardCount) - i
-// 		if left == 0 {
-// 			break
-// 		}
-// 		var assignable int64
-// 		var alloc int64
-// 		if tnode.AssignedSpace-tnode.UsedSpace-m[tnode.ID]-8192 >= int64(left) {
-// 			assignable = tnode.UsedSpace + m[tnode.ID] + 8192 + int64(left) - tnode.ProductiveSpace
-// 			if assignable < 0 {
-// 				assignable = 0
-// 			}
-// 			alloc = left
-// 		} else if tnode.AssignedSpace-tnode.UsedSpace-m[tnode.ID]-8192 <= 0 {
-// 			continue
-// 		} else {
-// 			assignable = tnode.AssignedSpace - tnode.ProductiveSpace
-// 			if assignable < 0 {
-// 				assignable = 0
-// 			}
-// 			alloc = tnode.AssignedSpace - 8192 - tnode.UsedSpace - m[tnode.ID]
-// 		}
-// 		if assignable > 0 {
-// 			err := self.IncrProductiveSpace(tnode.ID, assignable)
-// 			if err != nil {
-// 				continue
-// 			}
-// 			// err = self.eostx.AddSpace(tnode.Owner, uint64(tnode.ID), uint64(assignable))
-// 			// if err != nil {
-// 			// 	self.IncrProductiveSpace(tnode.ID, -assignable)
-// 			// 	continue
-// 			// }
-// 			tnode.ProductiveSpace += assignable
-// 		}
-// 		var j int64 = 0
-// 		for ; j < alloc; j++ {
-// 			nodes = append(nodes, tnode)
-// 		}
-// 		i += alloc
-// 	}
-
-// 	if int64(shardCount) != i {
-// 		return nil, errors.New("No enough data nodes can be allocted")
-// 	} else {
-// 		return nodes, nil
-// 	}
-// }
 
 // GetNodes by node IDs
 func (self *NodeDaoImpl) GetNodes(nodeIDs []int32) ([]Node, error) {
