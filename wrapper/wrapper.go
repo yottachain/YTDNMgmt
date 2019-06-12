@@ -23,6 +23,7 @@ typedef struct node {
 	int64_t assignedSpace;
 	int64_t productiveSpace;
 	int64_t usedSpace;
+	int32_t relay;
 	char *error;
 } node;
 
@@ -141,7 +142,7 @@ var nodeDao nodemgmt.NodeDao
 var mu sync.Mutex
 
 //export NewInstance
-func NewInstance(mongodbURL *C.char, eosURL *C.char) *C.char {
+func NewInstance(mongodbURL, eosURL, bpAccount, bpPrivkey, contractOwner *C.char) *C.char {
 	mu.Lock()
 	defer mu.Unlock()
 	if nodeDao != nil {
@@ -149,8 +150,11 @@ func NewInstance(mongodbURL *C.char, eosURL *C.char) *C.char {
 	}
 	murl := C.GoString(mongodbURL)
 	eurl := C.GoString(eosURL)
+	bpAcc := C.GoString(bpAccount)
+	bpPriv := C.GoString(bpPrivkey)
+	ctrcOwner := C.GoString(contractOwner)
 	var err error
-	nodeDao, err = nodemgmt.NewInstance(murl, eurl)
+	nodeDao, err = nodemgmt.NewInstance(murl, eurl, bpAcc, bpPriv, ctrcOwner)
 	if err != nil {
 		return C.CString(err.Error())
 	}
@@ -165,7 +169,7 @@ func RegisterNode(node *C.node) *C.node {
 	for i, s := range tmpslice {
 		addrs[i] = C.GoString(s)
 	}
-	gnode := nodemgmt.NewNode(int32(node.id), C.GoString(node.nodeid), C.GoString(node.pubkey), C.GoString(node.owner), addrs, int32(node.cpu), int32(node.memory), int32(node.bandwidth), int64(node.maxDataSpace), int64(node.assignedSpace), int64(node.productiveSpace), int64(node.usedSpace))
+	gnode := nodemgmt.NewNode(int32(node.id), C.GoString(node.nodeid), C.GoString(node.pubkey), C.GoString(node.owner), addrs, int32(node.cpu), int32(node.memory), int32(node.bandwidth), int64(node.maxDataSpace), int64(node.assignedSpace), int64(node.productiveSpace), int64(node.usedSpace), int32(node.relay))
 	gnode, err := nodeDao.RegisterNode(gnode)
 	return createNodeStruct(gnode, err)
 }
@@ -178,7 +182,7 @@ func UpdateNodeStatus(node *C.node) *C.node {
 	for i, s := range tmpslice {
 		addrs[i] = C.GoString(s)
 	}
-	gnode := nodemgmt.NewNode(int32(node.id), C.GoString(node.nodeid), C.GoString(node.pubkey), C.GoString(node.owner), addrs, int32(node.cpu), int32(node.memory), int32(node.bandwidth), int64(node.maxDataSpace), int64(node.assignedSpace), int64(node.productiveSpace), int64(node.usedSpace))
+	gnode := nodemgmt.NewNode(int32(node.id), C.GoString(node.nodeid), C.GoString(node.pubkey), C.GoString(node.owner), addrs, int32(node.cpu), int32(node.memory), int32(node.bandwidth), int64(node.maxDataSpace), int64(node.assignedSpace), int64(node.productiveSpace), int64(node.usedSpace), int32(node.relay))
 	gnode, err := nodeDao.UpdateNodeStatus(gnode)
 	return createNodeStruct(gnode, err)
 }
@@ -388,6 +392,7 @@ func createNodeStruct(node *nodemgmt.Node, err error) *C.node {
 	if node.UsedSpace > 0 {
 		(*ptr).usedSpace = C.int64_t(node.UsedSpace)
 	}
+	(*ptr).relay = C.int32_t(node.Relay)
 	return ptr
 }
 

@@ -28,13 +28,17 @@ type Node struct {
 	UsedSpace int64 `bson:"usedSpace"`
 	//weight for allocate data node
 	Weight float64 `bson:"weight"`
+	//Is node valid
+	Valid int32 `bson:"valid"`
+	//Is relay node
+	Relay int32 `bson:"relay"`
 	//timestamp of status updating operation
 	Timestamp int64 `bson:"timestamp"`
 }
 
 // NewNode create a node struct
-func NewNode(id int32, nodeid string, pubkey string, owner string, addrs []string, cpu int32, memory int32, bandwidth int32, maxDataSpace int64, assignedSpace int64, productiveSpace int64, usedSpace int64) *Node {
-	return &Node{ID: id, NodeID: nodeid, PubKey: pubkey, Owner: owner, Addrs: addrs, CPU: cpu, Memory: memory, Bandwidth: bandwidth, MaxDataSpace: maxDataSpace, AssignedSpace: assignedSpace, ProductiveSpace: productiveSpace, UsedSpace: usedSpace}
+func NewNode(id int32, nodeid string, pubkey string, owner string, addrs []string, cpu int32, memory int32, bandwidth int32, maxDataSpace int64, assignedSpace int64, productiveSpace int64, usedSpace int64, relay int32) *Node {
+	return &Node{ID: id, NodeID: nodeid, PubKey: pubkey, Owner: owner, Addrs: addrs, CPU: cpu, Memory: memory, Bandwidth: bandwidth, MaxDataSpace: maxDataSpace, AssignedSpace: assignedSpace, ProductiveSpace: productiveSpace, UsedSpace: usedSpace, Relay: relay}
 }
 
 // SuperNode instance
@@ -76,12 +80,12 @@ type ShardCount struct {
 
 // relative DB and collection name
 const (
-	YottaDB         = "yotta"
-	NodeTab         = "Node"
-	SuperNodeTab    = "SuperNode"
-	DNITab          = "DNI"
-	SequenceTab     = "Sequence"
-	ContractInfoTab = "ContractInfo"
+	YottaDB      = "yotta"
+	NodeTab      = "Node"
+	SuperNodeTab = "SuperNode"
+	DNITab       = "DNI"
+	SequenceTab  = "Sequence"
+	//ContractInfoTab = "ContractInfo"
 )
 
 // index type of node and supernode collection

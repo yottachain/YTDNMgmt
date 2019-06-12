@@ -10,22 +10,25 @@ import (
 
 type EosTX struct {
 	API           *eos.API
+	BpAccount     string
 	ContractOwner string
 }
 
 type Miner struct {
 	Owner   eos.AccountName `json:"owner"`
 	MinerID uint64          `json:"minerid"`
+	Caller  eos.AccountName `json:"caller"`
 }
 
 type Profit struct {
 	Owner   eos.AccountName `json:"owner"`
 	MinerID uint64          `json:"minerid"`
 	Space   uint64          `json:"space"`
+	Caller  eos.AccountName `json:"caller"`
 }
 
 // NewInstance create a new eostx instance contans connect url, contract owner and it's private key
-func NewInstance(url, contractOwner, privateKey string) (*EosTX, error) {
+func NewInstance(url, bpAccount, privateKey, contractOwner string) (*EosTX, error) {
 	api := eos.New(url)
 	keyBag := &eos.KeyBag{}
 	err := keyBag.ImportPrivateKey(privateKey)
@@ -38,18 +41,18 @@ func NewInstance(url, contractOwner, privateKey string) (*EosTX, error) {
 		pubkey, _ := ecc.NewPublicKey(fmt.Sprintf("%s%s", "EOS", publickey))
 		return []ecc.PublicKey{pubkey}, nil
 	})
-	return &EosTX{API: api, ContractOwner: contractOwner}, nil
+	return &EosTX{API: api, BpAccount: bpAccount, ContractOwner: contractOwner}, nil
 }
 
 // AddMiner call contract to add a record of datanode owner and miner ID
 func (eostx *EosTX) AddMiner(owner string, minerID uint64) error {
 	action := &eos.Action{
-		Account: eos.AN("hddpool12345"),
+		Account: eos.AN(eostx.ContractOwner),
 		Name:    eos.ActN("newmaccount"),
 		Authorization: []eos.PermissionLevel{
-			{Actor: eos.AN(eostx.ContractOwner), Permission: eos.PN("active")},
+			{Actor: eos.AN(eostx.BpAccount), Permission: eos.PN("active")},
 		},
-		ActionData: eos.NewActionData(Miner{Owner: eos.AN(owner), MinerID: minerID}),
+		ActionData: eos.NewActionData(Miner{Owner: eos.AN(owner), MinerID: minerID, Caller: eos.AN(eostx.BpAccount)}),
 	}
 	txOpts := &eos.TxOptions{}
 	if err := txOpts.FillFromChain(eostx.API); err != nil {
@@ -80,12 +83,12 @@ func (eostx *EosTX) AddMiner(owner string, minerID uint64) error {
 // AddProfit call contract to add profit to a miner assigned by minerID
 func (eostx *EosTX) AddSpace(owner string, minerID, space uint64) error {
 	action := &eos.Action{
-		Account: eos.AN("hddpool12345"),
+		Account: eos.AN(eostx.ContractOwner),
 		Name:    eos.ActN("addmprofit"),
 		Authorization: []eos.PermissionLevel{
-			{Actor: eos.AN(eostx.ContractOwner), Permission: eos.PN("active")},
+			{Actor: eos.AN(eostx.BpAccount), Permission: eos.PN("active")},
 		},
-		ActionData: eos.NewActionData(Profit{Owner: eos.AN(owner), MinerID: minerID, Space: space}),
+		ActionData: eos.NewActionData(Profit{Owner: eos.AN(owner), MinerID: minerID, Space: space, Caller: eos.AN(eostx.BpAccount)}),
 	}
 	txOpts := &eos.TxOptions{}
 	if err := txOpts.FillFromChain(eostx.API); err != nil {
