@@ -40,6 +40,7 @@ func (host *Host) TestNetwork(nodeID string, addrs []string) error {
 	}
 	ctx, cancle := context.WithTimeout(context.Background(), time.Second*5)
 	defer cancle()
+	defer host.lhost.Network().ClosePeer(pid)
 	defer host.lhost.Network().(*swarm.Swarm).Backoff().Clear(pid)
 	err = host.lhost.Connect(ctx, info)
 	if err != nil {
