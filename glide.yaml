@@ -93,7 +93,7 @@ import:
   version: v0.1.0
 - package: github.com/libp2p/go-msgio
   version: v0.0.3
-- package: githu.com/libp2p/go-addr-util
+- package: github.com/libp2p/go-addr-util
   version: v0.0.1
 - package: github.com/libp2p/go-buffer-pool
   version: v0.0.2
