@@ -15,35 +15,40 @@ func (self *NodeDaoImpl) AddrCheck(oldNode, newNode *Node) (relayUrl string, err
 	if newNode == nil {
 		return "", errors.New("Node can not be nil")
 	}
-	newNode.Addrs = RelayUrlCheck(newNode.Addrs)
+	//newNode.Addrs = RelayUrlCheck(newNode.Addrs)
 	if EqualSorted(oldNode.Addrs, newNode.Addrs) {
 		return "", nil
 	}
 	if self.ConnectivityCheck(newNode.NodeID, newNode.Addrs) {
 		newNode.Valid = 1
-		if len(newNode.Addrs) == 1 && strings.Index(newNode.Addrs[0], "/p2p/") != -1 {
+		if RelayUrlCheck(newNode.Addrs) {
 			newNode.Relay = 0
 		}
 		return "", nil
 	} else {
 		newNode.Valid = 0
 		newNode.Relay = 0
-		//TODO: 分配中继节点
-		rnode, err := self.AllocRelayNode()
-		if err != nil {
-			return "", err
+		rnode := self.AllocRelayNode()
+		if rnode == nil {
+			supernode, err := self.GetSuperNodeByID(self.bpID)
+			if err != nil {
+				return "", err
+			}
+			return fmt.Sprintf("%s/p2p/%s/p2p-circuit", checkPublicAddr(supernode.Addrs), supernode.NodeID), nil
+		} else {
+			return fmt.Sprintf("%s/p2p/%s/p2p-circuit", checkPublicAddr(rnode.Addrs), rnode.NodeID), nil
 		}
-		return fmt.Sprintf("%s/p2p/%s/p2p-circuit", checkPublicAddr(rnode.Addrs), rnode.NodeID), nil
+
 	}
 }
 
-func RelayUrlCheck(addrs []string) []string {
+func RelayUrlCheck(addrs []string) bool {
 	for _, addr := range addrs {
 		if strings.Index(addr, "/p2p/") != -1 {
-			return []string{addr}
+			return true
 		}
 	}
-	return addrs
+	return false
 }
 
 func (self *NodeDaoImpl) ConnectivityCheck(nodeID string, addrs []string) bool {
@@ -86,14 +91,14 @@ func checkPublicAddr(addrs []string) string {
 	return ""
 }
 
-func (self *NodeDaoImpl) AllocRelayNode() (*Node, error) {
+func (self *NodeDaoImpl) AllocRelayNode() *Node {
 	collection := self.client.Database(YottaDB).Collection(NodeTab)
 	node := new(Node)
 	options := options.FindOneOptions{}
-	options.Sort = bson.D{{"bandwidth", 1}}
-	err := collection.FindOne(context.Background(), bson.M{"valid": 1, "relay": 1, "timestamp": bson.M{"$gt": time.Now().Unix() - IntervalTime*2}}, &options).Decode(node)
+	options.Sort = bson.D{{"timestamp", -1}}
+	err := collection.FindOne(context.Background(), bson.M{"valid": 1, "relay": 1, "bandwidth": bson.M{"$lt": 70}, "timestamp": bson.M{"$gt": time.Now().Unix() - IntervalTime*2}}, &options).Decode(node)
 	if err != nil {
-		return nil, err
+		return nil
 	}
-	return node, nil
+	return node
 }

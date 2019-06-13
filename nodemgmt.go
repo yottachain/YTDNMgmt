@@ -19,12 +19,13 @@ type NodeDaoImpl struct {
 	client *mongo.Client
 	eostx  *eostx.EosTX
 	host   *Host
+	bpID   int32
 }
 
 var incr int64 = 0
 
 // create a new instance of NodeDaoImpl
-func NewInstance(mongoURL, eosURL, bpAccount, bpPrivkey, contractOwner string) (*NodeDaoImpl, error) {
+func NewInstance(mongoURL, eosURL, bpAccount, bpPrivkey, contractOwner string, bpID int32) (*NodeDaoImpl, error) {
 	//ctx, _ := context.WithTimeout(context.Background(), 10*time.Second)
 	client, err := mongo.Connect(context.Background(), options.Client().ApplyURI(mongoURL))
 	if err != nil {
@@ -42,7 +43,7 @@ func NewInstance(mongoURL, eosURL, bpAccount, bpPrivkey, contractOwner string) (
 	if err != nil {
 		return nil, err
 	}
-	return &NodeDaoImpl{client: client, eostx: etx, host: host}, nil
+	return &NodeDaoImpl{client: client, eostx: etx, host: host, bpID: bpID}, nil
 }
 
 func getCurrentSuperNodeIndex(client *mongo.Client) (int32, error) {
@@ -315,6 +316,17 @@ func (self *NodeDaoImpl) GetSuperNodes() ([]SuperNode, error) {
 		supernodes = append(supernodes, *result)
 	}
 	return supernodes, nil
+}
+
+// GetSuperNodePrivateKey get private key of super node with certain ID
+func (self *NodeDaoImpl) GetSuperNodeByID(id int32) (*SuperNode, error) {
+	collection := self.client.Database(YottaDB).Collection(SuperNodeTab)
+	supernode := new(SuperNode)
+	err := collection.FindOne(context.Background(), bson.D{{"_id", id}}).Decode(supernode)
+	if err != nil {
+		return nil, err
+	}
+	return supernode, nil
 }
 
 // GetSuperNodePrivateKey get private key of super node with certain ID

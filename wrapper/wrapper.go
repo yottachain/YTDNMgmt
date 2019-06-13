@@ -142,7 +142,7 @@ var nodeDao nodemgmt.NodeDao
 var mu sync.Mutex
 
 //export NewInstance
-func NewInstance(mongodbURL, eosURL, bpAccount, bpPrivkey, contractOwner *C.char) *C.char {
+func NewInstance(mongodbURL, eosURL, bpAccount, bpPrivkey, contractOwner *C.char, bpid C.int32_t) *C.char {
 	mu.Lock()
 	defer mu.Unlock()
 	if nodeDao != nil {
@@ -154,7 +154,7 @@ func NewInstance(mongodbURL, eosURL, bpAccount, bpPrivkey, contractOwner *C.char
 	bpPriv := C.GoString(bpPrivkey)
 	ctrcOwner := C.GoString(contractOwner)
 	var err error
-	nodeDao, err = nodemgmt.NewInstance(murl, eurl, bpAcc, bpPriv, ctrcOwner)
+	nodeDao, err = nodemgmt.NewInstance(murl, eurl, bpAcc, bpPriv, ctrcOwner, int32(bpid))
 	if err != nil {
 		return C.CString(err.Error())
 	}
