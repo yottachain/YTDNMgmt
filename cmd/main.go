@@ -1,10 +1,10 @@
 package main
 
 import (
-	"fmt"
+	"log"
 
 	eos "github.com/eoscanada/eos-go"
-	"github.com/yottachain/YTDNMgmt/eostx"
+	nodemgmt "github.com/yottachain/YTDNMgmt"
 )
 
 type Miner struct {
@@ -14,7 +14,28 @@ type Miner struct {
 
 func main() {
 
-	// nodeDao, _ := nodemgmt.NewInstance("mongodb://152.136.18.185:27017", "http://152.136.16.118:8888", "username1234", "5JcDH48njDbUQLu1R8SWwKsfWLnqBpWXDDiCgxFC3hioDuwLhVx", "hddpool12345", 2)
+	// host, err := YTDNMgmt.NewHost()
+	// if err != nil {
+	// 	log.Fatalln(err.Error())
+	// }
+	// err = host.TestNetwork("16Uiu2HAmTFtXjT9GxzABmkATsmC2SZqtpxyTPqZ9cszCCZn4rM8M", []string{"/ip4/127.0.0.1/tcp/9001", "/ip4/192.168.123.50/tcp/9001", "/ip4/10.211.55.2/tcp/9001", "/ip4/10.37.129.2/tcp/9001", "/ip4/36.110.28.94/tcp/9001", "/ip4/152.136.18.185/tcp/9999/p2p/16Uiu2HAkwNCD9HSH5hh36LmzgLjRcQiQFpT9spwspaAM5AH3rqA9/p2p-circuit"})
+	// if err != nil {
+	// 	log.Fatalln(err.Error())
+	// }
+	nodeDao, _ := nodemgmt.NewInstance("mongodb://152.136.18.185:27017", "http://152.136.16.118:8888", "username1234", "5JcDH48njDbUQLu1R8SWwKsfWLnqBpWXDDiCgxFC3hioDuwLhVx", "hddpool12345", 2)
+	node := new(nodemgmt.Node)
+	node.ID = 767
+	node.Bandwidth = 0
+	node.CPU = 10
+	node.MaxDataSpace = 2621440
+	node.Memory = 30
+	node.Addrs = []string{"/ip4/127.0.0.1/tcp/9001", "/ip4/192.168.123.50/tcp/9001", "/ip4/10.211.55.2/tcp/9001", "/ip4/10.37.129.2/tcp/9001", "/ip4/36.110.28.94/tcp/9001", "/ip4/152.136.18.185/tcp/9999/p2p/16Uiu2HAkwNCD9HSH5hh36LmzgLjRcQiQFpT9spwspaAM5AH3rqA9/p2p-circuit"}
+	node.Relay = 0
+	_, err := nodeDao.UpdateNodeStatus(node)
+	if err != nil {
+		log.Fatalln(err.Error())
+	}
+
 	// node := nodeDao.AllocRelayNode()
 	// if node == nil {
 	// 	fmt.Println("nil")
@@ -186,15 +207,15 @@ func main() {
 
 	// fmt.Printf("Transaction [%s] submitted to the network succesfully.\n", hex.EncodeToString(response.Processed.ID))
 
-	etx, _ := eostx.NewInstance("http://152.136.16.118:8888", "producer1", "5HtM6e3mQNLEu2TkQ1ZrbMNpRQiHGsKxEsLdxd9VsdCmp1um8QH", "hddpool12345")
-	err := etx.AddMiner("username1234", 99999)
-	if err != nil {
-		fmt.Println(err.Error())
-	}
-	err = etx.AddSpace("username3333", 10000010, 100)
-	if err != nil {
-		fmt.Println(err.Error())
-	}
+	// etx, _ := eostx.NewInstance("http://152.136.16.118:8888", "producer1", "5HtM6e3mQNLEu2TkQ1ZrbMNpRQiHGsKxEsLdxd9VsdCmp1um8QH", "hddpool12345")
+	// err := etx.AddMiner("username1234", 99999)
+	// if err != nil {
+	// 	fmt.Println(err.Error())
+	// }
+	// err = etx.AddSpace("username3333", 10000010, 100)
+	// if err != nil {
+	// 	fmt.Println(err.Error())
+	// }
 	// host, _ := nodemgmt.NewHost()
 	// host.TestNetwork("16Uiu2HAkxLW724sE9WY1koVhHruVS9HqG6ZEjrFzqUpct4QSjMnY", []string{"/ip4/39.165.1.156/tcp/19003"})
 

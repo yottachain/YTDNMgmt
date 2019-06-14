@@ -19,7 +19,7 @@ func (self *NodeDaoImpl) AddrCheck(oldNode, newNode *Node) (relayUrl string, err
 	if EqualSorted(oldNode.Addrs, newNode.Addrs) {
 		return "", nil
 	}
-	if self.ConnectivityCheck(newNode.NodeID, newNode.Addrs) {
+	if self.ConnectivityCheck(oldNode.NodeID, newNode.Addrs) {
 		newNode.Valid = 1
 		if RelayUrlCheck(newNode.Addrs) {
 			newNode.Relay = 0

@@ -159,13 +159,13 @@ func (self *NodeDaoImpl) UpdateNodeStatus(node *Node) (*Node, error) {
 	if node.ID == 0 {
 		return nil, errors.New("node ID cannot be null")
 	}
-	node.Valid = 1
 	collection := self.client.Database(YottaDB).Collection(NodeTab)
 	n := new(Node)
 	err := collection.FindOne(context.Background(), bson.M{"_id": node.ID}).Decode(&n)
 	if err != nil {
 		return nil, err
 	}
+	node.Valid = n.Valid
 	relayUrl, err := self.AddrCheck(n, node)
 	if err != nil {
 		return nil, err

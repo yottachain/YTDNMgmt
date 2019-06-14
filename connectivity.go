@@ -26,7 +26,7 @@ func NewHost() (*Host, error) {
 }
 
 func (host *Host) TestNetwork(nodeID string, addrs []string) error {
-	maddrs, err := stringListToMaddrs(nodeID, addrs)
+	maddrs, err := stringListToMaddrs(addrs)
 	if err != nil {
 		return err
 	}
@@ -49,7 +49,7 @@ func (host *Host) TestNetwork(nodeID string, addrs []string) error {
 	return nil
 }
 
-func stringListToMaddrs(nodeID string, addrs []string) ([]ma.Multiaddr, error) {
+func stringListToMaddrs(addrs []string) ([]ma.Multiaddr, error) {
 	maddrs := make([]ma.Multiaddr, len(addrs))
 	for k, addr := range addrs {
 		maddr, err := ma.NewMultiaddr(addr)
