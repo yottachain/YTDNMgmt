@@ -15,15 +15,14 @@ func (self *NodeDaoImpl) AddrCheck(oldNode, newNode *Node) (relayUrl string, err
 	if newNode == nil {
 		return "", errors.New("Node can not be nil")
 	}
-	//newNode.Addrs = RelayUrlCheck(newNode.Addrs)
+	if RelayUrlCheck(newNode.Addrs) {
+		newNode.Relay = 0
+	}
 	if EqualSorted(oldNode.Addrs, newNode.Addrs) {
 		return "", nil
 	}
 	if self.ConnectivityCheck(oldNode.NodeID, newNode.Addrs) {
 		newNode.Valid = 1
-		if RelayUrlCheck(newNode.Addrs) {
-			newNode.Relay = 0
-		}
 		return "", nil
 	} else {
 		newNode.Valid = 0
