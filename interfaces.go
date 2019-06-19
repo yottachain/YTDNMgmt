@@ -14,4 +14,7 @@ type NodeDao interface {
 	AddDNI(id int32, shard []byte) error
 	ActiveNodesList() ([]Node, error)
 	Statistics() (*NodeStat, error)
+	GetSpotCheckList() ([]*SpotCheckList, error)
+	GetSTNode() (*Node, error)
+	UpdateTaskStatus(id string, progress int32, invalidNodeList []int32) error
 }

@@ -59,6 +59,28 @@ typedef struct nodestatret {
 	char *error;
 } nodestatret;
 
+typedef struct spotchecktask {
+	int32_t id;
+	char *nodeid;
+	char *addr;
+	char *vni;
+} spotchecktask;
+
+typedef struct spotchecklist {
+	char *taskid;
+	spotchecktask **tasklist;
+	int size;
+	int32_t progress;
+	int64_t timestamp;
+	int64_t duration;
+} spotchecklist;
+
+typedef struct spotchecklists {
+	spotchecklist **list;
+	int size;
+	char *error;
+} spotchecklists;
+
 typedef struct stringwitherror {
 	char *str;
 	char *error;
@@ -71,6 +93,8 @@ typedef struct intwitherror {
 
 extern void FreeNode(node *ptr);
 extern void FreeSuperNode(supernode *ptr);
+extern void FreeSpotchecktask(spotchecktask *ptr);
+extern void FreeSpotchecklist(spotchecklist *ptr);
 
 static char** makeCharArray(int size) {
 	char **ret = (char**)malloc(sizeof(char*) * size);
@@ -127,6 +151,44 @@ static void freeSuperNodeArray(supernode **supernodes, int size) {
 		supernodes[i] = NULL;
 	}
 	free(supernodes);
+}
+
+static spotchecktask** makeSpotchecktaskArray(int size) {
+	spotchecktask **ret = (spotchecktask**)malloc(sizeof(spotchecktask*) * size);
+	memset(ret, 0 , sizeof(spotchecktask*) * size);
+	return ret;
+}
+
+static void setSpotchecktaskArray(spotchecktask **spotchecklist, spotchecktask *task, int n) {
+	spotchecklist[n] = task;
+}
+
+static void freeSpotchecktaskArray(spotchecktask **spotchecklist, int size) {
+	int i;
+	for (i = 0; i < size; i++) {
+		FreeSpotchecktask(spotchecklist[i]);
+		spotchecklist[i] = NULL;
+	}
+	free(spotchecklist);
+}
+
+static spotchecklist** makeSpotchecklistArray(int size) {
+	spotchecklist **ret = (spotchecklist**)malloc(sizeof(spotchecklist*) * size);
+	memset(ret, 0 , sizeof(spotchecklist*) * size);
+	return ret;
+}
+
+static void setSpotchecklistArray(spotchecklist **spotchecklists, spotchecklist *list, int n) {
+	spotchecklists[n] = list;
+}
+
+static void freeSpotchecklistArray(spotchecklist **spotchecklists, int size) {
+	int i;
+	for (i = 0; i < size; i++) {
+		FreeSpotchecklist(spotchecklists[i]);
+		spotchecklists[i] = NULL;
+	}
+	free(spotchecklists);
 }
 */
 import "C"
@@ -285,6 +347,46 @@ func Statistics() *C.nodestatret {
 	}
 	stat, err := nodeDao.Statistics()
 	return createNodestatret(stat, err)
+}
+
+//export GetSpotCheckList
+func GetSpotCheckList() *C.spotchecklists {
+	if nodeDao == nil {
+		return createSpotchecklists(nil, errors.New("Node management module has not started"))
+	}
+	list, err := nodeDao.GetSpotCheckList()
+	return createSpotchecklists(list, err)
+}
+
+//export GetSTNode
+func GetSTNode() *C.node {
+	if nodeDao == nil {
+		return createNodeStruct(nil, errors.New("Node management module has not started"))
+	}
+	gnode, err := nodeDao.GetSTNode()
+	return createNodeStruct(gnode, err)
+}
+
+//export UpdateTaskStatus
+func UpdateTaskStatus(id *C.char, progress C.int32_t, invalidNodeList *C.int32_t, size C.int32_t) *C.char {
+	if nodeDao == nil {
+		return C.CString("Node management module has not started")
+	}
+	length := int(size)
+	var gnodeIDs []int32
+	if invalidNodeList != nil {
+		tmpslice := (*[1 << 30]C.int32_t)(unsafe.Pointer(invalidNodeList))[:length:length]
+		gnodeIDs = make([]int32, length)
+		for i, s := range tmpslice {
+			gnodeIDs[i] = int32(s)
+		}
+	}
+	err := nodeDao.UpdateTaskStatus(C.GoString(id), int32(progress), gnodeIDs)
+	if err != nil {
+		return C.CString(err.Error())
+	} else {
+		return nil
+	}
 }
 
 func createAllocnoderet(nodes []nodemgmt.Node, err error) *C.allocnoderet {
@@ -506,6 +608,105 @@ func FreeSuperNode(ptr *C.supernode) {
 		if (*ptr).error != nil {
 			C.free(unsafe.Pointer((*ptr).error))
 			(*ptr).error = nil
+		}
+		C.free(unsafe.Pointer(ptr))
+	}
+}
+
+func createSpotchecklists(lists []*nodemgmt.SpotCheckList, err error) *C.spotchecklists {
+	ptr := (*C.spotchecklists)(C.malloc(C.size_t(unsafe.Sizeof(C.spotchecklists{}))))
+	C.memset(unsafe.Pointer(ptr), 0, C.size_t(unsafe.Sizeof(C.spotchecklists{})))
+	if err != nil {
+		(*ptr).error = C.CString(err.Error())
+		return ptr
+	}
+	if lists != nil && len(lists) != 0 {
+		clists := C.makeSpotchecklistArray(C.int(len(lists)))
+		for i, s := range lists {
+			C.setSpotchecklistArray(clists, createSpotchecklist(s), C.int(i))
+		}
+		(*ptr).list = clists
+		(*ptr).size = C.int(len(lists))
+	}
+	return ptr
+}
+
+//export FreeSpotchecklists
+func FreeSpotchecklists(ptr *C.spotchecklists) {
+	if ptr != nil {
+		if (*ptr).list != nil {
+			C.freeSpotchecklistArray((*ptr).list, (*ptr).size)
+			(*ptr).list = nil
+		}
+		C.free(unsafe.Pointer(ptr))
+	}
+}
+
+func createSpotchecklist(list *nodemgmt.SpotCheckList) *C.spotchecklist {
+	ptr := (*C.spotchecklist)(C.malloc(C.size_t(unsafe.Sizeof(C.spotchecklist{}))))
+	C.memset(unsafe.Pointer(ptr), 0, C.size_t(unsafe.Sizeof(C.spotchecklist{})))
+	if !list.TaskID.IsZero() {
+		(*ptr).taskid = C.CString(list.TaskID.Hex())
+	}
+	if list.TaskList != nil && len(list.TaskList) != 0 {
+		tasks := C.makeSpotchecktaskArray(C.int(len(list.TaskList)))
+		for i, s := range list.TaskList {
+			C.setSpotchecktaskArray(tasks, createSpotchecktask(s), C.int(i))
+		}
+		(*ptr).tasklist = tasks
+		(*ptr).size = C.int(len(list.TaskList))
+	}
+	(*ptr).duration = C.int64_t(list.Duration)
+	(*ptr).timestamp = C.int64_t(list.Timestamp)
+	(*ptr).progress = C.int32_t(list.Progress)
+	return ptr
+}
+
+//export FreeSpotchecklist
+func FreeSpotchecklist(ptr *C.spotchecklist) {
+	if ptr != nil {
+		if (*ptr).taskid != nil {
+			C.free(unsafe.Pointer((*ptr).taskid))
+		}
+		if (*ptr).tasklist != nil {
+			C.freeSpotchecktaskArray((*ptr).tasklist, (*ptr).size)
+			(*ptr).tasklist = nil
+		}
+		(*ptr).duration = 0
+		(*ptr).timestamp = 0
+		(*ptr).progress = 0
+		C.free(unsafe.Pointer(ptr))
+	}
+}
+
+func createSpotchecktask(task *nodemgmt.SpotCheckTask) *C.spotchecktask {
+	ptr := (*C.spotchecktask)(C.malloc(C.size_t(unsafe.Sizeof(C.spotchecktask{}))))
+	C.memset(unsafe.Pointer(ptr), 0, C.size_t(unsafe.Sizeof(C.spotchecktask{})))
+	(*ptr).id = C.int(task.ID)
+	if task.NodeID != "" {
+		(*ptr).nodeid = C.CString(task.NodeID)
+	}
+	if task.Addr != "" {
+		(*ptr).addr = C.CString(task.Addr)
+	}
+	if task.VNI != "" {
+		(*ptr).vni = C.CString(task.VNI)
+	}
+	return ptr
+}
+
+//export FreeSpotchecktask
+func FreeSpotchecktask(ptr *C.spotchecktask) {
+	if ptr != nil {
+		(*ptr).id = 0
+		if (*ptr).nodeid != nil {
+			C.free(unsafe.Pointer((*ptr).nodeid))
+		}
+		if (*ptr).addr != nil {
+			C.free(unsafe.Pointer((*ptr).addr))
+		}
+		if (*ptr).vni != nil {
+			C.free(unsafe.Pointer((*ptr).vni))
 		}
 		C.free(unsafe.Pointer(ptr))
 	}

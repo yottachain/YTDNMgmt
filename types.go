@@ -1,5 +1,7 @@
 package YTDNMgmt
 
+import "go.mongodb.org/mongo-driver/bson/primitive"
+
 // Node instance
 type Node struct {
 	//data node index
@@ -78,6 +80,35 @@ type ShardCount struct {
 	Cnt int64 `bson:"cnt"`
 }
 
+// SpotCheckList list of spot check
+type SpotCheckList struct {
+	TaskID    primitive.ObjectID `bson:"_id"`
+	TaskList  []*SpotCheckTask   `bson:"taskList"`
+	Progress  int32              `bson:"progress"`
+	Timestamp int64              `bson:"timestamp"`
+	Duration  int64              `bson:"duration"`
+}
+
+// SpotCheckTask one spot check task
+type SpotCheckTask struct {
+	ID     int32  `bson:"id"`
+	NodeID string `bson:"nodeid"`
+	Addr   string `bson:"addr"`
+	VNI    string `bson:"vni"`
+}
+
+// DNI
+type DNI struct {
+	ID     int32              `bson:"_id"`
+	Shards []primitive.Binary `bson:"shards"`
+}
+
+//VNI
+type VNI struct {
+	ID  int32  `bson:"_id"`
+	VNI []byte `bson:"vni"`
+}
+
 // relative DB and collection name
 const (
 	YottaDB      = "yotta"
@@ -85,6 +116,7 @@ const (
 	SuperNodeTab = "SuperNode"
 	DNITab       = "DNI"
 	SequenceTab  = "Sequence"
+	SpotCheckTab = "SpotCheck"
 	//ContractInfoTab = "ContractInfo"
 )
 

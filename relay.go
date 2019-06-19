@@ -33,21 +33,29 @@ func (self *NodeDaoImpl) AddrCheck(oldNode, newNode *Node) (relayUrl string, err
 			if err != nil {
 				return "", err
 			}
-			return fmt.Sprintf("%s/p2p/%s/p2p-circuit", checkPublicAddr(supernode.Addrs), supernode.NodeID), nil
+			return fmt.Sprintf("%s/p2p/%s/p2p-circuit", CheckPublicAddr(supernode.Addrs), supernode.NodeID), nil
 		} else {
-			return fmt.Sprintf("%s/p2p/%s/p2p-circuit", checkPublicAddr(rnode.Addrs), rnode.NodeID), nil
+			return fmt.Sprintf("%s/p2p/%s/p2p-circuit", CheckPublicAddr(rnode.Addrs), rnode.NodeID), nil
 		}
 
 	}
 }
 
 func RelayUrlCheck(addrs []string) bool {
+	if GetRelayUrl(addrs) != "" {
+		return true
+	} else {
+		return false
+	}
+}
+
+func GetRelayUrl(addrs []string) string {
 	for _, addr := range addrs {
 		if strings.Index(addr, "/p2p/") != -1 {
-			return true
+			return addr
 		}
 	}
-	return false
+	return ""
 }
 
 func (self *NodeDaoImpl) ConnectivityCheck(nodeID string, addrs []string) bool {
@@ -58,7 +66,7 @@ func (self *NodeDaoImpl) ConnectivityCheck(nodeID string, addrs []string) bool {
 	return true
 }
 
-func checkPublicAddr(addrs []string) string {
+func CheckPublicAddr(addrs []string) string {
 	for _, addr := range addrs {
 		if strings.HasPrefix(addr, "/ip4/127.") ||
 			strings.HasPrefix(addr, "/ip4/192.168.") ||
@@ -95,7 +103,7 @@ func (self *NodeDaoImpl) AllocRelayNode() *Node {
 	node := new(Node)
 	options := options.FindOneOptions{}
 	options.Sort = bson.D{{"timestamp", -1}}
-	err := collection.FindOne(context.Background(), bson.M{"valid": 1, "relay": 1, "bandwidth": bson.M{"$lt": 70}, "timestamp": bson.M{"$gt": time.Now().Unix() - IntervalTime*2}}, &options).Decode(node)
+	err := collection.FindOne(context.Background(), bson.M{"valid": 1, "relay": 1, "bandwidth": bson.M{"$lt": 50}, "timestamp": bson.M{"$gt": time.Now().Unix() - IntervalTime*2}}, &options).Decode(node)
 	if err != nil {
 		return nil
 	}

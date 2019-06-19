@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 
 	eos "github.com/eoscanada/eos-go"
@@ -14,6 +15,22 @@ type Miner struct {
 
 func main() {
 
+	nodeDao, _ := nodemgmt.NewInstance("mongodb://127.0.0.1:27017", "http://152.136.16.118:8888", "username1234", "5JcDH48njDbUQLu1R8SWwKsfWLnqBpWXDDiCgxFC3hioDuwLhVx", "hddpool12345", 2)
+	list, err := nodeDao.GetSpotCheckList()
+	if err != nil {
+		log.Fatalln(err.Error())
+	}
+	fmt.Printf("%d\n", len(list[0].TaskList))
+	node, err := nodeDao.GetSTNode()
+	if err != nil {
+		log.Fatalln(err.Error())
+	}
+	fmt.Printf("%d\n", node.ID)
+	err = nodeDao.UpdateTaskStatus("5d0854da30a31ead856c870c", 60, nil)
+	if err != nil {
+		log.Fatalln(err.Error())
+	}
+
 	// host, err := YTDNMgmt.NewHost()
 	// if err != nil {
 	// 	log.Fatalln(err.Error())
@@ -22,19 +39,19 @@ func main() {
 	// if err != nil {
 	// 	log.Fatalln(err.Error())
 	// }
-	nodeDao, _ := nodemgmt.NewInstance("mongodb://152.136.18.185:27017", "http://152.136.16.118:8888", "username1234", "5JcDH48njDbUQLu1R8SWwKsfWLnqBpWXDDiCgxFC3hioDuwLhVx", "hddpool12345", 2)
-	node := new(nodemgmt.Node)
-	node.ID = 767
-	node.Bandwidth = 0
-	node.CPU = 10
-	node.MaxDataSpace = 2621440
-	node.Memory = 30
-	node.Addrs = []string{"/ip4/127.0.0.1/tcp/9001", "/ip4/192.168.123.50/tcp/9001", "/ip4/10.211.55.2/tcp/9001", "/ip4/10.37.129.2/tcp/9001", "/ip4/36.110.28.94/tcp/9001", "/ip4/152.136.18.185/tcp/9999/p2p/16Uiu2HAkwNCD9HSH5hh36LmzgLjRcQiQFpT9spwspaAM5AH3rqA9/p2p-circuit"}
-	node.Relay = 0
-	_, err := nodeDao.UpdateNodeStatus(node)
-	if err != nil {
-		log.Fatalln(err.Error())
-	}
+	// nodeDao, _ := nodemgmt.NewInstance("mongodb://152.136.18.185:27017", "http://152.136.16.118:8888", "username1234", "5JcDH48njDbUQLu1R8SWwKsfWLnqBpWXDDiCgxFC3hioDuwLhVx", "hddpool12345", 2)
+	// node := new(nodemgmt.Node)
+	// node.ID = 767
+	// node.Bandwidth = 0
+	// node.CPU = 10
+	// node.MaxDataSpace = 2621440
+	// node.Memory = 30
+	// node.Addrs = []string{"/ip4/127.0.0.1/tcp/9001", "/ip4/192.168.123.50/tcp/9001", "/ip4/10.211.55.2/tcp/9001", "/ip4/10.37.129.2/tcp/9001", "/ip4/36.110.28.94/tcp/9001", "/ip4/152.136.18.185/tcp/9999/p2p/16Uiu2HAkwNCD9HSH5hh36LmzgLjRcQiQFpT9spwspaAM5AH3rqA9/p2p-circuit"}
+	// node.Relay = 0
+	// _, err := nodeDao.UpdateNodeStatus(node)
+	// if err != nil {
+	// 	log.Fatalln(err.Error())
+	// }
 
 	// node := nodeDao.AllocRelayNode()
 	// if node == nil {
