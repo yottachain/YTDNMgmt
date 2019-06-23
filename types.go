@@ -38,12 +38,12 @@ type Node struct {
 	Timestamp int64 `bson:"timestamp"`
 }
 
-// NewNode create a node struct
+//NewNode create a node struct
 func NewNode(id int32, nodeid string, pubkey string, owner string, addrs []string, cpu int32, memory int32, bandwidth int32, maxDataSpace int64, assignedSpace int64, productiveSpace int64, usedSpace int64, relay int32) *Node {
 	return &Node{ID: id, NodeID: nodeid, PubKey: pubkey, Owner: owner, Addrs: addrs, CPU: cpu, Memory: memory, Bandwidth: bandwidth, MaxDataSpace: maxDataSpace, AssignedSpace: assignedSpace, ProductiveSpace: productiveSpace, UsedSpace: usedSpace, Relay: relay}
 }
 
-// SuperNode instance
+//SuperNode instance
 type SuperNode struct {
 	//super node index
 	ID int32 `bson:"_id"`
@@ -57,14 +57,14 @@ type SuperNode struct {
 	Addrs []string `bson:"addrs"`
 }
 
-// ContractInfo instance
+//ContractInfo instance
 type ContractInfo struct {
 	ID      int32  `bson:"_id"`
 	User    string `bson:"user"`
 	PrivKey string `bson:"privkey"`
 }
 
-// NodeStat statistics of data node
+//NodeStat statistics of data node
 type NodeStat struct {
 	ActiveMiners    int64 `bson:"activeMiners"`
 	TotalMiners     int64 `bson:"totalMiners"`
@@ -74,13 +74,13 @@ type NodeStat struct {
 	UsedTotal       int64 `bson:"usedTotal"`
 }
 
-// ShardCount shards count of one data node
+//ShardCount shards count of one data node
 type ShardCount struct {
 	ID  int32 `bson:"_id"`
 	Cnt int64 `bson:"cnt"`
 }
 
-// SpotCheckList list of spot check
+//SpotCheckList list of spot check
 type SpotCheckList struct {
 	TaskID    primitive.ObjectID `bson:"_id"`
 	TaskList  []*SpotCheckTask   `bson:"taskList"`
@@ -89,7 +89,7 @@ type SpotCheckList struct {
 	Duration  int64              `bson:"duration"`
 }
 
-// SpotCheckTask one spot check task
+//SpotCheckTask one spot check task
 type SpotCheckTask struct {
 	ID     int32  `bson:"id"`
 	NodeID string `bson:"nodeid"`
@@ -97,7 +97,7 @@ type SpotCheckTask struct {
 	VNI    string `bson:"vni"`
 }
 
-// DNI
+//DNI
 type DNI struct {
 	ID     int32              `bson:"_id"`
 	Shards []primitive.Binary `bson:"shards"`
@@ -109,7 +109,7 @@ type VNI struct {
 	VNI []byte `bson:"vni"`
 }
 
-// relative DB and collection name
+//relative DB and collection name
 const (
 	YottaDB      = "yotta"
 	NodeTab      = "Node"
@@ -120,11 +120,11 @@ const (
 	//ContractInfoTab = "ContractInfo"
 )
 
-// index type of node and supernode collection
+//index type of node and supernode collection
 var (
 	NodeIdxType      = 100
 	SuperNodeIdxType = 101
 )
 
-// interval time of data node reporting status
+//interval time of data node reporting status
 var IntervalTime int64 = 60

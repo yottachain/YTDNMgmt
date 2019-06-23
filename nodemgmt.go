@@ -26,15 +26,10 @@ var incr int64 = 0
 
 // create a new instance of NodeDaoImpl
 func NewInstance(mongoURL, eosURL, bpAccount, bpPrivkey, contractOwner string, bpID int32) (*NodeDaoImpl, error) {
-	//ctx, _ := context.WithTimeout(context.Background(), 10*time.Second)
 	client, err := mongo.Connect(context.Background(), options.Client().ApplyURI(mongoURL))
 	if err != nil {
 		return nil, err
 	}
-	// ci, err := getContractInfo(client)
-	// if err != nil {
-	// 	return nil, err
-	// }
 	etx, err := eostx.NewInstance(eosURL, bpAccount, bpPrivkey, contractOwner)
 	if err != nil {
 		return nil, err
@@ -55,16 +50,6 @@ func getCurrentSuperNodeIndex(client *mongo.Client) (int32, error) {
 	}
 	return m["seq"], nil
 }
-
-// func getContractInfo(client *mongo.Client) (*ContractInfo, error) {
-// 	collection := client.Database(YottaDB).Collection(ContractInfoTab)
-// 	ci := new(ContractInfo)
-// 	err := collection.FindOne(context.Background(), bson.M{"_id": 0}).Decode(&ci)
-// 	if err != nil {
-// 		return nil, err
-// 	}
-// 	return ci, nil
-// }
 
 // generate a new id for Node collection
 func newID(client *mongo.Client) (int32, error) {
