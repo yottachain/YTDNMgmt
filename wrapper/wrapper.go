@@ -14,6 +14,9 @@ typedef struct node {
 	char *nodeid;
 	char *pubkey;
 	char *owner;
+	char* profitAcc;
+	char* poolID;
+	int64_t quota;
 	char **addrs;
 	int addrsize;
 	int32_t cpu;
@@ -23,7 +26,11 @@ typedef struct node {
 	int64_t assignedSpace;
 	int64_t productiveSpace;
 	int64_t usedSpace;
+	double weight;
+	int32_t valid;
 	int32_t relay;
+	int32_t status;
+	int64_t timestamp;
 	char *error;
 } node;
 
@@ -223,34 +230,76 @@ func NewInstance(mongodbURL, eosURL, bpAccount, bpPrivkey, contractOwner *C.char
 	return nil
 }
 
+//export NewNodeID
+func NewNodeID() *C.intwitherror {
+	if nodeDao == nil {
+		return createIntwitherror(0, errors.New("Node management module has not started"))
+	}
+	id, err := nodeDao.NewNodeID()
+	return createIntwitherror(id, err)
+}
+
+//export PreRegisterNode
+func PreRegisterNode(trx *C.char) *C.char {
+	if nodeDao == nil {
+		return C.CString("Node management module has not started")
+	}
+	err := nodeDao.PreRegisterNode(C.GoString(trx))
+	if err != nil {
+		return C.CString(err.Error())
+	}
+	return nil
+}
+
+//export ChangeMinerPool
+func ChangeMinerPool(trx *C.char) *C.char {
+	if nodeDao == nil {
+		return C.CString("Node management module has not started")
+	}
+	err := nodeDao.ChangeMinerPool(C.GoString(trx))
+	if err != nil {
+		return C.CString(err.Error())
+	}
+	return nil
+}
+
 //export RegisterNode
 func RegisterNode(node *C.node) *C.node {
+	if nodeDao == nil {
+		return createNodeStruct(nil, errors.New("Node management module has not started"))
+	}
 	length := int(node.addrsize)
 	tmpslice := (*[1 << 30]*C.char)(unsafe.Pointer(node.addrs))[:length:length]
 	addrs := make([]string, length)
 	for i, s := range tmpslice {
 		addrs[i] = C.GoString(s)
 	}
-	gnode := nodemgmt.NewNode(int32(node.id), C.GoString(node.nodeid), C.GoString(node.pubkey), C.GoString(node.owner), addrs, int32(node.cpu), int32(node.memory), int32(node.bandwidth), int64(node.maxDataSpace), int64(node.assignedSpace), int64(node.productiveSpace), int64(node.usedSpace), int32(node.relay))
+	gnode := nodemgmt.NewNode(int32(node.id), C.GoString(node.nodeid), C.GoString(node.pubkey), C.GoString(node.owner), C.GoString(node.profitAcc), C.GoString(node.poolID), int64(node.quota), addrs, int32(node.cpu), int32(node.memory), int32(node.bandwidth), int64(node.maxDataSpace), int64(node.assignedSpace), int64(node.productiveSpace), int64(node.usedSpace), float64(node.weight), int32(node.valid), int32(node.relay), int32(node.status), int64(node.timestamp))
 	gnode, err := nodeDao.RegisterNode(gnode)
 	return createNodeStruct(gnode, err)
 }
 
 //export UpdateNodeStatus
 func UpdateNodeStatus(node *C.node) *C.node {
+	if nodeDao == nil {
+		return createNodeStruct(nil, errors.New("Node management module has not started"))
+	}
 	length := int(node.addrsize)
 	tmpslice := (*[1 << 30]*C.char)(unsafe.Pointer(node.addrs))[:length:length]
 	addrs := make([]string, length)
 	for i, s := range tmpslice {
 		addrs[i] = C.GoString(s)
 	}
-	gnode := nodemgmt.NewNode(int32(node.id), C.GoString(node.nodeid), C.GoString(node.pubkey), C.GoString(node.owner), addrs, int32(node.cpu), int32(node.memory), int32(node.bandwidth), int64(node.maxDataSpace), int64(node.assignedSpace), int64(node.productiveSpace), int64(node.usedSpace), int32(node.relay))
+	gnode := nodemgmt.NewNode(int32(node.id), C.GoString(node.nodeid), C.GoString(node.pubkey), C.GoString(node.owner), C.GoString(node.profitAcc), C.GoString(node.poolID), int64(node.quota), addrs, int32(node.cpu), int32(node.memory), int32(node.bandwidth), int64(node.maxDataSpace), int64(node.assignedSpace), int64(node.productiveSpace), int64(node.usedSpace), float64(node.weight), int32(node.valid), int32(node.relay), int32(node.status), int64(node.timestamp))
 	gnode, err := nodeDao.UpdateNodeStatus(gnode)
 	return createNodeStruct(gnode, err)
 }
 
 //export IncrUsedSpace
 func IncrUsedSpace(id C.int32_t, incr C.int64_t) *C.char {
+	if nodeDao == nil {
+		return C.CString("Node management module has not started")
+	}
 	err := nodeDao.IncrUsedSpace(int32(id), int64(incr))
 	if err != nil {
 		return C.CString(err.Error())
@@ -265,6 +314,25 @@ func AllocNodes(shardCount C.int) *C.allocnoderet {
 	}
 	nodes, err := nodeDao.AllocNodes(int32(shardCount))
 	return createAllocnoderet(nodes, err)
+}
+
+//export SyncNode
+func SyncNode(node *C.node) *C.char {
+	if nodeDao == nil {
+		return C.CString("Node management module has not started")
+	}
+	length := int(node.addrsize)
+	tmpslice := (*[1 << 30]*C.char)(unsafe.Pointer(node.addrs))[:length:length]
+	addrs := make([]string, length)
+	for i, s := range tmpslice {
+		addrs[i] = C.GoString(s)
+	}
+	gnode := nodemgmt.NewNode(int32(node.id), C.GoString(node.nodeid), C.GoString(node.pubkey), C.GoString(node.owner), C.GoString(node.profitAcc), C.GoString(node.poolID), int64(node.quota), addrs, int32(node.cpu), int32(node.memory), int32(node.bandwidth), int64(node.maxDataSpace), int64(node.assignedSpace), int64(node.productiveSpace), int64(node.usedSpace), float64(node.weight), int32(node.valid), int32(node.relay), int32(node.status), int64(node.timestamp))
+	err := nodeDao.SyncNode(gnode)
+	if err != nil {
+		return C.CString(err.Error())
+	}
+	return nil
 }
 
 //export GetNodes
@@ -307,6 +375,15 @@ func GetNodeIDByPubKey(pubkey *C.char) *C.intwitherror {
 	}
 	id, err := nodeDao.GetNodeIDByPubKey(C.GoString(pubkey))
 	return createIntwitherror(id, err)
+}
+
+//export GetNodeByPubKey
+func GetNodeByPubKey(pubkey *C.char) *C.node {
+	if nodeDao == nil {
+		return createNodeStruct(nil, errors.New("Node management module has not started"))
+	}
+	gnode, err := nodeDao.GetNodeByPubKey(C.GoString(pubkey))
+	return createNodeStruct(gnode, err)
 }
 
 //export GetSuperNodeIDByPubKey
@@ -444,6 +521,12 @@ func FreeNodestatret(ptr *C.nodestatret) {
 			C.free(unsafe.Pointer((*ptr).error))
 			(*ptr).error = nil
 		}
+		(*ptr).activeMiners = 0
+		(*ptr).totalMiners = 0
+		(*ptr).maxTotal = 0
+		(*ptr).assignedTotal = 0
+		(*ptr).productiveTotal = 0
+		(*ptr).usedTotal = 0
 		C.free(unsafe.Pointer(ptr))
 	}
 }
@@ -465,6 +548,13 @@ func createNodeStruct(node *nodemgmt.Node, err error) *C.node {
 	if node.Owner != "" {
 		(*ptr).owner = C.CString(node.Owner)
 	}
+	if node.ProfitAcc != "" {
+		(*ptr).profitAcc = C.CString(node.ProfitAcc)
+	}
+	if node.PoolID != "" {
+		(*ptr).poolID = C.CString(node.PoolID)
+	}
+	(*ptr).quota = C.int64_t(node.Quota)
 	if node.Addrs != nil && len(node.Addrs) != 0 {
 		caddrs := C.makeCharArray(C.int(len(node.Addrs)))
 		for i, s := range node.Addrs {
@@ -494,13 +584,18 @@ func createNodeStruct(node *nodemgmt.Node, err error) *C.node {
 	if node.UsedSpace > 0 {
 		(*ptr).usedSpace = C.int64_t(node.UsedSpace)
 	}
+	(*ptr).weight = C.double(node.Weight)
+	(*ptr).valid = C.int32_t(node.Valid)
 	(*ptr).relay = C.int32_t(node.Relay)
+	(*ptr).status = C.int32_t(node.Status)
+	(*ptr).timestamp = C.int64_t(node.Timestamp)
 	return ptr
 }
 
 //export FreeNode
 func FreeNode(ptr *C.node) {
 	if ptr != nil {
+		(*ptr).id = 0
 		if (*ptr).nodeid != nil {
 			C.free(unsafe.Pointer((*ptr).nodeid))
 		}
@@ -510,9 +605,17 @@ func FreeNode(ptr *C.node) {
 		if (*ptr).owner != nil {
 			C.free(unsafe.Pointer((*ptr).owner))
 		}
+		if (*ptr).profitAcc != nil {
+			C.free(unsafe.Pointer((*ptr).profitAcc))
+		}
+		if (*ptr).poolID != nil {
+			C.free(unsafe.Pointer((*ptr).poolID))
+		}
+		(*ptr).quota = 0
 		if (*ptr).addrs != nil {
 			C.freeCharArray((*ptr).addrs, (*ptr).addrsize)
 			(*ptr).addrs = nil
+			(*ptr).addrsize = 0
 		}
 		(*ptr).cpu = 0
 		(*ptr).memory = 0
@@ -521,6 +624,11 @@ func FreeNode(ptr *C.node) {
 		(*ptr).assignedSpace = 0
 		(*ptr).productiveSpace = 0
 		(*ptr).usedSpace = 0
+		(*ptr).weight = 0
+		(*ptr).valid = 0
+		(*ptr).relay = 0
+		(*ptr).status = 0
+		(*ptr).timestamp = 0
 		if (*ptr).error != nil {
 			C.free(unsafe.Pointer((*ptr).error))
 			(*ptr).error = nil

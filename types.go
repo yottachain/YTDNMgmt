@@ -10,8 +10,14 @@ type Node struct {
 	NodeID string `bson:"nodeid"`
 	//public key of data node
 	PubKey string `bson:"pubkey"`
-	//associated EOS aaccount
+	//owner account of this miner
 	Owner string `bson:"owner"`
+	//profit account of this miner
+	ProfitAcc string `bson:"profitAcc"`
+	//ID of associated miner pool
+	PoolID string `bson:"poolID"`
+	//quota allocated by associated miner pool
+	Quota int64 `bson:"quota"`
 	//listening addresses of data node
 	Addrs []string `bson:"addrs"`
 	//CPU usage of data node
@@ -34,13 +40,15 @@ type Node struct {
 	Valid int32 `bson:"valid"`
 	//Is relay node
 	Relay int32 `bson:"relay"`
+	//status code: 0 - after preregister 1 - after register 2 - active
+	Status int32 `bson:"status"`
 	//timestamp of status updating operation
 	Timestamp int64 `bson:"timestamp"`
 }
 
 //NewNode create a node struct
-func NewNode(id int32, nodeid string, pubkey string, owner string, addrs []string, cpu int32, memory int32, bandwidth int32, maxDataSpace int64, assignedSpace int64, productiveSpace int64, usedSpace int64, relay int32) *Node {
-	return &Node{ID: id, NodeID: nodeid, PubKey: pubkey, Owner: owner, Addrs: addrs, CPU: cpu, Memory: memory, Bandwidth: bandwidth, MaxDataSpace: maxDataSpace, AssignedSpace: assignedSpace, ProductiveSpace: productiveSpace, UsedSpace: usedSpace, Relay: relay}
+func NewNode(id int32, nodeid string, pubkey string, owner string, profitAcc string, poolID string, quota int64, addrs []string, cpu int32, memory int32, bandwidth int32, maxDataSpace int64, assignedSpace int64, productiveSpace int64, usedSpace int64, weight float64, valid int32, relay int32, status int32, timestamp int64) *Node {
+	return &Node{ID: id, NodeID: nodeid, PubKey: pubkey, Owner: owner, ProfitAcc: profitAcc, PoolID: poolID, Quota: quota, Addrs: addrs, CPU: cpu, Memory: memory, Bandwidth: bandwidth, MaxDataSpace: maxDataSpace, AssignedSpace: assignedSpace, ProductiveSpace: productiveSpace, UsedSpace: usedSpace, Weight: weight, Valid: valid, Relay: relay, Status: status, Timestamp: timestamp}
 }
 
 //SuperNode instance

@@ -8,6 +8,20 @@ type EosTX struct {
 	ContractOwner string
 }
 
+type Reg struct {
+	MinerID   uint64          `json:"minerid"`
+	Owner     eos.AccountName `json:"adminacc"`
+	DepAcc    eos.AccountName `json:"dep_acc"`
+	DepAmount eos.Asset       `json:"dep_amoun"`
+}
+
+type ChangeMinerPool struct {
+	MinerID     uint64          `json:"minerid"`
+	PoolID      eos.AccountName `json:"pool_id"`
+	MinerProfit eos.AccountName `json:"minerowner"`
+	MaxSpace    uint64          `json:"max_space"`
+}
+
 type Miner struct {
 	Owner   eos.AccountName `json:"owner"`
 	MinerID uint64          `json:"minerid"`
@@ -22,9 +36,10 @@ type Profit struct {
 }
 
 type PledgeData struct {
-	MinerID     uint32 `json:"minerid"`
-	AccountName string `json:"account_name"`
-	Deposit     string `json:"deposit"`
+	MinerID     uint32    `json:"minerid"`
+	AccountName string    `json:"account_name"`
+	Deposit     eos.Asset `json:"deposit"`
+	Total       eos.Asset `json:"dep_total"`
 }
 
 type PayForfeit struct {

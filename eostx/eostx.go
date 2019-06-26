@@ -1,11 +1,15 @@
 package eostx
 
 import (
+	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 
 	"github.com/eoscanada/eos-go"
 	"github.com/eoscanada/eos-go/ecc"
+	_ "github.com/eoscanada/eos-go/system"
+	_ "github.com/eoscanada/eos-go/token"
 	ytcrypto "github.com/yottachain/YTCrypto"
 )
 
@@ -85,19 +89,23 @@ func (eostx *EosTX) AddSpace(owner string, minerID, space uint64) error {
 //GetPledgeData get pledge data of one miner
 func (eostx *EosTX) GetPledgeData(minerid uint64) (*PledgeData, error) {
 	req := eos.GetTableRowsRequest{
-		Code:  "hdddeposit12",
-		Scope: fmt.Sprintf("%d", minerid),
-		Table: "minerdeposit",
-		JSON:  true,
+		Code:       "hdddeposit12",
+		Scope:      "hdddeposit12",
+		Table:      "miner2dep",
+		LowerBound: fmt.Sprintf("%d", minerid),
+		UpperBound: fmt.Sprintf("%d", minerid),
+		Limit:      1,
+		KeyType:    "i64",
+		Index:      "1",
+		JSON:       true,
 	}
 	resp, err := eostx.API.GetTableRows(req)
 	if err != nil {
-		return nil, fmt.Errorf("get table row failed, minerid: %s", req.Scope)
+		return nil, fmt.Errorf("get table row failed, minerid: %s", minerid)
 	}
 	if resp.More == true {
-		return nil, fmt.Errorf("more than one rows returned, minerid: %s", req.Scope)
+		return nil, fmt.Errorf("more than one rows returned, minerid: %s", minerid)
 	}
-	fmt.Println(string(resp.Rows))
 	rows := make([]PledgeData, 0)
 	err = json.Unmarshal(resp.Rows, &rows)
 	if err != nil {
@@ -109,14 +117,14 @@ func (eostx *EosTX) GetPledgeData(minerid uint64) (*PledgeData, error) {
 	return &rows[0], nil
 }
 
-//GetPledgeCount get pledge amount of one miner
-func GetPledgeAmount(data *PledgeData) (*eos.Asset, error) {
-	dataAsset, err := NewYTAAssetFromString(data.Deposit)
-	if err != nil {
-		return nil, err
-	}
-	return &dataAsset, nil
-}
+// //GetPledgeCount get pledge amount of one miner
+// func GetPledgeAmount(data *PledgeData) (*eos.Asset, error) {
+// 	dataAsset, err := NewYTAAssetFromString(data.Deposit)
+// 	if err != nil {
+// 		return nil, err
+// 	}
+// 	return &dataAsset, nil
+// }
 
 // PayForfeit invalid miner need to pay forfeit
 func (eostx *EosTX) DeducePledge(minerID uint64, count *eos.Asset) error {
@@ -210,6 +218,120 @@ func (eostx *EosTX) cutVote(user string) error {
 		return fmt.Errorf("sign transaction: %s", err)
 	}
 
+	_, err = eostx.API.PushTransaction(packedTx)
+	if err != nil {
+		return fmt.Errorf("push transaction: %s", err)
+	}
+	return nil
+}
+
+// //extract all neccessary parameters from transaction
+// func (eostx *EosTX) PreRegisterTrx(trx string) (*Reg, error) {
+// 	if trx == "" {
+// 		return nil, errors.New("input transaction can not be null")
+// 	}
+// 	var signedTrx *eos.SignedTransaction
+// 	err := json.Unmarshal([]byte(trx), &signedTrx)
+// 	if err != nil {
+// 		return nil, err
+// 	}
+// 	if len(signedTrx.Actions) != 1 {
+// 		return nil, errors.New("need at least one action")
+// 	}
+// 	bytes, err := hex.DecodeString(signedTrx.Actions[0].ActionData.Data.(string))
+// 	if err != nil {
+// 		return nil, err
+// 	}
+// 	decoder := eos.NewDecoder(bytes)
+// 	data := new(Reg)
+// 	err = decoder.Decode(data)
+// 	if err != nil {
+// 		return nil, err
+// 	}
+// 	err = eostx.sendTrx(signedTrx)
+// 	if err != nil {
+// 		return nil, err
+// 	}
+// 	return data, nil
+// }
+
+//extract all neccessary parameters from transaction
+func (eostx *EosTX) PreRegisterTrx(trx string) (*Reg, error) {
+	if trx == "" {
+		return nil, errors.New("input transaction can not be null")
+	}
+	var packedTrx *eos.PackedTransaction
+	err := json.Unmarshal([]byte(trx), &packedTrx)
+	if err != nil {
+		return nil, err
+	}
+	signedTrx, err := packedTrx.Unpack()
+	if err != nil {
+		return nil, err
+	}
+	if len(signedTrx.Actions) != 1 {
+		return nil, errors.New("need at least one action")
+	}
+	var actionBytes []byte
+	if signedTrx.Actions[0].ActionData.Data != nil {
+		actionBytes, err = hex.DecodeString(string([]byte(signedTrx.Actions[0].ActionData.Data.(string))))
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		actionBytes = []byte(signedTrx.Actions[0].ActionData.HexData)
+	}
+	decoder := eos.NewDecoder(actionBytes)
+	data := new(Reg)
+	err = decoder.Decode(data)
+	if err != nil {
+		return nil, err
+	}
+	err = eostx.SendTrx(signedTrx)
+	if err != nil {
+		return nil, err
+	}
+	return data, nil
+}
+
+//extract all neccessary parameters from transaction
+func (eostx *EosTX) ChangMinerPoolTrx(trx string) (*ChangeMinerPool, error) {
+	if trx == "" {
+		return nil, errors.New("input transaction can not be null")
+	}
+	var packedTrx *eos.PackedTransaction
+	err := json.Unmarshal([]byte(trx), &packedTrx)
+	if err != nil {
+		return nil, err
+	}
+	signedTrx, err := packedTrx.Unpack()
+	var actionBytes []byte
+	if signedTrx.Actions[0].ActionData.Data != nil {
+		actionBytes, err = hex.DecodeString(string([]byte(signedTrx.Actions[0].ActionData.Data.(string))))
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		actionBytes = []byte(signedTrx.Actions[0].ActionData.HexData)
+	}
+	decoder := eos.NewDecoder(actionBytes)
+	data := new(ChangeMinerPool)
+	err = decoder.Decode(data)
+	if err != nil {
+		return nil, err
+	}
+	err = eostx.SendTrx(signedTrx)
+	if err != nil {
+		return nil, err
+	}
+	return data, nil
+}
+
+func (eostx *EosTX) SendTrx(signedTx *eos.SignedTransaction) error {
+	packedTx, err := signedTx.Pack(eos.CompressionNone)
+	if err != nil {
+		return err
+	}
 	_, err = eostx.API.PushTransaction(packedTx)
 	if err != nil {
 		return fmt.Errorf("push transaction: %s", err)

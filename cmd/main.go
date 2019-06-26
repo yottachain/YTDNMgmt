@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"log"
 
 	eos "github.com/eoscanada/eos-go"
@@ -14,22 +13,44 @@ type Miner struct {
 }
 
 func main() {
+	rawjson := `{"signatures":["SIG_K1_K5sjURSuCmfRfLNHhfLjHxvMrnePz44NeaK5S1PsxaV2QHdkPyw5CkHL6W5BXLeJcTfnew2yDSYc12mNRmwVsF7ufpkD6A","SIG_K1_KXTJx3mM1WR7NE83w7D4SfcATkbzi3GwakBBuEP4dSUdFwwsXf7hcxcBKXVwCU121JwWqLDV31qazhUuRUwdGxnAFaFZ79"],"compression":"zlib","packed_context_free_data":"78da010000ffff00000001","packed_trx":"78da7add2a1c3bad30cca5d49e8181818131e0848062505470160343c79430c560232606068970c5b92fd6826457bc35327268e3f09a55297a0dc6579062618000a78e2961a599c7601ab8a0c20c80000000ffff4d1d192f"}`
+	// etx, _ := eostx.NewInstance("http://152.136.17.115:8888", "producer1", "5HtM6e3mQNLEu2TkQ1ZrbMNpRQiHGsKxEsLdxd9VsdCmp1um8QH", "hddpool12345")
+	// _, err := etx.ChangMinerPoolTrx(rawjson)
+	// if err != nil {
+	// 	log.Fatalln(err.Error())
+	// }
+	nodeDao, _ := nodemgmt.NewInstance("mongodb://152.136.16.118:27017", "http://152.136.16.118:8888", "producer1", "5HtM6e3mQNLEu2TkQ1ZrbMNpRQiHGsKxEsLdxd9VsdCmp1um8QH", "hddpool12345", 2)
+	err := nodeDao.ChangeMinerPool(rawjson)
+	if err != nil {
+		log.Fatalln(err.Error())
+	}
+	// o := new(nodemgmt.Node)
+	// o.NodeID = "16Uiu2HAmT2HyPoPBGSmc53G7uKsPtW9uvT4abQaafXFPstPTi6zv"
+	// n := new(nodemgmt.Node)
+	// n.ID = 730
+	// n.NodeID = "16Uiu2HAmT2HyPoPBGSmc53G7uKsPtW9uvT4abQaafXFPstPTi6zv"
+	// n.PubKey = "8TFNo4gqjKKd5yXoxaP6KgGnaGRr1ZoywX5Anw2KRNHF1mNcj5"
+	// n.Owner = "usernamefang"
+	// n.Addrs = []string{"/ip4/10.0.21.180/tcp/9001", "/ip4/36.110.28.94/tcp/9001", "/ip4/152.136.17.115/tcp/9999/p2p/16Uiu2HAm9fBJNUzSD5V9aFJQQHbxE3rPsTiyrYk7vju18JCf3xm8/p2p-circuit"}
+	// _, err := nodeDao.AddrCheck(o, n)
+	// if err != nil {
+	// 	log.Fatalln(err.Error())
+	// }
 
-	nodeDao, _ := nodemgmt.NewInstance("mongodb://127.0.0.1:27017", "http://152.136.16.118:8888", "username1234", "5JcDH48njDbUQLu1R8SWwKsfWLnqBpWXDDiCgxFC3hioDuwLhVx", "hddpool12345", 2)
-	list, err := nodeDao.GetSpotCheckList()
-	if err != nil {
-		log.Fatalln(err.Error())
-	}
-	fmt.Printf("%d\n", len(list[0].TaskList))
-	node, err := nodeDao.GetSTNode()
-	if err != nil {
-		log.Fatalln(err.Error())
-	}
-	fmt.Printf("%d\n", node.ID)
-	err = nodeDao.UpdateTaskStatus("5d0854da30a31ead856c870c", 60, nil)
-	if err != nil {
-		log.Fatalln(err.Error())
-	}
+	// list, err := nodeDao.GetSpotCheckList()
+	// if err != nil {
+	// 	log.Fatalln(err.Error())
+	// }
+	// fmt.Printf("%d\n", len(list[0].TaskList))
+	// node, err := nodeDao.GetSTNode()
+	// if err != nil {
+	// 	log.Fatalln(err.Error())
+	// }
+	// fmt.Printf("%d\n", node.ID)
+	// err = nodeDao.UpdateTaskStatus("5d0854da30a31ead856c870c", 60, nil)
+	// if err != nil {
+	// 	log.Fatalln(err.Error())
+	// }
 
 	// host, err := YTDNMgmt.NewHost()
 	// if err != nil {
@@ -224,8 +245,23 @@ func main() {
 
 	// fmt.Printf("Transaction [%s] submitted to the network succesfully.\n", hex.EncodeToString(response.Processed.ID))
 
-	// etx, _ := eostx.NewInstance("http://152.136.16.118:8888", "producer1", "5HtM6e3mQNLEu2TkQ1ZrbMNpRQiHGsKxEsLdxd9VsdCmp1um8QH", "hddpool12345")
-	// err := etx.AddMiner("username1234", 99999)
+	//etx, _ := eostx.NewInstance("http://152.136.16.118:8888", "producer1", "5HtM6e3mQNLEu2TkQ1ZrbMNpRQiHGsKxEsLdxd9VsdCmp1um8QH", "hddpool12345")
+	//etx.ExampleAPI_GetAccount("username1234")
+	// data, err := etx.GetPledgeData(842)
+	// if err != nil {
+	// 	log.Fatalln(err.Error())
+	// }
+	// fmt.Println(data.AccountName, data.Deposit)
+	// asset, err := eostx.GetPledgeAmount(data)
+	// if err != nil {
+	// 	log.Fatalln(err.Error())
+	// }
+	// asset.Amount = asset.Amount / 10
+	// err = etx.DeducePledge(842, asset)
+	// if err != nil {
+	// 	log.Fatalln(err.Error())
+	// }
+	// err = etx.AddMiner("username1234", 99999)
 	// if err != nil {
 	// 	fmt.Println(err.Error())
 	// }

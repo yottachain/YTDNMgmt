@@ -71,3 +71,23 @@ func ObjectsAreEqual(expected, actual interface{}) bool {
 	return reflect.DeepEqual(expected, actual)
 
 }
+
+func Max(num ...int64) int64 {
+	max := num[0]
+	for _, v := range num {
+		if v > max {
+			max = v
+		}
+	}
+	return max
+}
+
+func Min(num ...int64) int64 {
+	min := num[0]
+	for _, v := range num {
+		if v < min {
+			min = v
+		}
+	}
+	return min
+}
