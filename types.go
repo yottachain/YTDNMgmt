@@ -40,7 +40,7 @@ type Node struct {
 	Valid int32 `bson:"valid"`
 	//Is relay node
 	Relay int32 `bson:"relay"`
-	//status code: 0 - after preregister 1 - after register 2 - active
+	//status code: 0 - registered 1 - active
 	Status int32 `bson:"status"`
 	//timestamp of status updating operation
 	Timestamp int64 `bson:"timestamp"`

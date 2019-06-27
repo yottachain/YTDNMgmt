@@ -20,7 +20,7 @@ func init() {
 func (self *NodeDaoImpl) GetSpotCheckList() ([]*SpotCheckList, error) {
 	spotCheckLists := make([]*SpotCheckList, 0)
 	collection := self.client.Database(YottaDB).Collection(NodeTab)
-	cur, err := collection.Find(context.Background(), bson.M{"usedSpace": bson.M{"$gt": 0}, "valid": 1, "status": 2, "_id": bson.M{"$mod": bson.A{incr, index}}})
+	cur, err := collection.Find(context.Background(), bson.M{"usedSpace": bson.M{"$gt": 0}, "valid": 1, "status": 1, "_id": bson.M{"$mod": bson.A{incr, index}}})
 	if err != nil {
 		return nil, err
 	}
@@ -75,7 +75,7 @@ func (self *NodeDaoImpl) GetSTNode() (*Node, error) {
 	node := new(Node)
 	options := options.FindOneOptions{}
 	options.Sort = bson.D{{"timestamp", -1}}
-	err := collection.FindOne(context.Background(), bson.M{"valid": 1, "bandwidth": bson.M{"$lt": 50}, "timestamp": bson.M{"$gt": time.Now().Unix() - IntervalTime*2}}, &options).Decode(node)
+	err := collection.FindOne(context.Background(), bson.M{"valid": 1, "status": 1, "bandwidth": bson.M{"$lt": 50}, "timestamp": bson.M{"$gt": time.Now().Unix() - IntervalTime*2}}, &options).Decode(node)
 	if err != nil {
 		return nil, err
 	}

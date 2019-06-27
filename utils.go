@@ -3,6 +3,10 @@ package YTDNMgmt
 import (
 	"bytes"
 	"reflect"
+
+	cyp "github.com/libp2p/go-libp2p-core/crypto"
+	peer "github.com/libp2p/go-libp2p-core/peer"
+	"github.com/mr-tron/base58"
 )
 
 func EqualSorted(listA, listB interface{}) (ok bool) {
@@ -90,4 +94,17 @@ func Min(num ...int64) int64 {
 		}
 	}
 	return min
+}
+
+func IdFromPublicKey(publicKey string) (string, error) {
+	bytes, err := base58.Decode(publicKey)
+	if err != nil {
+		return "", err
+	}
+	rawpk, err := cyp.UnmarshalSecp256k1PublicKey(bytes[0:33])
+	if err != nil {
+		return "", err
+	}
+	id, err := peer.IDFromPublicKey(rawpk)
+	return id.Pretty(), nil
 }

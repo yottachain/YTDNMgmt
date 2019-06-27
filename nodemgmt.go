@@ -12,8 +12,6 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 
 	"github.com/yottachain/YTDNMgmt/eostx"
-
-	ytcrypto "github.com/yottachain/YTCrypto"
 )
 
 type NodeDaoImpl struct {
@@ -27,12 +25,12 @@ var incr int64 = 0
 var index int32 = -1
 
 //NewInstance create a new instance of NodeDaoImpl
-func NewInstance(mongoURL, eosURL, bpAccount, bpPrivkey, contractOwner string, bpID int32) (*NodeDaoImpl, error) {
+func NewInstance(mongoURL, eosURL, bpAccount, bpPrivkey, contractOwnerM, contractOwnerD string, bpID int32) (*NodeDaoImpl, error) {
 	client, err := mongo.Connect(context.Background(), options.Client().ApplyURI(mongoURL))
 	if err != nil {
 		return nil, err
 	}
-	etx, err := eostx.NewInstance(eosURL, bpAccount, bpPrivkey, contractOwner)
+	etx, err := eostx.NewInstance(eosURL, bpAccount, bpPrivkey, contractOwnerM, contractOwnerD)
 	if err != nil {
 		return nil, err
 	}
@@ -122,6 +120,10 @@ func (self *NodeDaoImpl) NewNodeID() (int32, error) {
 
 //PreRegisterNode register node on chain and pledge YTA for assignable space
 func (self *NodeDaoImpl) PreRegisterNode(trx string) error {
+	rate, err := self.eostx.GetExchangeRate()
+	if err != nil {
+		return err
+	}
 	regData, err := self.eostx.PreRegisterTrx(trx)
 	if err != nil {
 		return err
@@ -130,6 +132,14 @@ func (self *NodeDaoImpl) PreRegisterNode(trx string) error {
 	adminAccount := string(regData.Owner)
 	profitAccount := string(regData.Owner)
 	minerID := int32(regData.MinerID)
+	pubkey := regData.Extra
+	if adminAccount == "" || profitAccount == "" || minerID == 0 || minerID%int32(incr) != index || pubkey == "" {
+		return errors.New("bad parameters in regminer transaction")
+	}
+	nodeid, err := IdFromPublicKey(pubkey)
+	if err != nil {
+		return err
+	}
 	currID, err := self.NewNodeID()
 	if err != nil {
 		return err
@@ -142,16 +152,15 @@ func (self *NodeDaoImpl) PreRegisterNode(trx string) error {
 	if err != nil {
 		return err
 	}
-	_, pubkey := ytcrypto.CreateKey()
 	node := new(Node)
 	node.ID = minerID
-	node.NodeID = pubkey
+	node.NodeID = nodeid
 	node.PubKey = pubkey
 	node.Owner = adminAccount
 	node.ProfitAcc = profitAccount
 	node.PoolID = ""
 	node.Quota = 0
-	node.AssignedSpace = pledgeAmount * 65536 / 10000 //TODO: 1YTA=1G 后需调整
+	node.AssignedSpace = pledgeAmount * 65536 * int64(rate) / 1000000 //TODO: 1YTA=1G 后需调整
 	node.Valid = 0
 	node.Relay = 0
 	node.Status = 0
@@ -184,43 +193,44 @@ func (self *NodeDaoImpl) ChangeMinerPool(trx string) error {
 
 //RegisterNode create a new data node
 func (self *NodeDaoImpl) RegisterNode(node *Node) (*Node, error) {
-	if node == nil {
-		return nil, errors.New("node is null")
-	}
-	if node.ID == 0 {
-		return nil, errors.New("node ID must not be null")
-	}
-	if node.NodeID == "" {
-		return nil, errors.New("node ID must not be null")
-	}
-	if node.PubKey == "" {
-		return nil, errors.New("public key must not be null")
-	}
-	if node.Status != 0 {
-		return nil, errors.New("node status is not after-preregister")
-	}
-	collection := self.client.Database(YottaDB).Collection(NodeTab)
-	n := new(Node)
-	err := collection.FindOne(context.Background(), bson.M{"_id": node.ID}).Decode(&n)
-	if err != nil {
-		return nil, err
-	}
-	if node.Owner != n.Owner {
-		return nil, errors.New("owner not match")
-	}
-	n.NodeID = node.NodeID
-	n.PubKey = node.PubKey
-	n.Status = 1
-	n.Timestamp = time.Now().Unix()
+	// if node == nil {
+	// 	return nil, errors.New("node is null")
+	// }
+	// if node.ID == 0 {
+	// 	return nil, errors.New("node ID must not be null")
+	// }
+	// if node.NodeID == "" {
+	// 	return nil, errors.New("node ID must not be null")
+	// }
+	// if node.PubKey == "" {
+	// 	return nil, errors.New("public key must not be null")
+	// }
+	// if node.Status != 0 {
+	// 	return nil, errors.New("node status is not after-preregister")
+	// }
+	// collection := self.client.Database(YottaDB).Collection(NodeTab)
+	// n := new(Node)
+	// err := collection.FindOne(context.Background(), bson.M{"_id": node.ID}).Decode(&n)
+	// if err != nil {
+	// 	return nil, err
+	// }
+	// if node.Owner != n.Owner {
+	// 	return nil, errors.New("owner not match")
+	// }
+	// n.NodeID = node.NodeID
+	// n.PubKey = node.PubKey
+	// n.Status = 1
+	// n.Timestamp = time.Now().Unix()
 
-	opts := new(options.FindOneAndUpdateOptions)
-	opts = opts.SetReturnDocument(options.After)
-	result := collection.FindOneAndUpdate(context.Background(), bson.M{"_id": n.ID}, bson.M{"$set": bson.M{"nodeid": n.NodeID, "pubkey": n.PubKey, "status": n.Status, "timestamp": n.Timestamp}}, opts)
-	err = result.Decode(&node)
-	if err != nil {
-		return nil, err
-	}
-	return node, nil
+	// opts := new(options.FindOneAndUpdateOptions)
+	// opts = opts.SetReturnDocument(options.After)
+	// result := collection.FindOneAndUpdate(context.Background(), bson.M{"_id": n.ID}, bson.M{"$set": bson.M{"nodeid": n.NodeID, "pubkey": n.PubKey, "status": n.Status, "timestamp": n.Timestamp}}, opts)
+	// err = result.Decode(&node)
+	// if err != nil {
+	// 	return nil, err
+	// }
+	// return node, nil
+	return nil, errors.New("no use")
 }
 
 //UpdateNode update data info by data node status
@@ -240,16 +250,16 @@ func (self *NodeDaoImpl) UpdateNodeStatus(node *Node) (*Node, error) {
 	if err != nil {
 		return nil, err
 	}
-	if n.Status == 0 {
-		return nil, errors.New("please register this node first")
-	}
+	// if n.Status == 0 {
+	// 	return nil, errors.New("please register this node first")
+	// }
 	node.Valid = n.Valid
 	relayURL, err := self.AddrCheck(n, node)
 	if err != nil {
 		return nil, err
 	}
-	var status int32 = 2
-	if n.Status > 2 {
+	var status int32 = 1
+	if n.Status > 1 {
 		status = n.Status
 	}
 	weight := math.Sqrt(2*math.Pow(float64(node.CPU)/100, 2) + 2*math.Pow(float64(node.Memory)/100, 2) + 2*math.Pow(float64(node.Bandwidth)/100, 2) + math.Pow(float64(n.UsedSpace)/float64(n.AssignedSpace), 2))
@@ -305,7 +315,7 @@ func (self *NodeDaoImpl) AllocNodes(shardCount int32) ([]Node, error) {
 	limit := int64(shardCount)
 	options.Limit = &limit
 	for {
-		cur, err := collection.Find(context.Background(), bson.M{"valid": 1, "status": 2, "timestamp": bson.M{"$gt": time.Now().Unix() - IntervalTime*2}}, &options)
+		cur, err := collection.Find(context.Background(), bson.M{"valid": 1, "status": 1, "timestamp": bson.M{"$gt": time.Now().Unix() - IntervalTime*2}}, &options)
 		if err != nil {
 			return nil, err
 		}
@@ -560,7 +570,7 @@ func (self *NodeDaoImpl) AddDNI(id int32, shard []byte) error {
 func (self *NodeDaoImpl) ActiveNodesList() ([]Node, error) {
 	nodes := make([]Node, 0)
 	collection := self.client.Database(YottaDB).Collection(NodeTab)
-	cur, err := collection.Find(context.Background(), bson.M{"valid": 1, "status": 2, "timestamp": bson.M{"$gt": time.Now().Unix() - IntervalTime*2}})
+	cur, err := collection.Find(context.Background(), bson.M{"valid": 1, "status": 1, "timestamp": bson.M{"$gt": time.Now().Unix() - IntervalTime*2}})
 	if err != nil {
 		return nil, err
 	}
@@ -579,7 +589,7 @@ func (self *NodeDaoImpl) ActiveNodesList() ([]Node, error) {
 //Statistics of data nodes
 func (self *NodeDaoImpl) Statistics() (*NodeStat, error) {
 	collection := self.client.Database(YottaDB).Collection(NodeTab)
-	active, err := collection.CountDocuments(context.Background(), bson.M{"valid": 1, "status": 2, "timestamp": bson.M{"$gt": time.Now().Unix() - IntervalTime*2}})
+	active, err := collection.CountDocuments(context.Background(), bson.M{"valid": 1, "status": 1, "timestamp": bson.M{"$gt": time.Now().Unix() - IntervalTime*2}})
 	if err != nil {
 		return nil, err
 	}

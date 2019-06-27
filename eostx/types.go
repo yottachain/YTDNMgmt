@@ -3,16 +3,18 @@ package eostx
 import eos "github.com/eoscanada/eos-go"
 
 type EosTX struct {
-	API           *eos.API
-	BpAccount     string
-	ContractOwner string
+	API            *eos.API
+	BpAccount      string
+	ContractOwnerM string
+	ContractOwnerD string
 }
 
-type Reg struct {
+type RegMiner struct {
 	MinerID   uint64          `json:"minerid"`
 	Owner     eos.AccountName `json:"adminacc"`
 	DepAcc    eos.AccountName `json:"dep_acc"`
 	DepAmount eos.Asset       `json:"dep_amoun"`
+	Extra     string          `json:"extra"`
 }
 
 type ChangeMinerPool struct {

@@ -14,7 +14,7 @@ import (
 )
 
 // NewInstance create a new eostx instance contans connect url, contract owner and it's private key
-func NewInstance(url, bpAccount, privateKey, contractOwner string) (*EosTX, error) {
+func NewInstance(url, bpAccount, privateKey, contractOwnerM, contractOwnerD string) (*EosTX, error) {
 	api := eos.New(url)
 	keyBag := &eos.KeyBag{}
 	err := keyBag.ImportPrivateKey(privateKey)
@@ -27,41 +27,42 @@ func NewInstance(url, bpAccount, privateKey, contractOwner string) (*EosTX, erro
 		pubkey, _ := ecc.NewPublicKey(fmt.Sprintf("%s%s", "EOS", publickey))
 		return []ecc.PublicKey{pubkey}, nil
 	})
-	return &EosTX{API: api, BpAccount: bpAccount, ContractOwner: contractOwner}, nil
+	return &EosTX{API: api, BpAccount: bpAccount, ContractOwnerM: contractOwnerM, ContractOwnerD: contractOwnerD}, nil
 }
 
 // AddMiner call contract to add a record of datanode owner and miner ID
 func (eostx *EosTX) AddMiner(owner string, minerID uint64) error {
-	action := &eos.Action{
-		Account: eos.AN(eostx.ContractOwner),
-		Name:    eos.ActN("newmaccount"),
-		Authorization: []eos.PermissionLevel{
-			{Actor: eos.AN(eostx.BpAccount), Permission: eos.PN("active")},
-		},
-		ActionData: eos.NewActionData(Miner{Owner: eos.AN(owner), MinerID: minerID, Caller: eos.AN(eostx.BpAccount)}),
-	}
-	txOpts := &eos.TxOptions{}
-	if err := txOpts.FillFromChain(eostx.API); err != nil {
-		return fmt.Errorf("filling tx opts: %s", err)
-	}
+	// action := &eos.Action{
+	// 	Account: eos.AN(eostx.ContractOwner),
+	// 	Name:    eos.ActN("newmaccount"),
+	// 	Authorization: []eos.PermissionLevel{
+	// 		{Actor: eos.AN(eostx.BpAccount), Permission: eos.PN("active")},
+	// 	},
+	// 	ActionData: eos.NewActionData(Miner{Owner: eos.AN(owner), MinerID: minerID, Caller: eos.AN(eostx.BpAccount)}),
+	// }
+	// txOpts := &eos.TxOptions{}
+	// if err := txOpts.FillFromChain(eostx.API); err != nil {
+	// 	return fmt.Errorf("filling tx opts: %s", err)
+	// }
 
-	tx := eos.NewTransaction([]*eos.Action{action}, txOpts)
-	_, packedTx, err := eostx.API.SignTransaction(tx, txOpts.ChainID, eos.CompressionNone)
-	if err != nil {
-		return fmt.Errorf("sign transaction: %s", err)
-	}
+	// tx := eos.NewTransaction([]*eos.Action{action}, txOpts)
+	// _, packedTx, err := eostx.API.SignTransaction(tx, txOpts.ChainID, eos.CompressionNone)
+	// if err != nil {
+	// 	return fmt.Errorf("sign transaction: %s", err)
+	// }
 
-	_, err = eostx.API.PushTransaction(packedTx)
-	if err != nil {
-		return fmt.Errorf("push transaction: %s", err)
-	}
-	return nil
+	// _, err = eostx.API.PushTransaction(packedTx)
+	// if err != nil {
+	// 	return fmt.Errorf("push transaction: %s", err)
+	// }
+	// return nil
+	return errors.New("no use")
 }
 
 // AddProfit call contract to add profit to a miner assigned by minerID
 func (eostx *EosTX) AddSpace(owner string, minerID, space uint64) error {
 	action := &eos.Action{
-		Account: eos.AN(eostx.ContractOwner),
+		Account: eos.AN(eostx.ContractOwnerM),
 		Name:    eos.ActN("addmprofit"),
 		Authorization: []eos.PermissionLevel{
 			{Actor: eos.AN(eostx.BpAccount), Permission: eos.PN("active")},
@@ -86,11 +87,38 @@ func (eostx *EosTX) AddSpace(owner string, minerID, space uint64) error {
 	return nil
 }
 
+//GetExchangeRate get exchange rate between YTA and storage space
+func (eostx *EosTX) GetExchangeRate() (int32, error) {
+	req := eos.GetTableRowsRequest{
+		Code:  eostx.ContractOwnerD,
+		Scope: eostx.ContractOwnerD,
+		Table: "gdepositrate",
+		Limit: 1,
+		JSON:  true,
+	}
+	resp, err := eostx.API.GetTableRows(req)
+	if err != nil {
+		return 0, fmt.Errorf("get table row failed：get exchange rate")
+	}
+	if resp.More == true {
+		return 0, fmt.Errorf("more than one rows returned：get exchange rate")
+	}
+	rows := make([]map[string]int32, 0)
+	err = json.Unmarshal(resp.Rows, &rows)
+	if err != nil {
+		return 0, err
+	}
+	if len(rows) == 0 {
+		return 0, fmt.Errorf("no row found：get exchange rate")
+	}
+	return rows[0]["rate"], nil
+}
+
 //GetPledgeData get pledge data of one miner
 func (eostx *EosTX) GetPledgeData(minerid uint64) (*PledgeData, error) {
 	req := eos.GetTableRowsRequest{
-		Code:       "hdddeposit12",
-		Scope:      "hdddeposit12",
+		Code:       eostx.ContractOwnerD,
+		Scope:      eostx.ContractOwnerD,
 		Table:      "miner2dep",
 		LowerBound: fmt.Sprintf("%d", minerid),
 		UpperBound: fmt.Sprintf("%d", minerid),
@@ -146,7 +174,7 @@ func (eostx *EosTX) DeducePledge(minerID uint64, count *eos.Asset) error {
 
 func (eostx *EosTX) payForfeit(user string, minerID uint64, count *eos.Asset) error {
 	action := &eos.Action{
-		Account: eos.AN("hdddeposit12"),
+		Account: eos.AN(eostx.ContractOwnerD),
 		Name:    eos.ActN("payforfeit"),
 		Authorization: []eos.PermissionLevel{
 			{Actor: eos.AN(eostx.BpAccount), Permission: eos.PN("active")},
@@ -173,7 +201,7 @@ func (eostx *EosTX) payForfeit(user string, minerID uint64, count *eos.Asset) er
 
 func (eostx *EosTX) drawForfeit(user string) error {
 	action := &eos.Action{
-		Account: eos.AN("hdddeposit12"),
+		Account: eos.AN(eostx.ContractOwnerD),
 		Name:    eos.ActN("drawforfeit"),
 		Authorization: []eos.PermissionLevel{
 			{Actor: eos.AN(eostx.BpAccount), Permission: eos.PN("active")},
@@ -200,7 +228,7 @@ func (eostx *EosTX) drawForfeit(user string) error {
 
 func (eostx *EosTX) cutVote(user string) error {
 	action := &eos.Action{
-		Account: eos.AN("hdddeposit12"),
+		Account: eos.AN(eostx.ContractOwnerD),
 		Name:    eos.ActN("cutvote"),
 		Authorization: []eos.PermissionLevel{
 			{Actor: eos.AN(eostx.BpAccount), Permission: eos.PN("active")},
@@ -256,7 +284,7 @@ func (eostx *EosTX) cutVote(user string) error {
 // }
 
 //extract all neccessary parameters from transaction
-func (eostx *EosTX) PreRegisterTrx(trx string) (*Reg, error) {
+func (eostx *EosTX) PreRegisterTrx(trx string) (*RegMiner, error) {
 	if trx == "" {
 		return nil, errors.New("input transaction can not be null")
 	}
@@ -282,7 +310,7 @@ func (eostx *EosTX) PreRegisterTrx(trx string) (*Reg, error) {
 		actionBytes = []byte(signedTrx.Actions[0].ActionData.HexData)
 	}
 	decoder := eos.NewDecoder(actionBytes)
-	data := new(Reg)
+	data := new(RegMiner)
 	err = decoder.Decode(data)
 	if err != nil {
 		return nil, err
