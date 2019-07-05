@@ -165,6 +165,7 @@ func (self *NodeDaoImpl) PreRegisterNode(trx string) error {
 	node.Relay = 0
 	node.Status = 0
 	node.Timestamp = time.Now().Unix()
+	node.Version = 0
 	collection = self.client.Database(YottaDB).Collection(NodeTab)
 	_, err = collection.InsertOne(context.Background(), node)
 	if err != nil {
@@ -262,10 +263,10 @@ func (self *NodeDaoImpl) UpdateNodeStatus(node *Node) (*Node, error) {
 	if n.Status > 1 {
 		status = n.Status
 	}
-	weight := math.Sqrt(2*math.Pow(float64(node.CPU)/100, 2) + 2*math.Pow(float64(node.Memory)/100, 2) + 2*math.Pow(float64(node.Bandwidth)/100, 2) + math.Pow(float64(n.UsedSpace)/float64(n.AssignedSpace), 2))
+	weight := math.Sqrt(2*math.Pow(float64(node.CPU)/100, 2) + 2*math.Pow(float64(node.Memory)/100, 2) + 2*math.Pow(float64(node.Bandwidth)/100, 2) + math.Pow(float64(n.UsedSpace)/float64(Min(n.AssignedSpace, n.Quota, node.MaxDataSpace)), 2))
 	opts := new(options.FindOneAndUpdateOptions)
 	opts = opts.SetReturnDocument(options.After)
-	result := collection.FindOneAndUpdate(context.Background(), bson.M{"_id": node.ID}, bson.M{"$set": bson.M{"cpu": node.CPU, "memory": node.Memory, "bandwidth": node.Bandwidth, "maxDataSpace": node.MaxDataSpace, "addrs": node.Addrs, "weight": weight, "valid": node.Valid, "relay": node.Relay, "status": status, "timestamp": time.Now().Unix()}}, opts)
+	result := collection.FindOneAndUpdate(context.Background(), bson.M{"_id": node.ID}, bson.M{"$set": bson.M{"cpu": node.CPU, "memory": node.Memory, "bandwidth": node.Bandwidth, "maxDataSpace": node.MaxDataSpace, "addrs": node.Addrs, "weight": weight, "valid": node.Valid, "relay": node.Relay, "status": status, "timestamp": time.Now().Unix(), "version": node.Version}}, opts)
 	err = result.Decode(&n)
 	if err != nil {
 		return nil, err
@@ -305,7 +306,7 @@ func (self *NodeDaoImpl) IncrProductiveSpace(id int32, incr int64) error {
 }
 
 //AllocNodes by shard count
-func (self *NodeDaoImpl) AllocNodes(shardCount int32) ([]Node, error) {
+func (self *NodeDaoImpl) AllocNodes(shardCount int32, errids []int32) ([]Node, error) {
 	collection := self.client.Database(YottaDB).Collection(NodeTab)
 	nodes := make([]Node, 0)
 	m := make(map[int32]int64)
@@ -315,7 +316,11 @@ func (self *NodeDaoImpl) AllocNodes(shardCount int32) ([]Node, error) {
 	limit := int64(shardCount)
 	options.Limit = &limit
 	for {
-		cur, err := collection.Find(context.Background(), bson.M{"valid": 1, "status": 1, "timestamp": bson.M{"$gt": time.Now().Unix() - IntervalTime*2}}, &options)
+		cond := bson.M{"valid": 1, "status": 1, "timestamp": bson.M{"$gt": time.Now().Unix() - IntervalTime*2}, "version": bson.M{"$gt": 0}}
+		if errids != nil && len(errids) > 0 {
+			cond["_id"] = bson.M{"$nin": errids}
+		}
+		cur, err := collection.Find(context.Background(), cond, &options)
 		if err != nil {
 			return nil, err
 		}
@@ -388,7 +393,7 @@ func (self *NodeDaoImpl) SyncNode(node *Node) error {
 		if !strings.ContainsAny(errstr, "duplicate key error") {
 			return err
 		} else {
-			_, err := collection.UpdateOne(context.Background(), bson.M{"_id": node.ID}, bson.M{"$set": bson.M{"nodeid": node.NodeID, "pubkey": node.PubKey, "owner": node.Owner, "profitAcc": node.ProfitAcc, "poolID": node.PoolID, "quota": node.Quota, "addrs": node.Addrs, "cpu": node.CPU, "memory": node.Memory, "bandwidth": node.Bandwidth, "maxDataSpace": node.MaxDataSpace, "assignedSpace": node.AssignedSpace, "productiveSpace": node.ProductiveSpace, "usedSpace": node.UsedSpace, "weight": node.Weight, "valid": node.Valid, "relay": node.Relay, "status": node.Status, "timestamp": node.Timestamp}})
+			_, err := collection.UpdateOne(context.Background(), bson.M{"_id": node.ID}, bson.M{"$set": bson.M{"nodeid": node.NodeID, "pubkey": node.PubKey, "owner": node.Owner, "profitAcc": node.ProfitAcc, "poolID": node.PoolID, "quota": node.Quota, "addrs": node.Addrs, "cpu": node.CPU, "memory": node.Memory, "bandwidth": node.Bandwidth, "maxDataSpace": node.MaxDataSpace, "assignedSpace": node.AssignedSpace, "productiveSpace": node.ProductiveSpace, "usedSpace": node.UsedSpace, "weight": node.Weight, "valid": node.Valid, "relay": node.Relay, "status": node.Status, "timestamp": node.Timestamp, "version": node.Version}})
 			if err != nil {
 				return err
 			}

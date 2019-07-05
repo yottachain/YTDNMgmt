@@ -26,6 +26,22 @@ func NewHost() (*Host, error) {
 }
 
 func (host *Host) TestNetwork(nodeID string, addrs []string) error {
+	return host.testNetworkN(nodeID, addrs, 2)
+}
+
+func (host *Host) testNetworkN(nodeID string, addrs []string, retries int) error {
+	err := host.testNetwork(nodeID, addrs)
+	if err == nil {
+		return nil
+	}
+	if retries == 0 {
+		return err
+	} else {
+		return host.testNetworkN(nodeID, addrs, retries-1)
+	}
+}
+
+func (host *Host) testNetwork(nodeID string, addrs []string) error {
 	maddrs, err := stringListToMaddrs(addrs)
 	if err != nil {
 		return err

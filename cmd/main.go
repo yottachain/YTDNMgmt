@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/mr-tron/base58"
-
 	eos "github.com/eoscanada/eos-go"
 	nodemgmt "github.com/yottachain/YTDNMgmt"
 )
@@ -16,16 +14,57 @@ type Miner struct {
 }
 
 func main() {
-	skb, err := base58.Decode("4XZF1PwNDDCbbVQbmDnGy3Un4XCiGQtc2hHwJgt7RgD87cXxL")
-	fmt.Println(len(skb))
-	id, _ := nodemgmt.IdFromPublicKey("71e3SzWnnthKC4cVahNBUr5gdQqs2JFbiYMUyTvjqw6S5qBfgq")
-	fmt.Println(id)
-	rawjson := `{"signatures":["SIG_K1_JwPcE1LhEzNuXEZ6AYeZeKs4dYfqDijgeS8bUZjWZDCdMetkkFFem2tJzsmBDjZTKCSjzRPdbAPbJHtdv5KTBaXSSuJm2u"],"compression":"zlib","packed_context_free_data":"78da010000ffff00000001","packed_trx":"78dad2eb148995aa08396feacdc0c0c0c01870424031282a388b818121dc577de72c4606068970c5b92fd6826457bc35328aae61668002980484ee818ab24486388268237323cbacfc888ac48cf2bc6433a73c1fc78a22af00476713b7d4b0148fb05017f3749fcc8ce2e45c97e28c44439790b4b47c0640000000fffff0c32622"}`
-	nodeDao, _ := nodemgmt.NewInstance("mongodb://152.136.16.118:27017", "http://152.136.16.118:8888", "producer1", "5HtM6e3mQNLEu2TkQ1ZrbMNpRQiHGsKxEsLdxd9VsdCmp1um8QH", "hddpool12345", "hdddeposit12", 2)
-	err = nodeDao.PreRegisterNode(rawjson)
+	// port := 9002
+	// privkey := "5HtM6e3mQNLEu2TkQ1ZrbMNpRQiHGsKxEsLdxd9VsdCmp1um8QH"
+	// opts := []libp2p.Option{
+	// 	libp2p.ListenAddrStrings(fmt.Sprintf("/ip4/0.0.0.0/udp/%d/quic", port)),
+	// 	libp2p.NATPortMap(),
+	// 	libp2p.Transport(quic.NewTransport),
+	// }
+	// if privkey != "" {
+	// 	privbytes, err := base58.Decode(privkey)
+	// 	if err != nil {
+	// 		return errors.New("bad format of private key,Base58 format needed")
+	// 	}
+	// 	priv, err := crypto.UnmarshalSecp256k1PrivateKey(privbytes[1:33])
+	// 	if err != nil {
+	// 		return errors.New("bad format of private key")
+	// 	}
+	// 	opts = append(opts, libp2p.Identity(priv))
+	// }
+	// var err error
+	// p2phst, err = libp2p.New(context.Background(), opts...)
+	// if err != nil {
+	// 	panic(err.Error())
+	// }
+	// time.Sleep(time.Duration(500) * time.Second)
+	// nodeid := flag.String("nodeid", "16Uiu2HAm8jAW9tfocDdsqEV83Vni1L4bfc7X4oDm1N5A9HHhjwj5", "node id")
+	// ip := flag.String("ip", "152.136.176.218", "ip address")
+	// port := flag.String("port", "9999", "port number")
+
+	// flag.Parse()
+
+	host, err := nodemgmt.NewHost()
 	if err != nil {
 		log.Fatalln(err.Error())
 	}
+	err = host.TestNetwork("16Uiu2HAmBjzvwHB16pox2FAsbxcKUfe5RVuiV5c8Brtfy5eTAJQF", []string{"/ip4/127.0.0.1/tcp/9001", "/ip4/192.168.123.50/tcp/9001", "/ip4/10.211.55.2/tcp/9001", "/ip4/10.37.129.2/tcp/9001", "/ip4/36.110.28.94/tcp/9001"})
+	//err = host.TestNetwork(fmt.Sprintf("%s", *nodeid), []string{fmt.Sprintf("/ip4/%s/tcp/%s", *ip, *port)})
+	if err != nil {
+		log.Fatalln(err.Error())
+	}
+	fmt.Println("ok!")
+
+	// skb, err := base58.Decode("4XZF1PwNDDCbbVQbmDnGy3Un4XCiGQtc2hHwJgt7RgD87cXxL")
+	// fmt.Println(len(skb))
+	// id, _ := nodemgmt.IdFromPublicKey("71e3SzWnnthKC4cVahNBUr5gdQqs2JFbiYMUyTvjqw6S5qBfgq")
+	// fmt.Println(id)
+	// rawjson := `{"signatures":["SIG_K1_JwPcE1LhEzNuXEZ6AYeZeKs4dYfqDijgeS8bUZjWZDCdMetkkFFem2tJzsmBDjZTKCSjzRPdbAPbJHtdv5KTBaXSSuJm2u"],"compression":"zlib","packed_context_free_data":"78da010000ffff00000001","packed_trx":"78dad2eb148995aa08396feacdc0c0c0c01870424031282a388b818121dc577de72c4606068970c5b92fd6826457bc35328aae61668002980484ee818ab24486388268237323cbacfc888ac48cf2bc6433a73c1fc78a22af00476713b7d4b0148fb05017f3749fcc8ce2e45c97e28c44439790b4b47c0640000000fffff0c32622"}`
+	// nodeDao, _ := nodemgmt.NewInstance("mongodb://152.136.16.118:27017", "http://152.136.16.118:8888", "producer1", "5HtM6e3mQNLEu2TkQ1ZrbMNpRQiHGsKxEsLdxd9VsdCmp1um8QH", "hddpool12345", "hdddeposit12", 2)
+	// err = nodeDao.PreRegisterNode(rawjson)
+	// if err != nil {
+	// 	log.Fatalln(err.Error())
+	// }
 
 	// etx, _ := eostx.NewInstance("http://152.136.17.115:8888", "producer1", "5HtM6e3mQNLEu2TkQ1ZrbMNpRQiHGsKxEsLdxd9VsdCmp1um8QH", "hddpool12345")
 	// rate, err := etx.GetExchangeRate()
@@ -62,14 +101,6 @@ func main() {
 	// 	log.Fatalln(err.Error())
 	// }
 
-	// host, err := YTDNMgmt.NewHost()
-	// if err != nil {
-	// 	log.Fatalln(err.Error())
-	// }
-	// err = host.TestNetwork("16Uiu2HAmTFtXjT9GxzABmkATsmC2SZqtpxyTPqZ9cszCCZn4rM8M", []string{"/ip4/127.0.0.1/tcp/9001", "/ip4/192.168.123.50/tcp/9001", "/ip4/10.211.55.2/tcp/9001", "/ip4/10.37.129.2/tcp/9001", "/ip4/36.110.28.94/tcp/9001", "/ip4/152.136.18.185/tcp/9999/p2p/16Uiu2HAkwNCD9HSH5hh36LmzgLjRcQiQFpT9spwspaAM5AH3rqA9/p2p-circuit"})
-	// if err != nil {
-	// 	log.Fatalln(err.Error())
-	// }
 	// nodeDao, _ := nodemgmt.NewInstance("mongodb://152.136.18.185:27017", "http://152.136.16.118:8888", "username1234", "5JcDH48njDbUQLu1R8SWwKsfWLnqBpWXDDiCgxFC3hioDuwLhVx", "hddpool12345", 2)
 	// node := new(nodemgmt.Node)
 	// node.ID = 767

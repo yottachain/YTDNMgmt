@@ -8,7 +8,7 @@ type NodeDao interface {
 	RegisterNode(node *Node) (*Node, error)
 	UpdateNodeStatus(node *Node) (*Node, error)
 	IncrUsedSpace(id int32, incr int64) error
-	AllocNodes(shardCount int32) ([]Node, error)
+	AllocNodes(shardCount int32, errIDs []int32) ([]Node, error)
 	SyncNode(node *Node) error
 	GetNodes(nodeIDs []int32) ([]Node, error)
 	GetSuperNodes() ([]SuperNode, error)
