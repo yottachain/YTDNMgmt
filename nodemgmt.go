@@ -124,7 +124,7 @@ func (self *NodeDaoImpl) PreRegisterNode(trx string) error {
 	if err != nil {
 		return err
 	}
-	regData, err := self.eostx.PreRegisterTrx(trx)
+	signedTrx, regData, err := self.eostx.PreRegisterTrx(trx)
 	if err != nil {
 		return err
 	}
@@ -146,6 +146,10 @@ func (self *NodeDaoImpl) PreRegisterNode(trx string) error {
 	}
 	if currID != minerID {
 		return errors.New("node ID is invalid, please retry")
+	}
+	err = self.eostx.SendTrx(signedTrx)
+	if err != nil {
+		return err
 	}
 	collection := self.client.Database(YottaDB).Collection(SequenceTab)
 	_, err = collection.UpdateOne(context.Background(), bson.M{"_id": NodeIdxType}, bson.M{"$set": bson.M{"seq": minerID}})
@@ -176,7 +180,11 @@ func (self *NodeDaoImpl) PreRegisterNode(trx string) error {
 
 //ChangeMinerPool add miner to a pool
 func (self *NodeDaoImpl) ChangeMinerPool(trx string) error {
-	poolData, err := self.eostx.ChangMinerPoolTrx(trx)
+	signedTrx, poolData, err := self.eostx.ChangMinerPoolTrx(trx)
+	if err != nil {
+		return err
+	}
+	err = self.eostx.SendTrx(signedTrx)
 	if err != nil {
 		return err
 	}

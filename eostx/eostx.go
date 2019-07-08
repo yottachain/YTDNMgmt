@@ -284,27 +284,27 @@ func (eostx *EosTX) cutVote(user string) error {
 // }
 
 //extract all neccessary parameters from transaction
-func (eostx *EosTX) PreRegisterTrx(trx string) (*RegMiner, error) {
+func (eostx *EosTX) PreRegisterTrx(trx string) (*eos.SignedTransaction, *RegMiner, error) {
 	if trx == "" {
-		return nil, errors.New("input transaction can not be null")
+		return nil, nil, errors.New("input transaction can not be null")
 	}
 	var packedTrx *eos.PackedTransaction
 	err := json.Unmarshal([]byte(trx), &packedTrx)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	signedTrx, err := packedTrx.Unpack()
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if len(signedTrx.Actions) != 1 {
-		return nil, errors.New("need at least one action")
+		return nil, nil, errors.New("need at least one action")
 	}
 	var actionBytes []byte
 	if signedTrx.Actions[0].ActionData.Data != nil {
 		actionBytes, err = hex.DecodeString(string([]byte(signedTrx.Actions[0].ActionData.Data.(string))))
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 	} else {
 		actionBytes = []byte(signedTrx.Actions[0].ActionData.HexData)
@@ -313,31 +313,31 @@ func (eostx *EosTX) PreRegisterTrx(trx string) (*RegMiner, error) {
 	data := new(RegMiner)
 	err = decoder.Decode(data)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	err = eostx.SendTrx(signedTrx)
-	if err != nil {
-		return nil, err
-	}
-	return data, nil
+	// err = eostx.SendTrx(signedTrx)
+	// if err != nil {
+	// 	return nil, nil, err
+	// }
+	return signedTrx, data, nil
 }
 
 //extract all neccessary parameters from transaction
-func (eostx *EosTX) ChangMinerPoolTrx(trx string) (*ChangeMinerPool, error) {
+func (eostx *EosTX) ChangMinerPoolTrx(trx string) (*eos.SignedTransaction, *ChangeMinerPool, error) {
 	if trx == "" {
-		return nil, errors.New("input transaction can not be null")
+		return nil, nil, errors.New("input transaction can not be null")
 	}
 	var packedTrx *eos.PackedTransaction
 	err := json.Unmarshal([]byte(trx), &packedTrx)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	signedTrx, err := packedTrx.Unpack()
 	var actionBytes []byte
 	if signedTrx.Actions[0].ActionData.Data != nil {
 		actionBytes, err = hex.DecodeString(string([]byte(signedTrx.Actions[0].ActionData.Data.(string))))
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 	} else {
 		actionBytes = []byte(signedTrx.Actions[0].ActionData.HexData)
@@ -346,13 +346,13 @@ func (eostx *EosTX) ChangMinerPoolTrx(trx string) (*ChangeMinerPool, error) {
 	data := new(ChangeMinerPool)
 	err = decoder.Decode(data)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	err = eostx.SendTrx(signedTrx)
-	if err != nil {
-		return nil, err
-	}
-	return data, nil
+	// err = eostx.SendTrx(signedTrx)
+	// if err != nil {
+	// 	return nil, nil, err
+	// }
+	return signedTrx, data, nil
 }
 
 func (eostx *EosTX) SendTrx(signedTx *eos.SignedTransaction) error {

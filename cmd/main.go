@@ -48,7 +48,7 @@ func main() {
 	if err != nil {
 		log.Fatalln(err.Error())
 	}
-	err = host.TestNetwork("16Uiu2HAmBjzvwHB16pox2FAsbxcKUfe5RVuiV5c8Brtfy5eTAJQF", []string{"/ip4/127.0.0.1/tcp/9001", "/ip4/192.168.123.50/tcp/9001", "/ip4/10.211.55.2/tcp/9001", "/ip4/10.37.129.2/tcp/9001", "/ip4/36.110.28.94/tcp/9001"})
+	err = host.TestNetwork("16Uiu2HAmRpc3y8FBuDeEjcg8bDupP7BVWrJRfi9a56nfU7yCPk2c", []string{"/ip4/192.168.8.2/tcp/9001", "/ip4/125.125.94.125/tcp/9001"})
 	//err = host.TestNetwork(fmt.Sprintf("%s", *nodeid), []string{fmt.Sprintf("/ip4/%s/tcp/%s", *ip, *port)})
 	if err != nil {
 		log.Fatalln(err.Error())
