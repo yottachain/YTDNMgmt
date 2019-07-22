@@ -44,16 +44,16 @@ func main() {
 
 	// flag.Parse()
 
-	host, err := nodemgmt.NewHost()
-	if err != nil {
-		log.Fatalln(err.Error())
-	}
-	err = host.TestNetwork("16Uiu2HAmRpc3y8FBuDeEjcg8bDupP7BVWrJRfi9a56nfU7yCPk2c", []string{"/ip4/192.168.8.2/tcp/9001", "/ip4/125.125.94.125/tcp/9001"})
-	//err = host.TestNetwork(fmt.Sprintf("%s", *nodeid), []string{fmt.Sprintf("/ip4/%s/tcp/%s", *ip, *port)})
-	if err != nil {
-		log.Fatalln(err.Error())
-	}
-	fmt.Println("ok!")
+	// host, err := nodemgmt.NewHost()
+	// if err != nil {
+	// 	log.Fatalln(err.Error())
+	// }
+	// err = host.TestNetwork("16Uiu2HAmRpc3y8FBuDeEjcg8bDupP7BVWrJRfi9a56nfU7yCPk2c", []string{"/ip4/192.168.8.2/tcp/9001", "/ip4/125.125.94.125/tcp/9001"})
+	// //err = host.TestNetwork(fmt.Sprintf("%s", *nodeid), []string{fmt.Sprintf("/ip4/%s/tcp/%s", *ip, *port)})
+	// if err != nil {
+	// 	log.Fatalln(err.Error())
+	// }
+	// fmt.Println("ok!")
 
 	// skb, err := base58.Decode("4XZF1PwNDDCbbVQbmDnGy3Un4XCiGQtc2hHwJgt7RgD87cXxL")
 	// fmt.Println(len(skb))
@@ -86,20 +86,23 @@ func main() {
 	// 	log.Fatalln(err.Error())
 	// }
 
-	// list, err := nodeDao.GetSpotCheckList()
-	// if err != nil {
-	// 	log.Fatalln(err.Error())
-	// }
-	// fmt.Printf("%d\n", len(list[0].TaskList))
-	// node, err := nodeDao.GetSTNode()
-	// if err != nil {
-	// 	log.Fatalln(err.Error())
-	// }
-	// fmt.Printf("%d\n", node.ID)
-	// err = nodeDao.UpdateTaskStatus("5d0854da30a31ead856c870c", 60, nil)
-	// if err != nil {
-	// 	log.Fatalln(err.Error())
-	// }
+	nodeDao, _ := nodemgmt.NewInstance("mongodb://152.136.18.185:27017", "http://152.136.16.118:8888", "username1234", "5JcDH48njDbUQLu1R8SWwKsfWLnqBpWXDDiCgxFC3hioDuwLhVx", "hddpool12345", "hddpool12345", 2)
+	_ = nodeDao.Punish(10, 10000, 1, 100)
+	_ = nodeDao.CheckErrorNode(1880)
+	list, err := nodeDao.GetSpotCheckList()
+	if err != nil {
+		log.Fatalln(err.Error())
+	}
+	fmt.Printf("%d\n", len(list[0].TaskList))
+	nodes, err := nodeDao.GetSTNodes(3)
+	if err != nil {
+		log.Fatalln(err.Error())
+	}
+	fmt.Printf("%d\n", nodes[0].ID)
+	err = nodeDao.UpdateTaskStatus("5d2ef5335de23f9598466b9e", []int32{188, 215})
+	if err != nil {
+		log.Fatalln(err.Error())
+	}
 
 	// nodeDao, _ := nodemgmt.NewInstance("mongodb://152.136.18.185:27017", "http://152.136.16.118:8888", "username1234", "5JcDH48njDbUQLu1R8SWwKsfWLnqBpWXDDiCgxFC3hioDuwLhVx", "hddpool12345", 2)
 	// node := new(nodemgmt.Node)

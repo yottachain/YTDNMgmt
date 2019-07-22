@@ -3,6 +3,7 @@ package YTDNMgmt
 import (
 	"context"
 	"errors"
+	"fmt"
 	"math"
 	"strings"
 	"time"
@@ -259,9 +260,9 @@ func (self *NodeDaoImpl) UpdateNodeStatus(node *Node) (*Node, error) {
 	if err != nil {
 		return nil, err
 	}
-	// if n.Status == 0 {
-	// 	return nil, errors.New("please register this node first")
-	// }
+	if n.Quota == 0 || n.AssignedSpace == 0 {
+		return nil, fmt.Errorf("node %d has not been pledged or added to a pool", n.ID)
+	}
 	node.Valid = n.Valid
 	relayURL, err := self.AddrCheck(n, node)
 	if err != nil {
@@ -274,7 +275,14 @@ func (self *NodeDaoImpl) UpdateNodeStatus(node *Node) (*Node, error) {
 	weight := math.Sqrt(2*math.Pow(float64(node.CPU)/100, 2) + 2*math.Pow(float64(node.Memory)/100, 2) + 2*math.Pow(float64(node.Bandwidth)/100, 2) + math.Pow(float64(n.UsedSpace)/float64(Min(n.AssignedSpace, n.Quota, node.MaxDataSpace)), 2))
 	opts := new(options.FindOneAndUpdateOptions)
 	opts = opts.SetReturnDocument(options.After)
-	result := collection.FindOneAndUpdate(context.Background(), bson.M{"_id": node.ID}, bson.M{"$set": bson.M{"cpu": node.CPU, "memory": node.Memory, "bandwidth": node.Bandwidth, "maxDataSpace": node.MaxDataSpace, "addrs": node.Addrs, "weight": weight, "valid": node.Valid, "relay": node.Relay, "status": status, "timestamp": time.Now().Unix(), "version": node.Version}}, opts)
+	var timestamp int64
+	if self.CheckErrorNode(node.ID) {
+		timestamp = time.Now().Unix()
+	} else {
+		timestamp = n.Timestamp
+	}
+
+	result := collection.FindOneAndUpdate(context.Background(), bson.M{"_id": node.ID}, bson.M{"$set": bson.M{"cpu": node.CPU, "memory": node.Memory, "bandwidth": node.Bandwidth, "maxDataSpace": node.MaxDataSpace, "addrs": node.Addrs, "weight": weight, "valid": node.Valid, "relay": node.Relay, "status": status, "timestamp": timestamp, "version": node.Version}}, opts)
 	err = result.Decode(&n)
 	if err != nil {
 		return nil, err
@@ -285,6 +293,17 @@ func (self *NodeDaoImpl) UpdateNodeStatus(node *Node) (*Node, error) {
 		n.Addrs = nil
 	}
 	return n, nil
+}
+
+func (self *NodeDaoImpl) CheckErrorNode(id int32) bool {
+	collection := self.client.Database(YottaDB).Collection(ErrorNodeTab)
+	m := make(map[string]interface{})
+	err := collection.FindOne(context.Background(), bson.M{"_id": 1, "nodes": bson.M{"$in": bson.A{id}}}, options.FindOne().SetProjection(bson.M{"nodes": 1})).Decode(&m)
+	if err != nil {
+		return true
+	} else {
+		return false
+	}
 }
 
 //IncrUsedSpace increase user space of one node
@@ -324,7 +343,7 @@ func (self *NodeDaoImpl) AllocNodes(shardCount int32, errids []int32) ([]Node, e
 	limit := int64(shardCount)
 	options.Limit = &limit
 	for {
-		cond := bson.M{"valid": 1, "status": 1, "timestamp": bson.M{"$gt": time.Now().Unix() - IntervalTime*2}, "version": bson.M{"$gt": 0}}
+		cond := bson.M{"valid": 1, "status": 1, "assignedSpace": bson.M{"$gt": 0}, "quota": bson.M{"$gt": 0}, "timestamp": bson.M{"$gt": time.Now().Unix() - IntervalTime*2}, "version": bson.M{"$gt": 0}}
 		if errids != nil && len(errids) > 0 {
 			cond["_id"] = bson.M{"$nin": errids}
 		}

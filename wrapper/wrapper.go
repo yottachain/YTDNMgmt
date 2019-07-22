@@ -78,9 +78,7 @@ typedef struct spotchecklist {
 	char *taskid;
 	spotchecktask **tasklist;
 	int size;
-	int32_t progress;
 	int64_t timestamp;
-	int64_t duration;
 } spotchecklist;
 
 typedef struct spotchecklists {
@@ -455,8 +453,17 @@ func GetSTNode() *C.node {
 	return createNodeStruct(gnode, err)
 }
 
+//export GetSTNodes
+func GetSTNodes(count C.int64_t) *C.allocnoderet {
+	if nodeDao == nil {
+		return createAllocnoderet(nil, errors.New("Node management module has not started"))
+	}
+	nodes, err := nodeDao.GetSTNodes(int64(count))
+	return createAllocnoderet(nodes, err)
+}
+
 //export UpdateTaskStatus
-func UpdateTaskStatus(id *C.char, progress C.int32_t, invalidNodeList *C.int32_t, size C.int32_t) *C.char {
+func UpdateTaskStatus(id *C.char, invalidNodeList *C.int32_t, size C.int32_t) *C.char {
 	if nodeDao == nil {
 		return C.CString("Node management module has not started")
 	}
@@ -469,7 +476,7 @@ func UpdateTaskStatus(id *C.char, progress C.int32_t, invalidNodeList *C.int32_t
 			gnodeIDs[i] = int32(s)
 		}
 	}
-	err := nodeDao.UpdateTaskStatus(C.GoString(id), int32(progress), gnodeIDs)
+	err := nodeDao.UpdateTaskStatus(C.GoString(id), gnodeIDs)
 	if err != nil {
 		return C.CString(err.Error())
 	} else {
@@ -777,9 +784,9 @@ func createSpotchecklist(list *nodemgmt.SpotCheckList) *C.spotchecklist {
 		(*ptr).tasklist = tasks
 		(*ptr).size = C.int(len(list.TaskList))
 	}
-	(*ptr).duration = C.int64_t(list.Duration)
+	//(*ptr).duration = C.int64_t(list.Duration)
 	(*ptr).timestamp = C.int64_t(list.Timestamp)
-	(*ptr).progress = C.int32_t(list.Progress)
+	//(*ptr).progress = C.int32_t(list.Progress)
 	return ptr
 }
 
@@ -793,9 +800,9 @@ func FreeSpotchecklist(ptr *C.spotchecklist) {
 			C.freeSpotchecktaskArray((*ptr).tasklist, (*ptr).size)
 			(*ptr).tasklist = nil
 		}
-		(*ptr).duration = 0
+		//(*ptr).duration = 0
 		(*ptr).timestamp = 0
-		(*ptr).progress = 0
+		//(*ptr).progress = 0
 		C.free(unsafe.Pointer(ptr))
 	}
 }

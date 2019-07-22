@@ -68,11 +68,11 @@ type SuperNode struct {
 }
 
 //ContractInfo instance
-type ContractInfo struct {
-	ID      int32  `bson:"_id"`
-	User    string `bson:"user"`
-	PrivKey string `bson:"privkey"`
-}
+// type ContractInfo struct {
+// 	ID      int32  `bson:"_id"`
+// 	User    string `bson:"user"`
+// 	PrivKey string `bson:"privkey"`
+// }
 
 //NodeStat statistics of data node
 type NodeStat struct {
@@ -92,11 +92,11 @@ type ShardCount struct {
 
 //SpotCheckList list of spot check
 type SpotCheckList struct {
-	TaskID    primitive.ObjectID `bson:"_id"`
-	TaskList  []*SpotCheckTask   `bson:"taskList"`
-	Progress  int32              `bson:"progress"`
-	Timestamp int64              `bson:"timestamp"`
-	Duration  int64              `bson:"duration"`
+	TaskID   primitive.ObjectID `bson:"_id"`
+	TaskList []*SpotCheckTask   `bson:"taskList"`
+	//Progress  int32              `bson:"progress"`
+	Timestamp int64 `bson:"timestamp"`
+	//Duration  int64              `bson:"duration"`
 }
 
 //SpotCheckTask one spot check task
@@ -105,6 +105,13 @@ type SpotCheckTask struct {
 	NodeID string `bson:"nodeid"`
 	Addr   string `bson:"addr"`
 	VNI    string `bson:"vni"`
+}
+
+//SpotCheckRecord spot check task in database
+type SpotCheckRecord struct {
+	TaskID    primitive.ObjectID `bson:"_id"`
+	Nodes     map[string]int     `bson:"nodes"`
+	Timestamp int64              `bson:"timestamp"`
 }
 
 //DNI
@@ -127,6 +134,7 @@ const (
 	DNITab       = "DNI"
 	SequenceTab  = "Sequence"
 	SpotCheckTab = "SpotCheck"
+	ErrorNodeTab = "ErrorNode"
 	//ContractInfoTab = "ContractInfo"
 )
 

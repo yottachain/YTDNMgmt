@@ -21,5 +21,6 @@ type NodeDao interface {
 	Statistics() (*NodeStat, error)
 	GetSpotCheckList() ([]*SpotCheckList, error)
 	GetSTNode() (*Node, error)
-	UpdateTaskStatus(id string, progress int32, invalidNodeList []int32) error
+	GetSTNodes(count int64) ([]Node, error)
+	UpdateTaskStatus(id string, invalidNodeList []int32) error
 }
