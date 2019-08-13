@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"log"
 
 	eos "github.com/eoscanada/eos-go"
 	nodemgmt "github.com/yottachain/YTDNMgmt"
@@ -86,25 +85,43 @@ func main() {
 	// 	log.Fatalln(err.Error())
 	// }
 
-	nodeDao, _ := nodemgmt.NewInstance("mongodb://152.136.18.185:27017", "http://152.136.16.118:8888", "username1234", "5JcDH48njDbUQLu1R8SWwKsfWLnqBpWXDDiCgxFC3hioDuwLhVx", "hddpool12345", "hddpool12345", 2)
-	_ = nodeDao.Punish(10, 10000, 1, 100)
-	_ = nodeDao.CheckErrorNode(1880)
-	list, err := nodeDao.GetSpotCheckList()
-	if err != nil {
-		log.Fatalln(err.Error())
-	}
-	fmt.Printf("%d\n", len(list[0].TaskList))
-	nodes, err := nodeDao.GetSTNodes(3)
-	if err != nil {
-		log.Fatalln(err.Error())
-	}
-	fmt.Printf("%d\n", nodes[0].ID)
-	err = nodeDao.UpdateTaskStatus("5d2ef5335de23f9598466b9e", []int32{188, 215})
-	if err != nil {
-		log.Fatalln(err.Error())
-	}
+	// nodeDao, _ := nodemgmt.NewInstance("mongodb://152.136.18.185:27017", "http://152.136.16.118:8888", "username1234", "5JcDH48njDbUQLu1R8SWwKsfWLnqBpWXDDiCgxFC3hioDuwLhVx", "hddpool12345", "hddpool12345", 2)
+	// _ = nodeDao.Punish(10, 10000, 1, 100, false)
+	// _ = nodeDao.CheckErrorNode(1880)
+	// list, err := nodeDao.GetSpotCheckList()
+	// if err != nil {
+	// 	log.Fatalln(err.Error())
+	// }
+	// fmt.Printf("%d\n", len(list[0].TaskList))
+	// nodes, err := nodeDao.GetSTNodes(3)
+	// if err != nil {
+	// 	log.Fatalln(err.Error())
+	// }
+	// fmt.Printf("%d\n", nodes[0].ID)
+	// err = nodeDao.UpdateTaskStatus("5d2ef5335de23f9598466b9e", []int32{188, 215})
+	// if err != nil {
+	// 	log.Fatalln(err.Error())
+	// }
 
-	// nodeDao, _ := nodemgmt.NewInstance("mongodb://152.136.18.185:27017", "http://152.136.16.118:8888", "username1234", "5JcDH48njDbUQLu1R8SWwKsfWLnqBpWXDDiCgxFC3hioDuwLhVx", "hddpool12345", 2)
+	nodeDao, _ := nodemgmt.NewInstance("mongodb://127.0.0.1:27017", "http://152.136.18.185:8888", "username1234", "5JcDH48njDbUQLu1R8SWwKsfWLnqBpWXDDiCgxFC3hioDuwLhVx", "hddpool12345", "hddpool12345", 0)
+	err := nodeDao.AddDNI(4, []byte{49, 50, 51, 52, 53, 54, 55})
+	err = nodeDao.AddDNI(4, []byte{52, 53, 54, 55})
+	err = nodeDao.AddDNI(4, []byte{56, 57, 58, 59})
+	err = nodeDao.AddDNI(4, []byte{41, 42, 43, 44, 45, 46, 47})
+	//err = nodeDao.DeleteDNI(4, []byte{52, 53, 54, 55})
+	// str, err := nodeDao.GetRandomVNI(4, 0)
+	// fmt.Println(str)
+	list, err := nodeDao.GetInvalidNodes()
+	if err != nil {
+		panic(err.Error())
+	}
+	fmt.Printf("has %d", len(list))
+	n, s, err := nodeDao.GetRebuildItem(4, 0, 3)
+	if err != nil {
+		panic(err.Error())
+	}
+	fmt.Println(n.NodeID)
+	fmt.Printf("%d", len(s))
 	// node := new(nodemgmt.Node)
 	// node.ID = 767
 	// node.Bandwidth = 0

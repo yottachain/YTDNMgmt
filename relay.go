@@ -24,7 +24,7 @@ func (self *NodeDaoImpl) AddrCheck(oldNode, newNode *Node) (relayUrl string, err
 		newNode.Relay = 0
 	}
 	n := rand.Intn(10000)
-	if n < 100 || EqualSorted(oldNode.Addrs, newNode.Addrs) {
+	if n > 200 && EqualSorted(oldNode.Addrs, newNode.Addrs) {
 		return "", nil
 	}
 	if self.ConnectivityCheck(oldNode.NodeID, newNode.Addrs) {

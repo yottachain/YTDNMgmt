@@ -87,6 +87,29 @@ typedef struct spotchecklists {
 	char *error;
 } spotchecklists;
 
+typedef struct vni {
+	char *shard;
+	int size;
+} vni;
+
+typedef struct rebuilditem {
+	node *node;
+	vni **shards;
+	int size;
+	char *error;
+} rebuilditem;
+
+typedef struct shardcount {
+	int32_t id;
+	int64_t cnt;
+} shardcount;
+
+typedef struct shardcountlist {
+	shardcount **shardcounts;
+	int size;
+	char *error;
+} shardcountlist;
+
 typedef struct stringwitherror {
 	char *str;
 	char *error;
@@ -101,6 +124,9 @@ extern void FreeNode(node *ptr);
 extern void FreeSuperNode(supernode *ptr);
 extern void FreeSpotchecktask(spotchecktask *ptr);
 extern void FreeSpotchecklist(spotchecklist *ptr);
+extern void FreeShardcount(shardcount *ptr);
+extern void FreeShardcountlist(shardcountlist *ptr);
+extern void FreeVNI(vni *ptr);
 
 static char** makeCharArray(int size) {
 	char **ret = (char**)malloc(sizeof(char*) * size);
@@ -196,6 +222,44 @@ static void freeSpotchecklistArray(spotchecklist **spotchecklists, int size) {
 	}
 	free(spotchecklists);
 }
+
+static shardcount** makeShardcountArray(int size) {
+	shardcount **ret = (shardcount**)malloc(sizeof(shardcount*) * size);
+	memset(ret, 0 , sizeof(shardcount*) * size);
+	return ret;
+}
+
+static void setShardcountArray(shardcount **shardcounts, shardcount *shardcount, int n) {
+	shardcounts[n] = shardcount;
+}
+
+static void freeShardcountArray(shardcount **shardcounts, int size) {
+	int i;
+	for (i = 0; i < size; i++) {
+		FreeShardcount(shardcounts[i]);
+		shardcounts[i] = NULL;
+	}
+	free(shardcounts);
+}
+
+static vni** makeVNIArray(int size) {
+	vni **ret = (vni**)malloc(sizeof(vni*) * size);
+	memset(ret, 0 , sizeof(vni*) * size);
+	return ret;
+}
+
+static void setVNIArray(vni **vnis, vni *vni, int n) {
+	vnis[n] = vni;
+}
+
+static void freeVNIArray(vni **vnis, int size) {
+	int i;
+	for (i = 0; i < size; i++) {
+		FreeVNI(vnis[i]);
+		vnis[i] = NULL;
+	}
+	free(vnis);
+}
 */
 import "C"
 import (
@@ -204,6 +268,7 @@ import (
 	"unsafe"
 
 	nodemgmt "github.com/yottachain/YTDNMgmt"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 var nodeDao nodemgmt.NodeDao
@@ -285,10 +350,12 @@ func UpdateNodeStatus(node *C.node) *C.node {
 		return createNodeStruct(nil, errors.New("Node management module has not started"))
 	}
 	length := int(node.addrsize)
-	tmpslice := (*[1 << 30]*C.char)(unsafe.Pointer(node.addrs))[:length:length]
 	addrs := make([]string, length)
-	for i, s := range tmpslice {
-		addrs[i] = C.GoString(s)
+	if length > 0 {
+		tmpslice := (*[1 << 30]*C.char)(unsafe.Pointer(node.addrs))[:length:length]
+		for i, s := range tmpslice {
+			addrs[i] = C.GoString(s)
+		}
 	}
 	gnode := nodemgmt.NewNode(int32(node.id), C.GoString(node.nodeid), C.GoString(node.pubkey), C.GoString(node.owner), C.GoString(node.profitAcc), C.GoString(node.poolID), int64(node.quota), addrs, int32(node.cpu), int32(node.memory), int32(node.bandwidth), int64(node.maxDataSpace), int64(node.assignedSpace), int64(node.productiveSpace), int64(node.usedSpace), float64(node.weight), int32(node.valid), int32(node.relay), int32(node.status), int64(node.timestamp), int32(node.version))
 	gnode, err := nodeDao.UpdateNodeStatus(gnode)
@@ -331,10 +398,12 @@ func SyncNode(node *C.node) *C.char {
 		return C.CString("Node management module has not started")
 	}
 	length := int(node.addrsize)
-	tmpslice := (*[1 << 30]*C.char)(unsafe.Pointer(node.addrs))[:length:length]
 	addrs := make([]string, length)
-	for i, s := range tmpslice {
-		addrs[i] = C.GoString(s)
+	if length > 0 {
+		tmpslice := (*[1 << 30]*C.char)(unsafe.Pointer(node.addrs))[:length:length]
+		for i, s := range tmpslice {
+			addrs[i] = C.GoString(s)
+		}
 	}
 	gnode := nodemgmt.NewNode(int32(node.id), C.GoString(node.nodeid), C.GoString(node.pubkey), C.GoString(node.owner), C.GoString(node.profitAcc), C.GoString(node.poolID), int64(node.quota), addrs, int32(node.cpu), int32(node.memory), int32(node.bandwidth), int64(node.maxDataSpace), int64(node.assignedSpace), int64(node.productiveSpace), int64(node.usedSpace), float64(node.weight), int32(node.valid), int32(node.relay), int32(node.status), int64(node.timestamp), int32(node.version))
 	err := nodeDao.SyncNode(gnode)
@@ -417,6 +486,8 @@ func AddDNI(id C.int32_t, shard *C.char, size C.longlong) *C.char {
 	return nil
 }
 
+//--------------------- Statistics ------------------------------
+
 //export ActiveNodesList
 func ActiveNodesList() *C.allocnoderet {
 	if nodeDao == nil {
@@ -434,6 +505,8 @@ func Statistics() *C.nodestatret {
 	stat, err := nodeDao.Statistics()
 	return createNodestatret(stat, err)
 }
+
+//--------------------- SpotCheck ------------------------------
 
 //export GetSpotCheckList
 func GetSpotCheckList() *C.spotchecklists {
@@ -483,6 +556,41 @@ func UpdateTaskStatus(id *C.char, invalidNodeList *C.int32_t, size C.int32_t) *C
 		return nil
 	}
 }
+
+//--------------------- Rebuild ------------------------------
+
+//export GetInvalidNodes
+func GetInvalidNodes() *C.shardcountlist {
+	if nodeDao == nil {
+		return createShardcountlist(nil, errors.New("Node management module has not started"))
+	}
+	list, err := nodeDao.GetInvalidNodes()
+	return createShardcountlist(list, err)
+}
+
+//export GetRebuildItem
+func GetRebuildItem(minerID C.int32_t, index, total C.int64_t) *C.rebuilditem {
+	if nodeDao == nil {
+		return createRebuilditem(nil, nil, errors.New("Node management module has not started"))
+	}
+	node, list, err := nodeDao.GetRebuildItem(int32(minerID), int64(index), int64(total))
+	return createRebuilditem(node, list, err)
+}
+
+//export DeleteDNI
+func DeleteDNI(id C.int32_t, shard *C.char, size C.longlong) *C.char {
+	if nodeDao == nil {
+		return C.CString("Node management module has not started")
+	}
+	shardSlice := (*[1 << 30]byte)(unsafe.Pointer(shard))[:int64(size):int64(size)]
+	err := nodeDao.DeleteDNI(int32(id), shardSlice)
+	if err != nil {
+		return C.CString(err.Error())
+	}
+	return nil
+}
+
+//--------------------- Free functions ------------------------------
 
 func createAllocnoderet(nodes []nodemgmt.Node, err error) *C.allocnoderet {
 	ptr := (*C.allocnoderet)(C.malloc(C.size_t(unsafe.Sizeof(C.allocnoderet{}))))
@@ -836,6 +944,118 @@ func FreeSpotchecktask(ptr *C.spotchecktask) {
 		if (*ptr).vni != nil {
 			C.free(unsafe.Pointer((*ptr).vni))
 		}
+		C.free(unsafe.Pointer(ptr))
+	}
+}
+
+func createVNI(vni primitive.Binary) *C.vni {
+	ptr := (*C.vni)(C.malloc(C.size_t(unsafe.Sizeof(C.vni{}))))
+	C.memset(unsafe.Pointer(ptr), 0, C.size_t(unsafe.Sizeof(C.vni{})))
+	(*ptr).shard = (*C.char)(unsafe.Pointer(&(vni.Data)[0]))
+	(*ptr).size = C.int(len(vni.Data))
+	return ptr
+}
+
+//export FreeVNI
+func FreeVNI(ptr *C.vni) {
+	if ptr != nil {
+		if (*ptr).shard != nil {
+			C.memset(unsafe.Pointer((*ptr).shard), 0, C.size_t((*ptr).size))
+		}
+		C.free(unsafe.Pointer(ptr))
+	}
+}
+
+func createShards(shards []primitive.Binary) **C.vni {
+	vnis := C.makeVNIArray(C.int(len(shards)))
+	for i, s := range shards {
+		C.setVNIArray(vnis, createVNI(s), C.int(i))
+	}
+	return vnis
+}
+
+func createRebuilditem(node *nodemgmt.Node, shards []primitive.Binary, err error) *C.rebuilditem {
+	ptr := (*C.rebuilditem)(C.malloc(C.size_t(unsafe.Sizeof(C.rebuilditem{}))))
+	C.memset(unsafe.Pointer(ptr), 0, C.size_t(unsafe.Sizeof(C.rebuilditem{})))
+	if err != nil {
+		(*ptr).error = C.CString(err.Error())
+		return ptr
+	}
+	if node != nil {
+		cnode := createNodeStruct(node, nil)
+		(*ptr).node = cnode
+	} else {
+		(*ptr).error = C.CString("no rebuilding node allocated")
+		return ptr
+	}
+	if shards != nil {
+		(*ptr).shards = createShards(shards)
+		(*ptr).size = C.int(len(shards))
+	}
+	return ptr
+}
+
+//export FreeRebuilditem
+func FreeRebuilditem(ptr *C.rebuilditem) {
+	if ptr != nil {
+		if (*ptr).node != nil {
+			FreeNode((*ptr).node)
+			(*ptr).node = nil
+		}
+		if (*ptr).shards != nil {
+			C.freeVNIArray((*ptr).shards, (*ptr).size)
+			(*ptr).shards = nil
+		}
+		if (*ptr).error != nil {
+			C.free(unsafe.Pointer((*ptr).error))
+			(*ptr).error = nil
+		}
+		C.free(unsafe.Pointer(ptr))
+	}
+}
+
+func createShardcountlist(list []nodemgmt.ShardCount, err error) *C.shardcountlist {
+	ptr := (*C.shardcountlist)(C.malloc(C.size_t(unsafe.Sizeof(C.shardcountlist{}))))
+	C.memset(unsafe.Pointer(ptr), 0, C.size_t(unsafe.Sizeof(C.shardcountlist{})))
+	if err != nil {
+		(*ptr).error = C.CString(err.Error())
+		return ptr
+	}
+	if list != nil && len(list) != 0 {
+		tasks := C.makeShardcountArray(C.int(len(list)))
+		for i, s := range list {
+			C.setShardcountArray(tasks, createShardcount(s), C.int(i))
+		}
+		(*ptr).shardcounts = tasks
+		(*ptr).size = C.int(len(list))
+	}
+	return ptr
+}
+
+//export FreeShardcountlist
+func FreeShardcountlist(ptr *C.shardcountlist) {
+	if ptr != nil {
+		if (*ptr).shardcounts != nil {
+			C.freeShardcountArray((*ptr).shardcounts, (*ptr).size)
+			(*ptr).shardcounts = nil
+		}
+		C.free(unsafe.Pointer(ptr))
+	}
+}
+
+func createShardcount(item nodemgmt.ShardCount) *C.shardcount {
+	ptr := (*C.shardcount)(C.malloc(C.size_t(unsafe.Sizeof(C.shardcount{}))))
+	C.memset(unsafe.Pointer(ptr), 0, C.size_t(unsafe.Sizeof(C.shardcount{})))
+	(*ptr).id = C.int32_t(item.ID)
+	(*ptr).cnt = C.int64_t(item.Cnt)
+	return ptr
+}
+
+//export FreeShardcount
+func FreeShardcount(ptr *C.shardcount) {
+	if ptr != nil {
+		(*ptr).id = 0
+		(*ptr).cnt = 0
 		C.free(unsafe.Pointer(ptr))
 	}
 }

@@ -12,7 +12,6 @@ import (
 	eos "github.com/eoscanada/eos-go"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
-	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
@@ -88,7 +87,7 @@ func (self *NodeDaoImpl) GetSTNode() (*Node, error) {
 	node := new(Node)
 	options := options.FindOneOptions{}
 	options.Sort = bson.D{{"timestamp", -1}}
-	err := collection.FindOne(context.Background(), bson.M{"valid": 1, "status": 1, "bandwidth": bson.M{"$lt": 50}, "timestamp": bson.M{"$gt": time.Now().Unix() - IntervalTime*2}}, &options).Decode(node)
+	err := collection.FindOne(context.Background(), bson.M{"_id": bson.M{"$mod": bson.A{incr, index}}, "valid": 1, "status": 1, "bandwidth": bson.M{"$lt": 50}, "timestamp": bson.M{"$gt": time.Now().Unix() - IntervalTime*2}, "version": bson.M{"$gte": 4}}, &options).Decode(node)
 	if err != nil {
 		return nil, err
 	}
@@ -102,7 +101,7 @@ func (self *NodeDaoImpl) GetSTNodes(count int64) ([]Node, error) {
 	options.Limit = &count
 	nodes := make([]Node, 0)
 	collection := self.client.Database(YottaDB).Collection(NodeTab)
-	cur, err := collection.Find(context.Background(), bson.M{"valid": 1, "status": 1, "bandwidth": bson.M{"$lt": 50}, "timestamp": bson.M{"$gt": time.Now().Unix() - IntervalTime*2}}, &options)
+	cur, err := collection.Find(context.Background(), bson.M{"_id": bson.M{"$mod": bson.A{incr, index}}, "valid": 1, "status": 1, "bandwidth": bson.M{"$lt": 50}, "timestamp": bson.M{"$gt": time.Now().Unix() - IntervalTime*2}, "version": bson.M{"$gte": 4}}, &options)
 	if err != nil {
 		return nil, err
 	}
@@ -114,6 +113,13 @@ func (self *NodeDaoImpl) GetSTNodes(count int64) ([]Node, error) {
 			return nil, err
 		}
 		nodes = append(nodes, *result)
+	}
+	if len(nodes) > 0 {
+		for len(nodes) < 3 {
+			nodes = append(nodes, nodes[0])
+		}
+	} else {
+		return nil, errors.New("No enougth spot check nodes")
 	}
 	return nodes, nil
 }
@@ -142,25 +148,34 @@ func (self *NodeDaoImpl) UpdateTaskStatus(id string, invalidNodeList []int32) er
 
 func (self *NodeDaoImpl) GetRandomVNI(id int32, index int64) (string, error) {
 	collection := self.client.Database(YottaDB).Collection(DNITab)
-	pipeline := mongo.Pipeline{
-		{{"$match", bson.D{{"_id", id}}}},
-		{{"$project", bson.D{{"vni", bson.D{{"$arrayElemAt", bson.A{"$shards", index}}}}}}},
-	}
-	cur, err := collection.Aggregate(context.Background(), pipeline)
+	options := options.FindOneOptions{}
+	options.Skip = &index
+	dni := new(DNI)
+	err := collection.FindOne(context.Background(), bson.M{"minerID": id}, &options).Decode(dni)
 	if err != nil {
 		return "", err
 	}
-	result := new(VNI)
-	defer cur.Close(context.Background())
-	if cur.Next(context.Background()) {
-		err := cur.Decode(&result)
-		if err != nil {
-			return "", err
-		}
-		return base64.StdEncoding.EncodeToString(result.VNI), nil
-	} else {
-		return "", errors.New("no matched DNI.")
-	}
+	return base64.StdEncoding.EncodeToString(dni.Shard.Data), nil
+
+	// pipeline := mongo.Pipeline{
+	// 	{{"$match", bson.D{{"_id", id}}}},
+	// 	{{"$project", bson.D{{"vni", bson.D{{"$arrayElemAt", bson.A{"$shards", index}}}}}}},
+	// }
+	// cur, err := collection.Aggregate(context.Background(), pipeline)
+	// if err != nil {
+	// 	return "", err
+	// }
+	// result := new(VNI)
+	// defer cur.Close(context.Background())
+	// if cur.Next(context.Background()) {
+	// 	err := cur.Decode(&result)
+	// 	if err != nil {
+	// 		return "", err
+	// 	}
+	// 	return base64.StdEncoding.EncodeToString(result.VNI), nil
+	// } else {
+	// 	return "", errors.New("no matched DNI.")
+	// }
 }
 
 func (self *NodeDaoImpl) SaveSpotCheckList(list *SpotCheckList) (*SpotCheckList, error) {
@@ -225,25 +240,25 @@ func (self *NodeDaoImpl) PunishNodes() error {
 	if err != nil {
 		return err
 	}
-	err = self.Punish(10, 2, 1, rate) //失效一小时的矿机惩罚10%抵押
+	err = self.Punish(10, 2, 1, rate, false) //失效一小时的矿机惩罚10%抵押
 	if err != nil {
 		return err
 	}
-	err = self.Punish(40, 25, 24, rate) //失效一天的矿机惩罚40%抵押
+	err = self.Punish(40, 25, 24, rate, true) //失效一天的矿机惩罚40%抵押
 	if err != nil {
 		return err
 	}
-	err = self.Punish(100, 169, 168, rate) //失效一周的矿机惩罚全部抵押
+	err = self.Punish(100, 169, 168, rate, false) //失效一周的矿机惩罚全部抵押
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func (self *NodeDaoImpl) Punish(percent int64, from int64, to int64, rate int32) error {
+func (self *NodeDaoImpl) Punish(percent int64, from int64, to int64, rate int32, mark bool) error {
 	nodes := make([]Node, 0)
 	collection := self.client.Database(YottaDB).Collection(NodeTab)
-	cur, err := collection.Find(context.Background(), bson.M{"status": 1, "assignedSpace": bson.M{"$gt": 0}, "_id": bson.M{"$mod": bson.A{incr, index}}, "timestamp": bson.M{"$gte": time.Now().Unix() - 3600*from, "$lt": time.Now().Unix() - 3600*to}})
+	cur, err := collection.Find(context.Background(), bson.M{"status": bson.M{"$gte": 1}, "assignedSpace": bson.M{"$gt": 0}, "_id": bson.M{"$mod": bson.A{incr, index}}, "timestamp": bson.M{"$gte": time.Now().Unix() - 3600*from - 1800, "$lt": time.Now().Unix() - 3600*to - 1800}})
 	if err != nil {
 		return err
 	}
@@ -277,7 +292,16 @@ func (self *NodeDaoImpl) Punish(percent int64, from int64, to int64, rate int32)
 			newAssignedSpace = 0
 		}
 		collection = self.client.Database(YottaDB).Collection(NodeTab)
-		collection.UpdateOne(context.Background(), bson.M{"_id": n.ID}, bson.M{"$set": bson.M{"assignedSpace": newAssignedSpace}})
+		status := n.Status
+		// invalid over 24 hours begin data rebuilding
+		if mark {
+			status = 2
+			_, err = collection.UpdateOne(context.Background(), bson.M{"_id": n.ID}, bson.M{"$set": bson.M{"tasktimestamp": int64(0)}})
+			if err != nil {
+				return err
+			}
+		}
+		_, err = collection.UpdateOne(context.Background(), bson.M{"_id": n.ID}, bson.M{"$set": bson.M{"assignedSpace": newAssignedSpace, "status": status}})
 		if err != nil {
 			return err
 		}

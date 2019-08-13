@@ -114,10 +114,18 @@ type SpotCheckRecord struct {
 	Timestamp int64              `bson:"timestamp"`
 }
 
-//DNI
-type DNI struct {
+//DNI_old
+type DNI_old struct {
 	ID     int32              `bson:"_id"`
 	Shards []primitive.Binary `bson:"shards"`
+}
+
+//DNI
+type DNI struct {
+	ID      primitive.ObjectID `bson:"_id"`
+	Shard   primitive.Binary   `bson:"shard"`
+	MinerID int32              `bson:"minerID"`
+	Delete  int32              `bson:"delete"`
 }
 
 //VNI
@@ -131,7 +139,7 @@ const (
 	YottaDB      = "yotta"
 	NodeTab      = "Node"
 	SuperNodeTab = "SuperNode"
-	DNITab       = "DNI"
+	DNITab       = "Shards"
 	SequenceTab  = "Sequence"
 	SpotCheckTab = "SpotCheck"
 	ErrorNodeTab = "ErrorNode"
