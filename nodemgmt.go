@@ -216,7 +216,7 @@ func (self *NodeDaoImpl) ChangeMinerPool(trx string) error {
 		if err != nil {
 			return err
 		}
-		assignable := Min(node.AssignedSpace, node.Quota)
+		assignable := Min(node.AssignedSpace /*, node.Quota*/)
 		if assignable <= 0 {
 			return errors.New("assignable space is 0")
 		}
@@ -307,7 +307,7 @@ func (self *NodeDaoImpl) UpdateNodeStatus(node *Node) (*Node, error) {
 	if n.Status > 1 {
 		status = n.Status
 	}
-	weight := math.Sqrt(2*math.Pow(float64(node.CPU)/100, 2) + 2*math.Pow(float64(node.Memory)/100, 2) + 2*math.Pow(float64(node.Bandwidth)/100, 2) + math.Pow(float64(n.UsedSpace)/float64(Min(n.AssignedSpace, n.Quota, node.MaxDataSpace)), 2))
+	weight := math.Sqrt(2*math.Pow(float64(node.CPU)/100, 2) + 2*math.Pow(float64(node.Memory)/100, 2) + 2*math.Pow(float64(node.Bandwidth)/100, 2) + math.Pow(float64(n.UsedSpace)/float64(Min(n.AssignedSpace /*, n.Quota, node.MaxDataSpace*/)), 2))
 	opts := new(options.FindOneAndUpdateOptions)
 	opts = opts.SetReturnDocument(options.After)
 	var timestamp int64
@@ -352,7 +352,7 @@ func (self *NodeDaoImpl) IncrUsedSpace(id int32, incr int64) error {
 	if err != nil {
 		return err
 	}
-	weight := math.Sqrt(2*math.Pow(float64(n.CPU)/100, 2) + 2*math.Pow(float64(n.Memory)/100, 2) + 2*math.Pow(float64(n.Bandwidth)/100, 2) + math.Pow(float64(n.UsedSpace+incr)/float64(Min(n.AssignedSpace, n.Quota, n.MaxDataSpace)), 2))
+	weight := math.Sqrt(2*math.Pow(float64(n.CPU)/100, 2) + 2*math.Pow(float64(n.Memory)/100, 2) + 2*math.Pow(float64(n.Bandwidth)/100, 2) + math.Pow(float64(n.UsedSpace+incr)/float64(Min(n.AssignedSpace /*, n.Quota, n.MaxDataSpace*/)), 2))
 	_, err = collection.UpdateOne(context.Background(), bson.M{"_id": id}, bson.M{"$set": bson.M{"weight": weight}, "$inc": bson.M{"usedSpace": incr}})
 	return err
 }
@@ -382,7 +382,7 @@ func (self *NodeDaoImpl) AllocNodes(shardCount int32, errids []int32) ([]Node, e
 	limit := int64(shardCount)
 	options.Limit = &limit
 	for {
-		cond := bson.M{"valid": 1, "status": 1, "assignedSpace": bson.M{"$gt": 0}, "quota": bson.M{"$gt": 0}, "timestamp": bson.M{"$gt": time.Now().Unix() - IntervalTime*2}, "version": bson.M{"$gte": 4}}
+		cond := bson.M{"valid": 1, "status": 1, "assignedSpace": bson.M{"$gt": 0}, "quota": bson.M{"$gt": 0}, "timestamp": bson.M{"$gt": time.Now().Unix() - IntervalTime*3}, "version": bson.M{"$gte": 6}}
 		if errids != nil && len(errids) > 0 {
 			cond["_id"] = bson.M{"$nin": errids}
 		}
@@ -406,7 +406,7 @@ func (self *NodeDaoImpl) AllocNodes(shardCount int32, errids []int32) ([]Node, e
 					m[result.ID] -= 1
 					continue
 				}
-				assignable := Min(result.AssignedSpace, result.Quota, result.MaxDataSpace) - result.ProductiveSpace
+				assignable := Min(result.AssignedSpace /*, result.Quota, result.MaxDataSpace*/) - result.ProductiveSpace
 				if assignable <= 0 {
 					m[result.ID] -= 1
 					continue
