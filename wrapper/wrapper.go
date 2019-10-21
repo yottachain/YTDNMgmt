@@ -592,7 +592,7 @@ func DeleteDNI(id C.int32_t, shard *C.char, size C.longlong) *C.char {
 
 //--------------------- Free functions ------------------------------
 
-func createAllocnoderet(nodes []nodemgmt.Node, err error) *C.allocnoderet {
+func createAllocnoderet(nodes []*nodemgmt.Node, err error) *C.allocnoderet {
 	ptr := (*C.allocnoderet)(C.malloc(C.size_t(unsafe.Sizeof(C.allocnoderet{}))))
 	C.memset(unsafe.Pointer(ptr), 0, C.size_t(unsafe.Sizeof(C.allocnoderet{})))
 	if err != nil {
@@ -602,7 +602,7 @@ func createAllocnoderet(nodes []nodemgmt.Node, err error) *C.allocnoderet {
 	size := len(nodes)
 	cnodes := C.makeNodeArray(C.int(size))
 	for i, s := range nodes {
-		C.setArrayNode(cnodes, createNodeStruct(&s, nil), C.int(i))
+		C.setArrayNode(cnodes, createNodeStruct(s, nil), C.int(i))
 	}
 	(*ptr).nodes = cnodes
 	(*ptr).size = C.int(size)
@@ -765,7 +765,7 @@ func FreeNode(ptr *C.node) {
 	}
 }
 
-func createAllocsupernoderet(supernodes []nodemgmt.SuperNode, err error) *C.allocsupernoderet {
+func createAllocsupernoderet(supernodes []*nodemgmt.SuperNode, err error) *C.allocsupernoderet {
 	ptr := (*C.allocsupernoderet)(C.malloc(C.size_t(unsafe.Sizeof(C.allocsupernoderet{}))))
 	C.memset(unsafe.Pointer(ptr), 0, C.size_t(unsafe.Sizeof(C.allocsupernoderet{})))
 	if err != nil {
@@ -775,7 +775,7 @@ func createAllocsupernoderet(supernodes []nodemgmt.SuperNode, err error) *C.allo
 	size := len(supernodes)
 	csupernodes := C.makeSuperNodeArray(C.int(size))
 	for i, s := range supernodes {
-		C.setArraySuperNode(csupernodes, createSuperNodeStruct(s, nil), C.int(i))
+		C.setArraySuperNode(csupernodes, createSuperNodeStruct(*s, nil), C.int(i))
 	}
 	(*ptr).supernodes = csupernodes
 	(*ptr).size = C.int(size)
@@ -1014,7 +1014,7 @@ func FreeRebuilditem(ptr *C.rebuilditem) {
 	}
 }
 
-func createShardcountlist(list []nodemgmt.ShardCount, err error) *C.shardcountlist {
+func createShardcountlist(list []*nodemgmt.ShardCount, err error) *C.shardcountlist {
 	ptr := (*C.shardcountlist)(C.malloc(C.size_t(unsafe.Sizeof(C.shardcountlist{}))))
 	C.memset(unsafe.Pointer(ptr), 0, C.size_t(unsafe.Sizeof(C.shardcountlist{})))
 	if err != nil {
@@ -1024,7 +1024,7 @@ func createShardcountlist(list []nodemgmt.ShardCount, err error) *C.shardcountli
 	if list != nil && len(list) != 0 {
 		tasks := C.makeShardcountArray(C.int(len(list)))
 		for i, s := range list {
-			C.setShardcountArray(tasks, createShardcount(s), C.int(i))
+			C.setShardcountArray(tasks, createShardcount(*s), C.int(i))
 		}
 		(*ptr).shardcounts = tasks
 		(*ptr).size = C.int(len(list))

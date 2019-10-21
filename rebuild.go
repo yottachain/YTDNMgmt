@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"time"
 
 	"go.mongodb.org/mongo-driver/bson"
@@ -11,12 +12,14 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
-func (self *NodeDaoImpl) GetInvalidNodes() ([]ShardCount, error) {
-	lists := make([]ShardCount, 0)
+func (self *NodeDaoImpl) GetInvalidNodes() ([]*ShardCount, error) {
+	lists := make([]*ShardCount, 0)
 	collection := self.client.Database(YottaDB).Collection(DNITab)
 	collectionNode := self.client.Database(YottaDB).Collection(NodeTab)
-	cur, err := collectionNode.Find(context.Background(), bson.M{"_id": bson.M{"$mod": bson.A{incr, index}}, "status": 2, "tasktimestamp": bson.M{"$exists": true, "$ne": nil, "$lt": time.Now().Unix() - 1800}})
+	//cur, err := collectionNode.Find(context.Background(), bson.M{"_id": bson.M{"$mod": bson.A{incr, index}}, "status": 2, "tasktimestamp": bson.M{"$exists": true, "$ne": nil, "$lt": time.Now().Unix() - 1800}})
+	cur, err := collectionNode.Find(context.Background(), bson.M{"$and": bson.A{bson.M{"_id": 30}, bson.M{"_id": bson.M{"$mod": bson.A{incr, index}}}}})
 	if err != nil {
+		log.Printf("GetInvalidNodes error: %s\n", err.Error())
 		return nil, err
 	}
 	for cur.Next(context.Background()) {
@@ -47,7 +50,7 @@ func (self *NodeDaoImpl) GetInvalidNodes() ([]ShardCount, error) {
 		shardCount := new(ShardCount)
 		shardCount.ID = result.ID
 		shardCount.Cnt = count
-		lists = append(lists, *shardCount)
+		lists = append(lists, shardCount)
 	}
 	return lists, nil
 

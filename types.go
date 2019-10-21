@@ -1,6 +1,9 @@
 package YTDNMgmt
 
-import "go.mongodb.org/mongo-driver/bson/primitive"
+import (
+	pb "github.com/yottachain/YTDNMgmt/pb"
+	"go.mongodb.org/mongo-driver/bson/primitive"
+)
 
 // Node instance
 type Node struct {
@@ -152,5 +155,185 @@ var (
 	SuperNodeIdxType = 101
 )
 
-//interval time of data node reporting status
+//IntervalTime interval time of data node reporting status
 var IntervalTime int64 = 60
+
+// Convert convert Node strcut to NodeMsg
+func (node *Node) Convert() *pb.NodeMsg {
+	return &pb.NodeMsg{
+		ID:              node.ID,
+		NodeID:          node.NodeID,
+		PubKey:          node.PubKey,
+		Owner:           node.Owner,
+		ProfitAcc:       node.ProfitAcc,
+		PoolID:          node.PoolID,
+		Quota:           node.Quota,
+		Addrs:           node.Addrs,
+		CPU:             node.CPU,
+		Memory:          node.Memory,
+		Bandwidth:       node.Bandwidth,
+		MaxDataSpace:    node.MaxDataSpace,
+		AssignedSpace:   node.AssignedSpace,
+		ProductiveSpace: node.ProductiveSpace,
+		UsedSpace:       node.UsedSpace,
+		Weight:          node.Weight,
+		Valid:           node.Valid,
+		Relay:           node.Relay,
+		Status:          node.Status,
+		Timestamp:       node.Timestamp,
+		Version:         node.Version,
+	}
+}
+
+// Fillby convert NodeMsg to Node struct
+func (node *Node) Fillby(msg *pb.NodeMsg) {
+	node.ID = msg.ID
+	node.NodeID = msg.NodeID
+	node.PubKey = msg.PubKey
+	node.Owner = msg.Owner
+	node.ProfitAcc = msg.ProfitAcc
+	node.PoolID = msg.PoolID
+	node.Quota = msg.Quota
+	node.Addrs = msg.Addrs
+	node.CPU = msg.CPU
+	node.Memory = msg.Memory
+	node.Bandwidth = msg.Bandwidth
+	node.MaxDataSpace = msg.MaxDataSpace
+	node.AssignedSpace = msg.AssignedSpace
+	node.ProductiveSpace = msg.ProductiveSpace
+	node.UsedSpace = msg.UsedSpace
+	node.Weight = msg.Weight
+	node.Valid = msg.Valid
+	node.Relay = msg.Relay
+	node.Status = msg.Status
+	node.Timestamp = msg.Timestamp
+	node.Version = msg.Version
+}
+
+// ConvertNodesToNodesMsg convert list of Node to list of NodeMsg
+func ConvertNodesToNodesMsg(nodes []*Node) []*pb.NodeMsg {
+	nodeMsgs := make([]*pb.NodeMsg, len(nodes))
+	for i, n := range nodes {
+		nodeMsgs[i] = n.Convert()
+	}
+	return nodeMsgs
+}
+
+// Convert convert SuperNode strcut to SuperNodeMsg
+func (superNode *SuperNode) Convert() *pb.SuperNodeMsg {
+	return &pb.SuperNodeMsg{
+		ID:      superNode.ID,
+		NodeID:  superNode.NodeID,
+		PubKey:  superNode.PubKey,
+		PrivKey: superNode.PrivKey,
+		Addrs:   superNode.Addrs,
+	}
+}
+
+// Fillby convert SuperNodeMsg to SuperNode struct
+func (superNode *SuperNode) Fillby(msg *pb.SuperNodeMsg) {
+	superNode.ID = msg.ID
+	superNode.NodeID = msg.NodeID
+	superNode.PubKey = msg.PubKey
+	superNode.PrivKey = msg.PrivKey
+	superNode.Addrs = msg.Addrs
+}
+
+// ConvertSuperNodesToSuperNodesMsg convert list of SuperNode to list of SuperNodeMsg
+func ConvertSuperNodesToSuperNodesMsg(superNodes []*SuperNode) []*pb.SuperNodeMsg {
+	superNodeMsgs := make([]*pb.SuperNodeMsg, len(superNodes))
+	for i, s := range superNodes {
+		superNodeMsgs[i] = s.Convert()
+	}
+	return superNodeMsgs
+}
+
+// Convert convert NodeStat strcut to NodeStatMsg
+func (nodeStat *NodeStat) Convert() *pb.NodeStatMsg {
+	return &pb.NodeStatMsg{
+		ActiveMiners:    nodeStat.ActiveMiners,
+		TotalMiners:     nodeStat.TotalMiners,
+		MaxTotal:        nodeStat.MaxTotal,
+		AssignedTotal:   nodeStat.AssignedTotal,
+		ProductiveTotal: nodeStat.ProductiveTotal,
+		UsedTotal:       nodeStat.UsedTotal,
+	}
+}
+
+// Fillby convert NodeMsg to Node struct
+func (nodeStat *NodeStat) Fillby(msg *pb.NodeStatMsg) {
+	nodeStat.ActiveMiners = msg.ActiveMiners
+	nodeStat.TotalMiners = msg.TotalMiners
+	nodeStat.MaxTotal = msg.MaxTotal
+	nodeStat.AssignedTotal = msg.AssignedTotal
+	nodeStat.ProductiveTotal = msg.ProductiveTotal
+	nodeStat.UsedTotal = msg.UsedTotal
+}
+
+// Convert convert ShardCount strcut to ShardCountMsg
+func (shardCount *ShardCount) Convert() *pb.ShardCountMsg {
+	return &pb.ShardCountMsg{
+		ID:  shardCount.ID,
+		Cnt: shardCount.Cnt,
+	}
+}
+
+// Fillby convert ShardCountMsg to ShardCount
+func (shardCount *ShardCount) Fillby(msg *pb.ShardCountMsg) {
+	shardCount.ID = msg.ID
+	shardCount.Cnt = msg.Cnt
+}
+
+// ConvertShardCountsToShardCountsMsg convert list of ShardCount to list of ShardCountMsg
+func ConvertShardCountsToShardCountsMsg(shardCounts []*ShardCount) []*pb.ShardCountMsg {
+	shardCountMsgs := make([]*pb.ShardCountMsg, len(shardCounts))
+	for i, s := range shardCounts {
+		shardCountMsgs[i] = s.Convert()
+	}
+	return shardCountMsgs
+}
+
+// Convert convert SpotCheckTask strcut to SpotCheckTaskMsg
+func (spotCheckTask *SpotCheckTask) Convert() *pb.SpotCheckTaskMsg {
+	return &pb.SpotCheckTaskMsg{
+		ID:     spotCheckTask.ID,
+		NodeID: spotCheckTask.NodeID,
+		Addr:   spotCheckTask.Addr,
+		VNI:    spotCheckTask.VNI,
+	}
+}
+
+// Fillby convert SpotCheckTaskMsg to SpotCheckTask struct
+func (spotCheckTask *SpotCheckTask) Fillby(msg *pb.SpotCheckTaskMsg) {
+	spotCheckTask.ID = msg.ID
+	spotCheckTask.NodeID = msg.NodeID
+	spotCheckTask.Addr = msg.Addr
+	spotCheckTask.VNI = msg.VNI
+}
+
+// ConvertSpotCheckTasksToSpotCheckTasksMsg convert list of ShardCount to list of ShardCountMsg
+func ConvertSpotCheckTasksToSpotCheckTasksMsg(spotCheckTasks []*SpotCheckTask) []*pb.SpotCheckTaskMsg {
+	spotCheckTaskMsgs := make([]*pb.SpotCheckTaskMsg, len(spotCheckTasks))
+	for i, s := range spotCheckTasks {
+		spotCheckTaskMsgs[i] = s.Convert()
+	}
+	return spotCheckTaskMsgs
+}
+
+// Convert convert SpotCheckTask strcut to SpotCheckTaskMsg
+func (spotCheckList *SpotCheckList) Convert() *pb.SpotCheckListMsg {
+	return &pb.SpotCheckListMsg{
+		TaskID:    spotCheckList.TaskID.Hex(),
+		TaskList:  ConvertSpotCheckTasksToSpotCheckTasksMsg(spotCheckList.TaskList),
+		Timestamp: spotCheckList.Timestamp,
+	}
+}
+
+// ConvertSpotCheckListsToSpotCheckListsMsg convert list of SpotCheckList to list of SpotCheckListMsg
+func ConvertSpotCheckListsToSpotCheckListsMsg(spotCheckLists []*SpotCheckList) []*pb.SpotCheckListMsg {
+	spotCheckListMsgs := make([]*pb.SpotCheckListMsg, len(spotCheckLists))
+	for i, s := range spotCheckLists {
+		spotCheckListMsgs[i] = s.Convert()
+	}
+	return spotCheckListMsgs
+}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"math/rand"
 	"strings"
 	"time"
@@ -28,9 +29,15 @@ func (self *NodeDaoImpl) AddrCheck(oldNode, newNode *Node) (relayUrl string, err
 		return "", nil
 	}
 	if self.ConnectivityCheck(oldNode.NodeID, newNode.Addrs) {
+		if oldNode.Valid == 0 {
+			log.Printf("---- Node %d becomes valid.", oldNode.ID)
+		}
 		newNode.Valid = 1
 		return "", nil
 	} else {
+		if oldNode.Valid == 1 {
+			log.Printf("---- Node %d becomes invalid.", oldNode.ID)
+		}
 		newNode.Valid = 0
 		newNode.Relay = 0
 		rnode := self.AllocRelayNode()

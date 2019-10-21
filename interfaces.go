@@ -10,23 +10,23 @@ type NodeDao interface {
 	RegisterNode(node *Node) (*Node, error)
 	UpdateNodeStatus(node *Node) (*Node, error)
 	IncrUsedSpace(id int32, incr int64) error
-	AllocNodes(shardCount int32, errIDs []int32) ([]Node, error)
+	AllocNodes(shardCount int32, errIDs []int32) ([]*Node, error)
 	SyncNode(node *Node) error
-	GetNodes(nodeIDs []int32) ([]Node, error)
-	GetSuperNodes() ([]SuperNode, error)
+	GetNodes(nodeIDs []int32) ([]*Node, error)
+	GetSuperNodes() ([]*SuperNode, error)
 	GetSuperNodePrivateKey(id int32) (string, error)
 	GetNodeIDByPubKey(pubkey string) (int32, error)
 	GetNodeByPubKey(pubkey string) (*Node, error)
 	GetSuperNodeIDByPubKey(pubkey string) (int32, error)
 	AddDNI(id int32, shard []byte) error
-	ActiveNodesList() ([]Node, error)
+	ActiveNodesList() ([]*Node, error)
 	Statistics() (*NodeStat, error)
 	GetSpotCheckList() ([]*SpotCheckList, error)
 	GetSTNode() (*Node, error)
-	GetSTNodes(count int64) ([]Node, error)
+	GetSTNodes(count int64) ([]*Node, error)
 	UpdateTaskStatus(id string, invalidNodeList []int32) error
 
-	GetInvalidNodes() ([]ShardCount, error)
+	GetInvalidNodes() ([]*ShardCount, error)
 	GetRebuildItem(minerID int32, index, total int64) (*Node, []primitive.Binary, error)
 	GetRebuildNode(count int64) (*Node, error)
 	DeleteDNI(minerID int32, shard []byte) error

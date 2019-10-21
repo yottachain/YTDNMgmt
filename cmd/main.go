@@ -1,15 +1,202 @@
 package main
 
 import (
+	"context"
 	"fmt"
+	"log"
+	"net"
+	"net/http"
+	"os"
+	"strconv"
+	"time"
 
-	eos "github.com/eoscanada/eos-go"
 	nodemgmt "github.com/yottachain/YTDNMgmt"
+	pb "github.com/yottachain/YTDNMgmt/pb"
+	"go.etcd.io/etcd/clientv3"
+	"google.golang.org/grpc"
 )
 
-type Miner struct {
-	Owner   eos.AccountName `json:"owner"`
-	MinerID uint64          `json:"minerid"`
+const NODEMGMT_ETCD_PREFIX = "/nodemgmt/"
+const NODEMGMT_MONGOURL = NODEMGMT_ETCD_PREFIX + "mongoURL"
+const NODEMGMT_EOSURL = NODEMGMT_ETCD_PREFIX + "eosURL"
+const NODEMGMT_BPACCOUNT = NODEMGMT_ETCD_PREFIX + "bpAccount"
+const NODEMGMT_BPPRIVKEY = NODEMGMT_ETCD_PREFIX + "bpPrivkey"
+const NODEMGMT_CONTRACTOWNERM = NODEMGMT_ETCD_PREFIX + "contractOwnerM"
+const NODEMGMT_CONTRACTOWNERD = NODEMGMT_ETCD_PREFIX + "contractOwnerD"
+const NODEMGMT_BPID = NODEMGMT_ETCD_PREFIX + "bpid"
+
+func main2() {
+	var enablePprof bool = true
+	var pprofPort int
+	enablePprofStr := os.Getenv("P2PHOST_ENABLEPPROF")
+	ep, err := strconv.ParseBool(enablePprofStr)
+	if err != nil {
+		enablePprof = false
+	} else {
+		enablePprof = ep
+	}
+	pprofPortStr := os.Getenv("P2PHOST_PPROFPORT")
+	pp, err := strconv.Atoi(pprofPortStr)
+	if err != nil {
+		pprofPort = 6161
+	} else {
+		pprofPort = pp
+	}
+	if enablePprof {
+		go func() {
+			http.ListenAndServe(fmt.Sprintf("0.0.0.0:%d", pprofPort), nil)
+		}()
+		log.Printf("enable pprof server: 0.0.0.0:%d\n", pprofPort)
+	}
+
+	etcdHostname := os.Getenv("ETCDHOSTNAME")
+	if etcdHostname == "" {
+		etcdHostname = "etcd-svc"
+	}
+	etcdPortStr := os.Getenv("ETCDPORT")
+	etcdPort, err := strconv.Atoi(etcdPortStr)
+	if err != nil {
+		etcdPort = 2379
+	}
+	log.Printf("ETCD URL: %s:%d\n", etcdHostname, etcdPort)
+	clnt, err := clientv3.New(clientv3.Config{
+		Endpoints:   []string{fmt.Sprintf("%s:%d", etcdHostname, etcdPort)},
+		DialTimeout: 5 * time.Second,
+	})
+	if err != nil {
+		log.Fatalln("connect etcd failed, err: ", err)
+	}
+	log.Println("connect etcd success")
+	defer clnt.Close()
+
+	for {
+		time.Sleep(time.Second * 1)
+		resp, err := clnt.Get(context.Background(), NODEMGMT_MONGOURL)
+		if err != nil {
+			log.Printf("get %s failed, err: %s\n", NODEMGMT_MONGOURL, err)
+			continue
+		}
+		if len(resp.Kvs) == 0 {
+			log.Printf("get %s failed, no content\n", NODEMGMT_MONGOURL)
+			continue
+		}
+		mongoURL := resp.Kvs[0].Value
+		log.Printf("Read mongodb URL from ETCD: %s\n", mongoURL)
+
+		resp, err = clnt.Get(context.Background(), NODEMGMT_EOSURL)
+		if err != nil {
+			log.Printf("get %s failed, err: %s\n", NODEMGMT_EOSURL, err)
+			continue
+		}
+		if len(resp.Kvs) == 0 {
+			log.Printf("get %s failed, no content\n", NODEMGMT_EOSURL)
+			continue
+		}
+		eosURL := resp.Kvs[0].Value
+		log.Printf("Read EOS URL from ETCD: %s\n", eosURL)
+
+		resp, err = clnt.Get(context.Background(), NODEMGMT_BPACCOUNT)
+		if err != nil {
+			log.Printf("get %s failed, err: %s\n", NODEMGMT_BPACCOUNT, err)
+			continue
+		}
+		if len(resp.Kvs) == 0 {
+			log.Printf("get %s failed, no content\n", NODEMGMT_BPACCOUNT)
+			continue
+		}
+		bpAccount := resp.Kvs[0].Value
+		log.Printf("Read BP account from ETCD: %s\n", bpAccount)
+
+		resp, err = clnt.Get(context.Background(), NODEMGMT_BPPRIVKEY)
+		if err != nil {
+			log.Printf("get %s failed, err: %s\n", NODEMGMT_BPPRIVKEY, err)
+			continue
+		}
+		if len(resp.Kvs) == 0 {
+			log.Printf("get %s failed, no content\n", NODEMGMT_BPPRIVKEY)
+			continue
+		}
+		bpPrivkey := resp.Kvs[0].Value
+		log.Printf("Read BP private key from ETCD: %s\n", bpPrivkey)
+
+		resp, err = clnt.Get(context.Background(), NODEMGMT_CONTRACTOWNERM)
+		if err != nil {
+			log.Printf("get %s failed, err: %s\n", NODEMGMT_CONTRACTOWNERM, err)
+			continue
+		}
+		if len(resp.Kvs) == 0 {
+			log.Printf("get %s failed, no content\n", NODEMGMT_CONTRACTOWNERM)
+			continue
+		}
+		contractOwnerM := resp.Kvs[0].Value
+		log.Printf("Read contract owner M from ETCD: %s\n", contractOwnerM)
+
+		resp, err = clnt.Get(context.Background(), NODEMGMT_CONTRACTOWNERD)
+		if err != nil {
+			log.Printf("get %s failed, err: %s\n", NODEMGMT_CONTRACTOWNERD, err)
+			continue
+		}
+		if len(resp.Kvs) == 0 {
+			log.Printf("get %s failed, no content\n", NODEMGMT_CONTRACTOWNERD)
+			continue
+		}
+		contractOwnerD := resp.Kvs[0].Value
+		log.Printf("Read contract owner D from ETCD: %s\n", contractOwnerD)
+
+		resp, err = clnt.Get(context.Background(), NODEMGMT_BPID)
+		if err != nil {
+			log.Printf("get %s failed, err: %s\n", NODEMGMT_BPID, err)
+			continue
+		}
+		if len(resp.Kvs) == 0 {
+			log.Printf("get %s failed, no content\n", NODEMGMT_BPID)
+			continue
+		}
+		bpidstr := resp.Kvs[0].Value
+		bpid, err := strconv.Atoi(string(bpidstr))
+		if err != nil {
+			log.Printf("parse %s failed, err: %s\n", NODEMGMT_BPID, err)
+			continue
+		}
+		log.Printf("Read BP ID from ETCD: %d\n", bpid)
+
+		nodeDao, err := nodemgmt.NewInstance(string(mongoURL), string(eosURL), string(bpAccount), string(bpPrivkey), string(contractOwnerM), string(contractOwnerD), int32(bpid))
+		if err != nil {
+			log.Fatalf("create nodemgmt instance failed, err: %s\n", err)
+		}
+		log.Printf("create nodemgmt instance successful.\n")
+		server := &nodemgmt.Server{NodeService: nodeDao}
+
+		nodemgmtPortStr := os.Getenv("NODEMGMT_GRPCPORT")
+		nodemgmtPort, err := strconv.Atoi(nodemgmtPortStr)
+		if err != nil {
+			nodemgmtPort = 11001
+		}
+		lis, err := net.Listen("tcp", fmt.Sprintf(":%d", nodemgmtPort))
+		if err != nil {
+			log.Fatalf("failed to listen port %d: %v", nodemgmtPort, err)
+		}
+		log.Printf("GRPC address: 0.0.0.0:%d\n", nodemgmtPort)
+		grpcServer := grpc.NewServer()
+		pb.RegisterYTDNMgmtServer(grpcServer, server)
+		grpcServer.Serve(lis)
+		log.Printf("GRPC server started.")
+		break
+	}
+}
+
+func main1() {
+	conn, err := grpc.Dial("127.0.0.1:1234", grpc.WithInsecure())
+	if err != nil {
+		log.Fatalf("failed to dial: %v", err)
+	}
+	defer conn.Close()
+	client := pb.NewYTDNMgmtClient(conn)
+	id, err := client.NewNodeID(context.Background(), &pb.Empty{})
+	if err != nil {
+		log.Fatalf("%s", err.Error())
+	}
+	fmt.Println("Got ID: ", id.Value)
 }
 
 func main() {
@@ -103,25 +290,30 @@ func main() {
 	// 	log.Fatalln(err.Error())
 	// }
 
-	nodeDao, _ := nodemgmt.NewInstance("mongodb://127.0.0.1:27017", "http://152.136.18.185:8888", "username1234", "5JcDH48njDbUQLu1R8SWwKsfWLnqBpWXDDiCgxFC3hioDuwLhVx", "hddpool12345", "hddpool12345", 0)
-	err := nodeDao.AddDNI(4, []byte{49, 50, 51, 52, 53, 54, 55})
-	err = nodeDao.AddDNI(4, []byte{52, 53, 54, 55})
-	err = nodeDao.AddDNI(4, []byte{56, 57, 58, 59})
-	err = nodeDao.AddDNI(4, []byte{41, 42, 43, 44, 45, 46, 47})
+	nodeDao, _ := nodemgmt.NewInstance("mongodb://122.152.203.189:27017", "http://152.136.18.185:8888", "username1234", "5JcDH48njDbUQLu1R8SWwKsfWLnqBpWXDDiCgxFC3hioDuwLhVx", "hddpool12345", "hddpool12345", 2)
+	nodes, err := nodeDao.AllocNodes(320, nil)
+	if err != nil {
+		panic(err.Error())
+	}
+	fmt.Printf("%d nodes", len(nodes))
+	// err := nodeDao.AddDNI(4, []byte{49, 50, 51, 52, 53, 54, 55})
+	// err = nodeDao.AddDNI(4, []byte{52, 53, 54, 55})
+	// err = nodeDao.AddDNI(4, []byte{56, 57, 58, 59})
+	// err = nodeDao.AddDNI(4, []byte{41, 42, 43, 44, 45, 46, 47})
 	//err = nodeDao.DeleteDNI(4, []byte{52, 53, 54, 55})
 	// str, err := nodeDao.GetRandomVNI(4, 0)
 	// fmt.Println(str)
-	list, err := nodeDao.GetInvalidNodes()
-	if err != nil {
-		panic(err.Error())
-	}
-	fmt.Printf("has %d", len(list))
-	n, s, err := nodeDao.GetRebuildItem(4, 0, 3)
-	if err != nil {
-		panic(err.Error())
-	}
-	fmt.Println(n.NodeID)
-	fmt.Printf("%d", len(s))
+	// list, err := nodeDao.GetInvalidNodes()
+	// if err != nil {
+	// 	panic(err.Error())
+	// }
+	// fmt.Printf("has %d", len(list))
+	// n, s, err := nodeDao.GetRebuildItem(4, 0, 3)
+	// if err != nil {
+	// 	panic(err.Error())
+	// }
+	// fmt.Println(n.NodeID)
+	// fmt.Printf("%d", len(s))
 	// node := new(nodemgmt.Node)
 	// node.ID = 767
 	// node.Bandwidth = 0

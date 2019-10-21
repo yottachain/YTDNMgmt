@@ -9,7 +9,6 @@ import (
 	"strconv"
 	"time"
 
-	eos "github.com/eoscanada/eos-go"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo/options"
@@ -95,11 +94,11 @@ func (self *NodeDaoImpl) GetSTNode() (*Node, error) {
 }
 
 //GetSTNodes get spotcheck nodes by count
-func (self *NodeDaoImpl) GetSTNodes(count int64) ([]Node, error) {
+func (self *NodeDaoImpl) GetSTNodes(count int64) ([]*Node, error) {
 	options := options.FindOptions{}
 	options.Sort = bson.D{{"timestamp", -1}}
 	options.Limit = &count
-	nodes := make([]Node, 0)
+	nodes := make([]*Node, 0)
 	collection := self.client.Database(YottaDB).Collection(NodeTab)
 	cur, err := collection.Find(context.Background(), bson.M{"_id": bson.M{"$mod": bson.A{incr, index}}, "valid": 1, "status": 1, "bandwidth": bson.M{"$lt": 50}, "timestamp": bson.M{"$gt": time.Now().Unix() - IntervalTime*2}, "version": bson.M{"$gte": 6}}, &options)
 	if err != nil {
@@ -112,7 +111,7 @@ func (self *NodeDaoImpl) GetSTNodes(count int64) ([]Node, error) {
 		if err != nil {
 			return nil, err
 		}
-		nodes = append(nodes, *result)
+		nodes = append(nodes, result)
 	}
 	if len(nodes) > 0 {
 		for len(nodes) < 3 {
@@ -240,11 +239,11 @@ func (self *NodeDaoImpl) PunishNodes() error {
 	if err != nil {
 		return err
 	}
-	err = self.Punish(10, 2, 1, rate, false) //失效一小时的矿机惩罚10%抵押
+	err = self.Punish(10, 2, 1, rate, true) //失效一小时的矿机惩罚10%抵押
 	if err != nil {
 		return err
 	}
-	err = self.Punish(40, 25, 24, rate, true) //失效一天的矿机惩罚40%抵押
+	err = self.Punish(40, 25, 24, rate, false) //失效一天的矿机惩罚40%抵押
 	if err != nil {
 		return err
 	}
@@ -272,25 +271,25 @@ func (self *NodeDaoImpl) Punish(percent int64, from int64, to int64, rate int32,
 		nodes = append(nodes, *result)
 	}
 	for _, n := range nodes {
-		pledgeData, err := self.eostx.GetPledgeData(uint64(n.ID))
-		if err != nil {
-			return err
-		}
-		totalAsset := pledgeData.Total
-		punishAsset := pledgeData.Deposit
+		// pledgeData, err := self.eostx.GetPledgeData(uint64(n.ID))
+		// if err != nil {
+		// 	return err
+		// }
+		// totalAsset := pledgeData.Total
+		// punishAsset := pledgeData.Deposit
 
-		punishFee := int64(totalAsset.Amount) * percent / 100
-		if punishFee < int64(punishAsset.Amount) {
-			punishAsset.Amount = eos.Int64(punishFee)
-		}
-		err = self.eostx.DeducePledge(uint64(n.ID), &punishAsset)
-		if err != nil {
-			return err
-		}
-		newAssignedSpace := n.AssignedSpace - int64(punishAsset.Amount)*65536*int64(rate)/1000000
-		if newAssignedSpace < 0 {
-			newAssignedSpace = 0
-		}
+		// punishFee := int64(totalAsset.Amount) * percent / 100
+		// if punishFee < int64(punishAsset.Amount) {
+		// 	punishAsset.Amount = eos.Int64(punishFee)
+		// }
+		// err = self.eostx.DeducePledge(uint64(n.ID), &punishAsset)
+		// if err != nil {
+		// 	return err
+		// }
+		// newAssignedSpace := n.AssignedSpace - int64(punishAsset.Amount)*65536*int64(rate)/1000000
+		// if newAssignedSpace < 0 {
+		// 	newAssignedSpace = 0
+		// }
 		collection = self.client.Database(YottaDB).Collection(NodeTab)
 		status := n.Status
 		// invalid over 24 hours begin data rebuilding
@@ -301,7 +300,7 @@ func (self *NodeDaoImpl) Punish(percent int64, from int64, to int64, rate int32,
 				return err
 			}
 		}
-		_, err = collection.UpdateOne(context.Background(), bson.M{"_id": n.ID}, bson.M{"$set": bson.M{"assignedSpace": newAssignedSpace, "status": status}})
+		_, err = collection.UpdateOne(context.Background(), bson.M{"_id": n.ID}, bson.M{"$set": bson.M{ /* "assignedSpace": newAssignedSpace,*/ "status": status}})
 		if err != nil {
 			return err
 		}
