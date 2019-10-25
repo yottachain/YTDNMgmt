@@ -1,8 +1,8 @@
 hash: 9242dee541ab0efd2cef70ff8bac4c62b3faaab5076192ed893415d4049fe017
-updated: 2019-09-11T22:43:04.8713519+08:00
+updated: 2019-10-25T11:35:24.5422105+08:00
 imports:
 - name: github.com/btcsuite/btcd
-  version: 130ea5bddde33df32b06a1cdb42a6316eb73cff5
+  version: a41498d578a99c1619037746abd916176ea61052
   subpackages:
   - btcec
 - name: github.com/coreos/go-semver
@@ -32,14 +32,14 @@ imports:
 - name: github.com/go-stack/stack
   version: 2fee6af1a9795aafbe0253a0cfbdf668e1fb8a9a
 - name: github.com/gogo/protobuf
-  version: 8a5ed79f688836cf007ca23aefe0299791e7bea5
+  version: 5628607bb4c51c3157aacc3a50f0ab707582b805
   subpackages:
   - gogoproto
   - io
   - proto
   - protoc-gen-gogo/descriptor
 - name: github.com/golang/protobuf
-  version: 822fe56949f5d56c9e2f02367c657e0e9b4d27d1
+  version: ed6926b37a637426117ccab59282c3839528a700
   subpackages:
   - proto
   - ptypes
@@ -62,11 +62,11 @@ imports:
   - soap
   - ssdp
 - name: github.com/ipfs/go-cid
-  version: 9bb7ea69202c6c9553479eb355ab8a8a97d43a2e
+  version: 64acce09e168805991e80428333f9a93ee461926
 - name: github.com/ipfs/go-ipfs-util
-  version: a4bb5361e49427531f9a716ead2ce4bd9bdd7959
+  version: 6b60f8d74b09bac9d7bef7a7ffb795efff749c0a
 - name: github.com/ipfs/go-log
-  version: 62f287c7db590f88ad30f431e721f1464589e210
+  version: a609c1ae51442f8f455f12f65499d513d83b8c00
   subpackages:
   - tracer
   - tracer/wire
@@ -83,6 +83,8 @@ imports:
   - context
   - periodic
   - ratelimit
+- name: github.com/juju/ratelimit
+  version: f60b32039441cd828005f82f3a54aafd00bc9882
 - name: github.com/koron/go-ssdp
   version: 4a0ed625a78b6858dc8d3a55fb7728968b712122
 - name: github.com/libp2p/go-addr-util
@@ -106,7 +108,7 @@ imports:
   - p2p/protocol/identify/pb
   - p2p/protocol/ping
 - name: github.com/libp2p/go-libp2p-autonat
-  version: 3464f9b4f7bfbd7bb008813eacb626c7ab7fb9a3
+  version: afa9793b22a48b218d2b1fb912b3c73237b61552
   subpackages:
   - pb
 - name: github.com/libp2p/go-libp2p-blankhost
@@ -144,7 +146,7 @@ imports:
 - name: github.com/libp2p/go-libp2p-crypto
   version: ddb6d72b5ad0ae81bf1ee77b628eac1d7237536a
 - name: github.com/libp2p/go-libp2p-discovery
-  version: d248d63b0af8c023307da18ad7000a12020e06f0
+  version: 998fc35855101b7a32b303e190051e2020c62989
 - name: github.com/libp2p/go-libp2p-gorpc
   version: 7cd5ddd4060f94c90ff7bbb0450b84461e64628a
 - name: github.com/libp2p/go-libp2p-host
@@ -235,11 +237,11 @@ imports:
 - name: github.com/libp2p/go-ws-transport
   version: 6efd965516262a6b6e46ea987b94904ef13e59bc
 - name: github.com/libp2p/go-yamux
-  version: 663972181d409e7263040f0b668462f87c85e1bd
+  version: 367fc7d3a370c44c62bc3278753532f5f4281229
 - name: github.com/minio/blake2b-simd
   version: 3f5f724cb5b182a5c278d6d3d55b40e7f8c2efb4
 - name: github.com/minio/sha256-simd
-  version: 649be62517ba577ad7da146440ebfabeea0fb613
+  version: f675151bb5e19dc10d7430bd9d4ef5e7d1b5521f
 - name: github.com/mr-tron/base58
   version: d504ab2e22d97cb9f10b1d146a1e6a063f4a5f43
   subpackages:
@@ -247,21 +249,21 @@ imports:
 - name: github.com/multiformats/go-base32
   version: a9c2755c3d1672dbe6a7e4a5d182169fa30b6a8e
 - name: github.com/multiformats/go-multiaddr
-  version: 5b1de2f51ff2368d5ce94a659f15ef26be273cd0
+  version: f96df18bf0c217c77f6cc0f9e810a178cea12f38
 - name: github.com/multiformats/go-multiaddr-dns
-  version: 3974bf3f84c52825588fdcc0fd0e0aa7953ab5ff
+  version: aeb5743691b968cfa3365c9da59ef872a3133c87
 - name: github.com/multiformats/go-multiaddr-fmt
-  version: 7d8102a98552c80f8a5ccb9c01e670fac17fd6df
+  version: 113ed87ed03cfff94f29fd95236be3ccd933fd36
 - name: github.com/multiformats/go-multiaddr-net
-  version: 60a59169e3dca42284d8356560fcdccc4e73a4b4
+  version: c9acf9f27c5020e78925937dc3de142d2d393cd1
 - name: github.com/multiformats/go-multibase
   version: b84fc17b7761c4c48606130d9a203faac6878797
 - name: github.com/multiformats/go-multihash
-  version: 64ffd94071a5bc58130ea88fd8404408aef993f2
+  version: 249ead2008065c476a2ee45e8e75e8b85d846a72
 - name: github.com/multiformats/go-multistream
   version: b2ba9e9438d8bd7b2159767a9522718626b29fa1
 - name: github.com/opentracing/opentracing-go
-  version: 94e0bdd2b1d9c6803a9729f999cdaed72f5a361d
+  version: a7454ce5950e83caac9774ef32cc8979e5975f30
   subpackages:
   - ext
   - log
@@ -301,8 +303,12 @@ imports:
   version: 7eeb5667e42c09cb51bf7b7c28aea8c56767da90
 - name: github.com/xdg/stringprep
   version: 73f8eece6fdcd902c185bf651de50f3828bed5ed
+- name: github.com/yottachain/P2PHost
+  version: 8e23f0cfc65405eadfc85396d6eb6fb8b33d43c9
+  subpackages:
+  - pb
 - name: github.com/yottachain/YTCrypto
-  version: cfa7d5f74b4bba9ba740ba2b72e97b216dd38a8a
+  version: 5ba8993f71713d052f23417019fa081cfc0e9001
   subpackages:
   - common
   - common/hexutil
@@ -368,7 +374,7 @@ imports:
 - name: go.uber.org/atomic
   version: df976f2515e274675050de7b3f42545de80594fd
 - name: go.uber.org/multierr
-  version: 3c4937480c32f4c13a875a1829af76c98ca3d40a
+  version: 71e610a0e48dbda460d9c18adca8b5f2de04a7c1
 - name: go.uber.org/zap
   version: 27376062155ad36be76b0f12cf1572a221d3a48c
   subpackages:
@@ -378,7 +384,7 @@ imports:
   - internal/exit
   - zapcore
 - name: golang.org/x/crypto
-  version: 227b76d455e791cb042b03e633e2f7fbcfdf74a5
+  version: 87dc89f01550277dc22b74ffcf4cd89fa2f40f4c
   subpackages:
   - blake2s
   - blowfish
@@ -388,7 +394,7 @@ imports:
   - ripemd160
   - sha3
 - name: golang.org/x/net
-  version: a7b16738d86b947dd0fadb08ca2c2342b51958b6
+  version: ec77196f6094c3492a8b61f2c11cf937f78992ae
   subpackages:
   - bpf
   - context
@@ -405,11 +411,11 @@ imports:
   - ipv4
   - trace
 - name: golang.org/x/sync
-  version: 112230192c580c3556b8cee6403af37a4fc5f28c
+  version: cd5d95a43a6e21273425c7ae415d3df9ea832eeb
   subpackages:
   - semaphore
 - name: golang.org/x/sys
-  version: bbd175535a8b9969bb0b33f1502f681ee0b122bd
+  version: 6c3a3bfe00aeca2b8685f04a482824367e7d2135
   subpackages:
   - cpu
   - unix
@@ -438,7 +444,7 @@ imports:
   - unicode/bidi
   - unicode/norm
 - name: google.golang.org/genproto
-  version: 92dd089d5514cecde7a465f807541f83dfd486d5
+  version: 548a555dbc03994223efbaba0090152849259498
   subpackages:
   - googleapis/rpc/status
 - name: google.golang.org/grpc

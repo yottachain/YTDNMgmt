@@ -239,7 +239,7 @@ func (self *NodeDaoImpl) PunishNodes() error {
 	if err != nil {
 		return err
 	}
-	err = self.Punish(10, 2, 1, rate, true) //失效一小时的矿机惩罚10%抵押
+	err = self.Punish(10, 3, 2, rate, true) //失效两小时的矿机惩罚10%抵押
 	if err != nil {
 		return err
 	}

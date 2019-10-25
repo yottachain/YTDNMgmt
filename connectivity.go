@@ -4,11 +4,12 @@ import (
 	"context"
 	"time"
 
+	libp2p "github.com/libp2p/go-libp2p"
+	host "github.com/libp2p/go-libp2p-core/host"
 	peer "github.com/libp2p/go-libp2p-peer"
 	ps "github.com/libp2p/go-libp2p-peerstore"
 	swarm "github.com/libp2p/go-libp2p-swarm"
 	ma "github.com/multiformats/go-multiaddr"
-	host "github.com/yottachain/P2PHost"
 )
 
 type Host struct {
