@@ -181,3 +181,11 @@ message GetRebuildItemResp {
   NodeMsg node = 1;
   repeated bytes shards = 2;
 }
+
+message DownloadShardRequest {
+  bytes VHF=1;
+}
+
+message DownloadShardResponse{
+  bytes data=1;
+}

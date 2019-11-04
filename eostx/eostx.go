@@ -164,11 +164,11 @@ func (eostx *EosTX) DeducePledge(minerID uint64, count *eos.Asset) error {
 	if err != nil {
 		return err
 	}
-	err = eostx.drawForfeit(data.AccountName)
-	if err != nil {
-		err = eostx.cutVote(data.AccountName)
-		return err
-	}
+	// err = eostx.drawForfeit(data.AccountName)
+	// if err != nil {
+	// 	err = eostx.cutVote(data.AccountName)
+	// 	return err
+	// }
 	return nil
 }
 

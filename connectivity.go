@@ -2,14 +2,20 @@ package YTDNMgmt
 
 import (
 	"context"
+	"encoding/gob"
+	"io/ioutil"
+	"log"
 	"time"
 
+	"github.com/golang/protobuf/proto"
 	libp2p "github.com/libp2p/go-libp2p"
 	host "github.com/libp2p/go-libp2p-core/host"
 	peer "github.com/libp2p/go-libp2p-peer"
 	ps "github.com/libp2p/go-libp2p-peerstore"
+	protocol "github.com/libp2p/go-libp2p-protocol"
 	swarm "github.com/libp2p/go-libp2p-swarm"
 	ma "github.com/multiformats/go-multiaddr"
+	"github.com/yottachain/YTDNMgmt/pb"
 )
 
 type Host struct {
@@ -22,6 +28,71 @@ func NewHost() (*Host, error) {
 		return nil, err
 	}
 	return &Host{lhost: host}, nil
+}
+
+func (host *Host) CheckVNI(node *Node, vni []byte) (bool, error) {
+	maddrs, err := stringListToMaddrs(node.Addrs)
+	if err != nil {
+		return false, err
+	}
+	pid, err := peer.IDB58Decode(node.NodeID)
+	if err != nil {
+		return false, err
+	}
+	info := ps.PeerInfo{
+		pid,
+		maddrs,
+	}
+	ctx, cancle := context.WithTimeout(context.Background(), time.Second*30)
+	defer cancle()
+	defer host.lhost.Network().ClosePeer(pid)
+	defer host.lhost.Network().(*swarm.Swarm).Backoff().Clear(pid)
+	err = host.lhost.Connect(ctx, info)
+	if err != nil {
+		log.Printf("recheck: connect node failed: %d %s\n", node.ID, err.Error())
+		return false, nil
+	}
+	downloadRequest := &pb.DownloadShardRequest{VHF: vni}
+	checkData, err := proto.Marshal(downloadRequest)
+	if err != nil {
+		log.Println("error when marshalling protobuf message: downloadrequest: %s\n", err.Error())
+		return false, err
+	}
+	// 发送下载分片命令
+	shardData, err := host.SendMsg(node.NodeID, "/node/0.0.2", append(pb.MsgIDDownloadShardRequest.Bytes(), checkData...))
+	if err != nil {
+		log.Println("SN send recheck command failed: %d %s %s\n", node.ID, vni, err.Error())
+		return false, err
+	}
+	var share pb.DownloadShardResponse
+	err = proto.Unmarshal(shardData[2:], &share)
+	if err != nil {
+		log.Println("SN unmarshal recheck response failed: %d %s %s\n", node.ID, vni, err.Error())
+		return false, err
+	}
+	return downloadRequest.VerifyVHF(share.Data), nil
+}
+
+func (host *Host) SendMsg(id string, msgType string, msg []byte) ([]byte, error) {
+	pid := protocol.ID(msgType)
+	peerID, err := peer.IDB58Decode(id)
+	if err != nil {
+		return nil, err
+	}
+	ctx, cancle := context.WithTimeout(context.Background(), time.Second*time.Duration(30))
+	defer cancle()
+	stm, err := host.lhost.NewStream(ctx, peerID, pid)
+	if err != nil {
+		return nil, err
+	}
+	defer stm.Close()
+	stm.SetReadDeadline(time.Now().Add(time.Duration(30) * time.Second))
+	ed := gob.NewEncoder(stm)
+	err = ed.Encode(msg)
+	if err != nil {
+		return nil, err
+	}
+	return ioutil.ReadAll(stm)
 }
 
 func (host *Host) TestNetwork(nodeID string, addrs []string) error {

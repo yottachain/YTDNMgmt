@@ -93,6 +93,28 @@ func (self *NodeDaoImpl) doRecheck() {
 }
 
 func (self *NodeDaoImpl) checkDataNode(task *TwoTuple) bool {
+	log.Printf("SN executing spotcheck task: %d [%s]\n", task.b, task.a)
+	collection := self.client.Database(YottaDB).Collection(NodeTab)
+	n := new(Node)
+	err := collection.FindOne(context.Background(), bson.M{"_id": task.b}).Decode(&n)
+	if err != nil {
+		return false
+	}
+	vni, err := self.GetRandomVNI(n.ID, rand.Int63n(n.UsedSpace))
+	if err != nil {
+		log.Printf("spotcheck: error when get random VNI: %d %s\n", n.ID, err.Error())
+		return false
+	}
+	rawvni, err := base64.StdEncoding.DecodeString(vni)
+	if err != nil {
+		log.Printf("spotcheck: error when unmarshaling VNI: %d %s %s\n", n.ID, vni, err.Error())
+		return false
+	}
+	for range [5]byte{} {
+		if b, _ := self.host.CheckVNI(n, rawvni); b {
+			return true
+		}
+	}
 	return false
 }
 
