@@ -25,7 +25,7 @@ const NODEMGMT_CONTRACTOWNERM = NODEMGMT_ETCD_PREFIX + "contractOwnerM"
 const NODEMGMT_CONTRACTOWNERD = NODEMGMT_ETCD_PREFIX + "contractOwnerD"
 const NODEMGMT_BPID = NODEMGMT_ETCD_PREFIX + "bpid"
 
-func main2() {
+func main() {
 	var enablePprof bool = true
 	var pprofPort int
 	enablePprofStr := os.Getenv("P2PHOST_ENABLEPPROF")
@@ -199,7 +199,7 @@ func main1() {
 	fmt.Println("Got ID: ", id.Value)
 }
 
-func main() {
+func main2() {
 	// port := 9002
 	// privkey := "5HtM6e3mQNLEu2TkQ1ZrbMNpRQiHGsKxEsLdxd9VsdCmp1um8QH"
 	// opts := []libp2p.Option{

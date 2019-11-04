@@ -31,7 +31,7 @@ func (self *NodeDaoImpl) GetInvalidNodes() ([]*ShardCount, error) {
 	collection := self.client.Database(YottaDB).Collection(DNITab)
 	collectionNode := self.client.Database(YottaDB).Collection(NodeTab)
 	cur, err := collectionNode.Find(context.Background(), bson.M{"_id": bson.M{"$mod": bson.A{incr, index}}, "status": 2, "tasktimestamp": bson.M{"$exists": true, "$ne": nil, "$lt": time.Now().Unix() - 1800}})
-	//cur, err := collectionNode.Find(context.Background(), bson.M{"$and": bson.A{bson.M{"_id": selectedNode}, bson.M{"_id": bson.M{"$mod": bson.A{incr, index}}}}})
+	// cur, err := collectionNode.Find(context.Background(), bson.M{"$and": bson.A{bson.M{"_id": selectedNode}, bson.M{"_id": bson.M{"$mod": bson.A{incr, index}}}}})
 	if err != nil {
 		log.Printf("GetInvalidNodes error: %s\n", err.Error())
 		return nil, err

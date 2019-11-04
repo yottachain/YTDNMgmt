@@ -1,14 +1,17 @@
 package YTDNMgmt
 
 import (
+	"container/list"
 	"context"
 	"encoding/base64"
 	"errors"
-	"fmt"
+	"log"
 	"math/rand"
 	"strconv"
+	"sync"
 	"time"
 
+	"github.com/eoscanada/eos-go"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo/options"
@@ -18,67 +21,278 @@ func init() {
 	rand.Seed(time.Now().UnixNano())
 }
 
-func (self *NodeDaoImpl) GetSpotCheckList() ([]*SpotCheckList, error) {
-	err := self.SaveErrorNodeIDs()
-	if err != nil {
-		return nil, err
-	}
-	spotCheckLists := make([]*SpotCheckList, 0)
-	collection := self.client.Database(YottaDB).Collection(NodeTab)
-	cur, err := collection.Find(context.Background(), bson.M{"usedSpace": bson.M{"$gt": 0}, "assignedSpace": bson.M{"$gt": 0}, "status": 1, "_id": bson.M{"$mod": bson.A{incr, index}}})
-	if err != nil {
-		return nil, err
-	}
-	defer cur.Close(context.Background())
-	i := 0
-	spotCheckList := new(SpotCheckList)
-	for cur.Next(context.Background()) {
-		node := new(Node)
-		err := cur.Decode(node)
-		if err != nil {
-			return nil, err
-		}
-		spotCheckTask := new(SpotCheckTask)
-		spotCheckTask.ID = node.ID
-		spotCheckTask.NodeID = node.NodeID
-		addr := GetRelayUrl(node.Addrs)
-		if addr != "" {
-			spotCheckTask.Addr = addr
-		} else {
-			spotCheckTask.Addr = CheckPublicAddr(node.Addrs)
-		}
-		spotCheckTask.VNI, err = self.GetRandomVNI(node.ID, rand.Int63n(node.UsedSpace))
-		if err != nil {
-			return nil, err
-		}
-		spotCheckList.TaskList = append(spotCheckList.TaskList, spotCheckTask)
-		i++
-		// if i == 5000 {
-		// 	//TODO: save to mongodb and get id
-		// 	spotCheckList, err := self.SaveSpotCheckList(spotCheckList)
-		// 	if err != nil {
-		// 		return nil, err
-		// 	}
-		// 	spotCheckLists = append(spotCheckLists, spotCheckList)
-		// 	spotCheckList = new(SpotCheckList)
-		// 	i = 0
-		// }
-	}
-	if i != 0 {
-		// spotCheckList, err := self.SaveSpotCheckList(spotCheckList)
-		// if err != nil {
-		// 	return nil, err
-		// }
-		spotCheckList.TaskID = primitive.NewObjectID()
-		spotCheckList.Timestamp = time.Now().Unix()
-		for range []int32{1, 2, 3} {
-			spotCheckLists = append(spotCheckLists, spotCheckList)
-		}
-		self.SaveSpotCheckList(spotCheckList)
-	}
-	go self.PunishNodes()
-	return spotCheckLists, nil
+type SpotChecker struct {
+	list  *list.List
+	lock  *sync.Mutex
+	cond  *sync.Cond
+	lock2 *sync.Mutex
+	reg   map[int32]map[string]*list.Element
+	ch    chan *TwoTuple
+}
 
+type TwoTuple struct {
+	a string
+	b int32
+}
+
+func (self *NodeDaoImpl) StartRecheck() {
+	self.spotChecker = new(SpotChecker)
+	self.spotChecker.list = list.New()
+	self.spotChecker.lock = new(sync.Mutex)
+	self.spotChecker.cond = sync.NewCond(self.spotChecker.lock)
+	self.spotChecker.lock2 = new(sync.Mutex)
+	self.spotChecker.reg = make(map[int32]map[string]*list.Element)
+	self.spotChecker.ch = make(chan *TwoTuple, 10000)
+	go self.doRecheck()
+	go func() {
+		for {
+			task := <-self.spotChecker.ch
+			self.spotChecker.lock2.Lock()
+			if self.spotChecker.reg[task.b] == nil {
+				self.spotChecker.reg[task.b] = make(map[string]*list.Element)
+			}
+			if _, ok := self.spotChecker.reg[task.b][task.a]; !ok {
+				continue
+			}
+			self.spotChecker.list.PushBack(task)
+			self.spotChecker.reg[task.b][task.a] = self.spotChecker.list.Back()
+			self.spotChecker.cond.Signal()
+			self.spotChecker.lock2.Unlock()
+		}
+	}()
+}
+
+func (self *NodeDaoImpl) doRecheck() {
+	collection := self.client.Database(YottaDB).Collection(NodeTab)
+	for {
+		self.spotChecker.lock.Lock()
+		for self.spotChecker.list.Front() == nil {
+			self.spotChecker.cond.Wait()
+		}
+		task := self.spotChecker.list.Front()
+		t := task.Value.(*TwoTuple)
+		success := self.checkDataNode(task.Value.(*TwoTuple))
+		if !success {
+			self.spotChecker.lock2.Lock()
+			opts := new(options.FindOneAndUpdateOptions)
+			opts.SetReturnDocument(options.After)
+			opts.SetProjection(bson.M{"_id": 1, "sc_counter": 1, "err_counter": 1})
+			result := collection.FindOneAndUpdate(context.Background(), bson.M{"_id": t.b, "$where": "this.sc_counter>this.err_counter"}, bson.M{"$inc": bson.M{"err_counter": 1}}, opts)
+			m := make(map[string]int32)
+			err := result.Decode(&m)
+			if err != nil {
+				log.Printf("error when decode counters: %s\n", err.Error())
+			}
+			self.spotChecker.lock2.Unlock()
+		}
+		self.spotChecker.list.Remove(task)
+		delete(self.spotChecker.reg[t.b], t.a)
+		self.spotChecker.lock.Unlock()
+		// time.Sleep(time.Second * 1)
+	}
+}
+
+func (self *NodeDaoImpl) checkDataNode(task *TwoTuple) bool {
+	return false
+}
+
+// func (self *NodeDaoImpl) GetSpotCheckList() ([]*SpotCheckList, error) {
+// 	err := self.SaveErrorNodeIDs()
+// 	if err != nil {
+// 		return nil, err
+// 	}
+// 	spotCheckLists := make([]*SpotCheckList, 0)
+// 	collection := self.client.Database(YottaDB).Collection(NodeTab)
+// 	cur, err := collection.Find(context.Background(), bson.M{"usedSpace": bson.M{"$gt": 0}, "assignedSpace": bson.M{"$gt": 0}, "status": 1, "_id": bson.M{"$mod": bson.A{incr, index}}})
+// 	if err != nil {
+// 		return nil, err
+// 	}
+// 	defer cur.Close(context.Background())
+// 	i := 0
+// 	spotCheckList := new(SpotCheckList)
+// 	for cur.Next(context.Background()) {
+// 		node := new(Node)
+// 		err := cur.Decode(node)
+// 		if err != nil {
+// 			return nil, err
+// 		}
+// 		spotCheckTask := new(SpotCheckTask)
+// 		spotCheckTask.ID = node.ID
+// 		spotCheckTask.NodeID = node.NodeID
+// 		addr := GetRelayUrl(node.Addrs)
+// 		if addr != "" {
+// 			spotCheckTask.Addr = addr
+// 		} else {
+// 			spotCheckTask.Addr = CheckPublicAddr(node.Addrs)
+// 		}
+// 		spotCheckTask.VNI, err = self.GetRandomVNI(node.ID, rand.Int63n(node.UsedSpace))
+// 		if err != nil {
+// 			return nil, err
+// 		}
+// 		spotCheckList.TaskList = append(spotCheckList.TaskList, spotCheckTask)
+// 		i++
+// 		// if i == 5000 {
+// 		// 	//TODO: save to mongodb and get id
+// 		// 	spotCheckList, err := self.SaveSpotCheckList(spotCheckList)
+// 		// 	if err != nil {
+// 		// 		return nil, err
+// 		// 	}
+// 		// 	spotCheckLists = append(spotCheckLists, spotCheckList)
+// 		// 	spotCheckList = new(SpotCheckList)
+// 		// 	i = 0
+// 		// }
+// 	}
+// 	if i != 0 {
+// 		// spotCheckList, err := self.SaveSpotCheckList(spotCheckList)
+// 		// if err != nil {
+// 		// 	return nil, err
+// 		// }
+// 		spotCheckList.TaskID = primitive.NewObjectID()
+// 		spotCheckList.Timestamp = time.Now().Unix()
+// 		for range []int32{1, 2, 3} {
+// 			spotCheckLists = append(spotCheckLists, spotCheckList)
+// 		}
+// 		self.SaveSpotCheckList(spotCheckList)
+// 	}
+// 	go self.PunishNodes()
+// 	return spotCheckLists, nil
+// }
+
+func (self *NodeDaoImpl) GetSpotCheckList() ([]*SpotCheckList, error) {
+	spotCheckLists := make([]*SpotCheckList, 0)
+	spotCheckList := new(SpotCheckList)
+	collection := self.client.Database(YottaDB).Collection(NodeTab)
+	for range [10]byte{} {
+		nindex, err := getCurrentNodeIndex(self.client)
+		if err != nil {
+			log.Printf("error when get node index: %s\n", err.Error())
+			continue
+		}
+		n := rand.Intn(int(nindex))
+		cur, err := collection.Find(context.Background(), bson.M{"_id": bson.M{"$mod": bson.A{incr, index}, "$lt": n + int(incr)}, "usedSpace": bson.M{"$gt": 0}, "assignedSpace": bson.M{"$gt": 0}, "status": 1})
+		if err != nil {
+			log.Printf("error when get spot task: %s\n", err.Error())
+			continue
+		}
+		if cur.Next(context.Background()) {
+			node := new(Node)
+			err := cur.Decode(node)
+			if err != nil {
+				log.Printf("error when get spot task: %s\n", err.Error())
+				cur.Close(context.Background())
+				continue
+			}
+			spotCheckTask := new(SpotCheckTask)
+			spotCheckTask.ID = node.ID
+			spotCheckTask.NodeID = node.NodeID
+			addr := GetRelayUrl(node.Addrs)
+			if addr != "" {
+				spotCheckTask.Addr = addr
+			} else {
+				spotCheckTask.Addr = CheckPublicAddr(node.Addrs)
+			}
+			spotCheckTask.VNI, err = self.GetRandomVNI(node.ID, rand.Int63n(node.UsedSpace))
+			if err != nil {
+				log.Printf("error when get spot task: %s\n", err.Error())
+				cur.Close(context.Background())
+				continue
+			}
+			spotCheckList.TaskID = primitive.NewObjectID()
+			spotCheckList.Timestamp = time.Now().Unix()
+			spotCheckList.TaskList = append(spotCheckList.TaskList, spotCheckTask)
+			spotCheckLists = append(spotCheckLists, spotCheckList)
+			cur.Close(context.Background())
+
+			opts := new(options.FindOneAndUpdateOptions)
+			opts.SetReturnDocument(options.After)
+			opts.SetProjection(bson.M{"_id": 1, "sc_counter": 1, "err_counter": 1})
+			result := collection.FindOneAndUpdate(context.Background(), bson.M{"_id": node.ID}, bson.M{"$inc": bson.M{"sc_counter": 1}}, opts)
+			m := make(map[string]int32)
+			err = result.Decode(&m)
+			if err != nil {
+				self.spotChecker.lock2.Unlock()
+				cur.Close(context.Background())
+				log.Printf("error when increase spotcheck counter: %s\n", err.Error())
+				continue
+			}
+
+			scCounter := m["sc_counter"]
+			errCounter := m["err_counter"]
+			if scCounter == 8 && float32(errCounter)/float32(scCounter) > 0.5 {
+				//惩罚10%抵押
+				self.Punish(node, 10, false)
+			} else if scCounter == 24 && float32(errCounter)/float32(scCounter) > 0.5 {
+				//惩罚40%抵押，进入重建流程
+				self.Punish(node, 40, true)
+			} else if scCounter == 336 {
+				if float32(errCounter)/float32(scCounter) > 0.5 {
+					//惩罚剩余全部抵押
+					self.Punish(node, 100, false)
+				}
+				//重置计数器
+				self.spotChecker.lock2.Lock()
+				_, err = collection.UpdateOne(context.Background(), bson.M{"_id": node.ID}, bson.M{"$set": bson.M{"sc_counter": 0, "err_counter": 0}})
+				if err != nil {
+					log.Printf("error when reset counters: %s\n", err.Error())
+				}
+				for _, v := range self.spotChecker.reg[node.ID] {
+					self.spotChecker.list.Remove(v)
+				}
+				delete(self.spotChecker.reg, node.ID)
+				self.spotChecker.lock2.Unlock()
+			}
+
+			self.spotChecker.lock2.Lock()
+			if self.spotChecker.reg[node.ID] == nil {
+				self.spotChecker.reg[node.ID] = make(map[string]*list.Element)
+			}
+			self.spotChecker.reg[node.ID][spotCheckList.TaskID.Hex()] = nil
+			self.spotChecker.lock2.Unlock()
+			return spotCheckLists, nil
+		}
+		cur.Close(context.Background())
+		continue
+	}
+	return nil, errors.New("no nodes can be spotchecked")
+}
+
+func (self *NodeDaoImpl) Punish(node *Node, percent int64, mark bool) error {
+	rate, err := self.eostx.GetExchangeRate()
+	if err != nil {
+		return err
+	}
+	pledgeData, err := self.eostx.GetPledgeData(uint64(node.ID))
+	if err != nil {
+		return err
+	}
+	totalAsset := pledgeData.Total
+	punishAsset := pledgeData.Deposit
+
+	punishFee := int64(totalAsset.Amount) * percent / 100
+	if punishFee < int64(punishAsset.Amount) {
+		punishAsset.Amount = eos.Int64(punishFee)
+	}
+	err = self.eostx.DeducePledge(uint64(node.ID), &punishAsset)
+	if err != nil {
+		return err
+	}
+	newAssignedSpace := node.AssignedSpace - int64(punishAsset.Amount)*65536*int64(rate)/1000000
+	if newAssignedSpace < 0 {
+		newAssignedSpace = 0
+	}
+	collection := self.client.Database(YottaDB).Collection(NodeTab)
+	// invalid over 24 hours begin data rebuilding
+	if mark {
+		_, err = collection.UpdateOne(context.Background(), bson.M{"_id": node.ID}, bson.M{"$set": bson.M{"status": 2, "tasktimestamp": int64(0)}})
+		if err != nil {
+			return err
+		}
+	}
+	_, err = collection.UpdateOne(context.Background(), bson.M{"_id": node.ID}, bson.M{"$set": bson.M{"assignedSpace": newAssignedSpace}})
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func (self *NodeDaoImpl) GetSTNode() (*Node, error) {
@@ -123,24 +337,32 @@ func (self *NodeDaoImpl) GetSTNodes(count int64) ([]*Node, error) {
 	return nodes, nil
 }
 
-func (self *NodeDaoImpl) UpdateTaskStatus(id string, invalidNodeList []int32) error {
-	collection := self.client.Database(YottaDB).Collection(SpotCheckTab)
-	taskID, err := primitive.ObjectIDFromHex(id)
-	if err != nil {
-		return err
-	}
-	// now := time.Now().Unix()
-	// oldval := new(SpotCheckList)
-	task := bson.M{}
-	err = collection.FindOne(context.Background(), bson.M{"_id": taskID}).Decode(&task)
-	if err != nil {
-		return err
-	}
-	for _, invId := range invalidNodeList {
-		_, err = collection.UpdateOne(context.Background(), bson.M{"_id": taskID}, bson.M{"$inc": bson.M{fmt.Sprintf("nodes.%d", invId): 1}})
-		if err != nil {
-			return err
-		}
+// func (self *NodeDaoImpl) UpdateTaskStatus(id string, invalidNodeList []int32) error {
+// 	collection := self.client.Database(YottaDB).Collection(SpotCheckTab)
+// 	taskID, err := primitive.ObjectIDFromHex(id)
+// 	if err != nil {
+// 		return err
+// 	}
+// 	// now := time.Now().Unix()
+// 	// oldval := new(SpotCheckList)
+// 	task := bson.M{}
+// 	err = collection.FindOne(context.Background(), bson.M{"_id": taskID}).Decode(&task)
+// 	if err != nil {
+// 		return err
+// 	}
+// 	for _, invId := range invalidNodeList {
+// 		_, err = collection.UpdateOne(context.Background(), bson.M{"_id": taskID}, bson.M{"$inc": bson.M{fmt.Sprintf("nodes.%d", invId): 1}})
+// 		if err != nil {
+// 			return err
+// 		}
+// 	}
+// 	return nil
+// }
+
+func (self *NodeDaoImpl) UpdateTaskStatus(taskid string, invalidNodeList []int32) error {
+	for _, id := range invalidNodeList {
+		task := &TwoTuple{taskid, id}
+		self.spotChecker.ch <- task
 	}
 	return nil
 }
@@ -234,76 +456,76 @@ func (self *NodeDaoImpl) SaveErrorNodeIDs() error {
 // 	return list, nil
 // }
 
-func (self *NodeDaoImpl) PunishNodes() error {
-	rate, err := self.eostx.GetExchangeRate()
-	if err != nil {
-		return err
-	}
-	err = self.Punish(10, 3, 2, rate, true) //失效两小时的矿机惩罚10%抵押
-	if err != nil {
-		return err
-	}
-	err = self.Punish(40, 25, 24, rate, false) //失效一天的矿机惩罚40%抵押
-	if err != nil {
-		return err
-	}
-	err = self.Punish(100, 169, 168, rate, false) //失效一周的矿机惩罚全部抵押
-	if err != nil {
-		return err
-	}
-	return nil
-}
+// func (self *NodeDaoImpl) PunishNodes() error {
+// 	rate, err := self.eostx.GetExchangeRate()
+// 	if err != nil {
+// 		return err
+// 	}
+// 	err = self.Punish(10, 3, 2, rate, true) //失效两小时的矿机惩罚10%抵押
+// 	if err != nil {
+// 		return err
+// 	}
+// 	err = self.Punish(40, 25, 24, rate, false) //失效一天的矿机惩罚40%抵押
+// 	if err != nil {
+// 		return err
+// 	}
+// 	err = self.Punish(100, 169, 168, rate, false) //失效一周的矿机惩罚全部抵押
+// 	if err != nil {
+// 		return err
+// 	}
+// 	return nil
+// }
 
-func (self *NodeDaoImpl) Punish(percent int64, from int64, to int64, rate int32, mark bool) error {
-	nodes := make([]Node, 0)
-	collection := self.client.Database(YottaDB).Collection(NodeTab)
-	cur, err := collection.Find(context.Background(), bson.M{"status": bson.M{"$gte": 1}, "assignedSpace": bson.M{"$gt": 0}, "_id": bson.M{"$mod": bson.A{incr, index}}, "timestamp": bson.M{"$gte": time.Now().Unix() - 3600*from - 1800, "$lt": time.Now().Unix() - 3600*to - 1800}})
-	if err != nil {
-		return err
-	}
-	defer cur.Close(context.Background())
-	for cur.Next(context.Background()) {
-		result := new(Node)
-		err := cur.Decode(result)
-		if err != nil {
-			return err
-		}
-		nodes = append(nodes, *result)
-	}
-	for _, n := range nodes {
-		// pledgeData, err := self.eostx.GetPledgeData(uint64(n.ID))
-		// if err != nil {
-		// 	return err
-		// }
-		// totalAsset := pledgeData.Total
-		// punishAsset := pledgeData.Deposit
+// func (self *NodeDaoImpl) Punish(percent int64, from int64, to int64, rate int32, mark bool) error {
+// 	nodes := make([]Node, 0)
+// 	collection := self.client.Database(YottaDB).Collection(NodeTab)
+// 	cur, err := collection.Find(context.Background(), bson.M{"status": bson.M{"$gte": 1}, "assignedSpace": bson.M{"$gt": 0}, "_id": bson.M{"$mod": bson.A{incr, index}}, "timestamp": bson.M{"$gte": time.Now().Unix() - 3600*from - 1800, "$lt": time.Now().Unix() - 3600*to - 1800}})
+// 	if err != nil {
+// 		return err
+// 	}
+// 	defer cur.Close(context.Background())
+// 	for cur.Next(context.Background()) {
+// 		result := new(Node)
+// 		err := cur.Decode(result)
+// 		if err != nil {
+// 			return err
+// 		}
+// 		nodes = append(nodes, *result)
+// 	}
+// 	for _, n := range nodes {
+// 		// pledgeData, err := self.eostx.GetPledgeData(uint64(n.ID))
+// 		// if err != nil {
+// 		// 	return err
+// 		// }
+// 		// totalAsset := pledgeData.Total
+// 		// punishAsset := pledgeData.Deposit
 
-		// punishFee := int64(totalAsset.Amount) * percent / 100
-		// if punishFee < int64(punishAsset.Amount) {
-		// 	punishAsset.Amount = eos.Int64(punishFee)
-		// }
-		// err = self.eostx.DeducePledge(uint64(n.ID), &punishAsset)
-		// if err != nil {
-		// 	return err
-		// }
-		// newAssignedSpace := n.AssignedSpace - int64(punishAsset.Amount)*65536*int64(rate)/1000000
-		// if newAssignedSpace < 0 {
-		// 	newAssignedSpace = 0
-		// }
-		collection = self.client.Database(YottaDB).Collection(NodeTab)
-		status := n.Status
-		// invalid over 24 hours begin data rebuilding
-		if mark {
-			status = 2
-			_, err = collection.UpdateOne(context.Background(), bson.M{"_id": n.ID}, bson.M{"$set": bson.M{"tasktimestamp": int64(0)}})
-			if err != nil {
-				return err
-			}
-		}
-		_, err = collection.UpdateOne(context.Background(), bson.M{"_id": n.ID}, bson.M{"$set": bson.M{ /* "assignedSpace": newAssignedSpace,*/ "status": status}})
-		if err != nil {
-			return err
-		}
-	}
-	return nil
-}
+// 		// punishFee := int64(totalAsset.Amount) * percent / 100
+// 		// if punishFee < int64(punishAsset.Amount) {
+// 		// 	punishAsset.Amount = eos.Int64(punishFee)
+// 		// }
+// 		// err = self.eostx.DeducePledge(uint64(n.ID), &punishAsset)
+// 		// if err != nil {
+// 		// 	return err
+// 		// }
+// 		// newAssignedSpace := n.AssignedSpace - int64(punishAsset.Amount)*65536*int64(rate)/1000000
+// 		// if newAssignedSpace < 0 {
+// 		// 	newAssignedSpace = 0
+// 		// }
+// 		collection = self.client.Database(YottaDB).Collection(NodeTab)
+// 		status := n.Status
+// 		// invalid over 24 hours begin data rebuilding
+// 		if mark {
+// 			status = 2
+// 			_, err = collection.UpdateOne(context.Background(), bson.M{"_id": n.ID}, bson.M{"$set": bson.M{"tasktimestamp": int64(0)}})
+// 			if err != nil {
+// 				return err
+// 			}
+// 		}
+// 		_, err = collection.UpdateOne(context.Background(), bson.M{"_id": n.ID}, bson.M{"$set": bson.M{ /* "assignedSpace": newAssignedSpace,*/ "status": status}})
+// 		if err != nil {
+// 			return err
+// 		}
+// 	}
+// 	return nil
+// }

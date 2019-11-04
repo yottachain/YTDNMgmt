@@ -24,8 +24,6 @@ import:
   version: v0.1.0
 - package: github.com/libp2p/go-libp2p-transport
   version: v0.1.0
-- package: github.com/libp2p/go-ws-transport
-  version: v0.1.0
 - package: github.com/libp2p/go-tcp-transport
   version: v0.1.0
 - package: github.com/libp2p/go-libp2p-quic-transport
