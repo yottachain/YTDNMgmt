@@ -185,13 +185,21 @@ func (self *NodeDaoImpl) GetSpotCheckList() ([]*SpotCheckList, error) {
 	spotCheckList := new(SpotCheckList)
 	collection := self.client.Database(YottaDB).Collection(NodeTab)
 	for range [10]byte{} {
-		nindex, err := getCurrentNodeIndex(self.client)
+		total, err := collection.CountDocuments(context.Background(), bson.M{"_id": bson.M{"$mod": bson.A{incr, index}}, "usedSpace": bson.M{"$gt": 0}, "assignedSpace": bson.M{"$gt": 0}, "status": 1})
 		if err != nil {
-			log.Printf("error when get node index: %s\n", err.Error())
+			log.Printf("error when get total count of spotcheckable nodes: %s\n", err.Error())
 			continue
 		}
-		n := rand.Intn(int(nindex))
-		cur, err := collection.Find(context.Background(), bson.M{"_id": bson.M{"$mod": bson.A{incr, index}, "$lt": n + int(incr)}, "usedSpace": bson.M{"$gt": 0}, "assignedSpace": bson.M{"$gt": 0}, "status": 1})
+		if total == 0 {
+			break
+		}
+		n := rand.Intn(int(total))
+		optionf := new(options.FindOptions)
+		skip := int64(n)
+		limit := int64(1)
+		optionf.Limit = &limit
+		optionf.Skip = &skip
+		cur, err := collection.Find(context.Background(), bson.M{"_id": bson.M{"$mod": bson.A{incr, index}}, "usedSpace": bson.M{"$gt": 0}, "assignedSpace": bson.M{"$gt": 0}, "status": 1}, optionf)
 		if err != nil {
 			log.Printf("error when get spot task: %s\n", err.Error())
 			continue
