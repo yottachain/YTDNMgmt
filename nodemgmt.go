@@ -718,7 +718,7 @@ func (self *NodeDaoImpl) AddDNI(id int32, shard []byte) error {
 func (self *NodeDaoImpl) ActiveNodesList() ([]*Node, error) {
 	nodes := make([]*Node, 0)
 	collection := self.client.Database(YottaDB).Collection(NodeTab)
-	cur, err := collection.Find(context.Background(), bson.M{"valid": 1, "status": 1, "timestamp": bson.M{"$gt": time.Now().Unix() - IntervalTime*2}})
+	cur, err := collection.Find(context.Background(), bson.M{"valid": 1, "status": 1, "timestamp": bson.M{"$gt": time.Now().Unix() - IntervalTime*3}})
 	if err != nil {
 		return nil, err
 	}
@@ -738,7 +738,7 @@ func (self *NodeDaoImpl) ActiveNodesList() ([]*Node, error) {
 //Statistics of data nodes
 func (self *NodeDaoImpl) Statistics() (*NodeStat, error) {
 	collection := self.client.Database(YottaDB).Collection(NodeTab)
-	active, err := collection.CountDocuments(context.Background(), bson.M{"valid": 1, "status": 1, "timestamp": bson.M{"$gt": time.Now().Unix() - IntervalTime*2}})
+	active, err := collection.CountDocuments(context.Background(), bson.M{"valid": 1, "status": 1, "timestamp": bson.M{"$gt": time.Now().Unix() - IntervalTime*3}})
 	if err != nil {
 		return nil, err
 	}

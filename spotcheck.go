@@ -27,6 +27,7 @@ type SpotChecker struct {
 	cond  *sync.Cond
 	lock2 *sync.Mutex
 	reg   map[int32]map[string]*list.Element
+	tasks map[int32]map[string]string
 	ch    chan *TwoTuple
 }
 
@@ -42,6 +43,7 @@ func (self *NodeDaoImpl) StartRecheck() {
 	self.spotChecker.cond = sync.NewCond(self.spotChecker.lock)
 	self.spotChecker.lock2 = new(sync.Mutex)
 	self.spotChecker.reg = make(map[int32]map[string]*list.Element)
+	self.spotChecker.tasks = make(map[int32]map[string]string)
 	self.spotChecker.ch = make(chan *TwoTuple, 10000)
 	go self.doRecheck()
 	go func() {
@@ -50,6 +52,9 @@ func (self *NodeDaoImpl) StartRecheck() {
 			self.spotChecker.lock2.Lock()
 			if self.spotChecker.reg[task.b] == nil {
 				self.spotChecker.reg[task.b] = make(map[string]*list.Element)
+			}
+			if self.spotChecker.tasks[task.b] == nil {
+				self.spotChecker.tasks[task.b] = make(map[string]string)
 			}
 			if _, ok := self.spotChecker.reg[task.b][task.a]; !ok {
 				continue
@@ -71,7 +76,7 @@ func (self *NodeDaoImpl) doRecheck() {
 		}
 		task := self.spotChecker.list.Front()
 		t := task.Value.(*TwoTuple)
-		success := self.checkDataNode(task.Value.(*TwoTuple))
+		success := self.checkDataNode(t, self.spotChecker.tasks[t.b][t.a])
 		if !success {
 			self.spotChecker.lock2.Lock()
 			opts := new(options.FindOneAndUpdateOptions)
@@ -87,12 +92,13 @@ func (self *NodeDaoImpl) doRecheck() {
 		}
 		self.spotChecker.list.Remove(task)
 		delete(self.spotChecker.reg[t.b], t.a)
+		delete(self.spotChecker.tasks[t.b], t.a)
 		self.spotChecker.lock.Unlock()
 		// time.Sleep(time.Second * 1)
 	}
 }
 
-func (self *NodeDaoImpl) checkDataNode(task *TwoTuple) bool {
+func (self *NodeDaoImpl) checkDataNode(task *TwoTuple, vni string) bool {
 	log.Printf("SN executing spotcheck task: %d [%s]\n", task.b, task.a)
 	collection := self.client.Database(YottaDB).Collection(NodeTab)
 	n := new(Node)
@@ -100,19 +106,29 @@ func (self *NodeDaoImpl) checkDataNode(task *TwoTuple) bool {
 	if err != nil {
 		return false
 	}
-	vni, err := self.GetRandomVNI(n.ID, rand.Int63n(n.UsedSpace))
-	if err != nil {
-		log.Printf("spotcheck: error when get random VNI: %d %s\n", n.ID, err.Error())
-		return false
-	}
+	// vni, err := self.GetRandomVNI(n.ID, rand.Int63n(n.UsedSpace))
+	// if err != nil {
+	// 	log.Printf("spotcheck: error when get random VNI: %d %s\n", n.ID, err.Error())
+	// 	return false
+	// }
 	rawvni, err := base64.StdEncoding.DecodeString(vni)
 	if err != nil {
 		log.Printf("spotcheck: error when unmarshaling VNI: %d %s %s\n", n.ID, vni, err.Error())
 		return false
 	}
 	for range [5]byte{} {
-		if b, _ := self.host.CheckVNI(n, rawvni); b {
+		r, err := self.host.CheckVNI(n, rawvni)
+		if err != nil {
+			continue
+		}
+		if r == 0 {
 			return true
+		}
+		if r == 1 {
+			continue
+		}
+		if r == 2 {
+			return false
 		}
 	}
 	return false
@@ -254,6 +270,7 @@ func (self *NodeDaoImpl) GetSpotCheckList() ([]*SpotCheckList, error) {
 			} else if scCounter == 24 && float32(errCounter)/float32(scCounter) > 0.5 {
 				//惩罚40%抵押，进入重建流程
 				self.Punish(node, 40, true)
+				self.eostx.CalculateProfit(node.ProfitAcc, uint64(node.ID), false)
 			} else if scCounter == 336 {
 				if float32(errCounter)/float32(scCounter) > 0.5 {
 					//惩罚剩余全部抵押
@@ -266,9 +283,12 @@ func (self *NodeDaoImpl) GetSpotCheckList() ([]*SpotCheckList, error) {
 					log.Printf("error when reset counters: %s\n", err.Error())
 				}
 				for _, v := range self.spotChecker.reg[node.ID] {
-					self.spotChecker.list.Remove(v)
+					if v != nil {
+						self.spotChecker.list.Remove(v)
+					}
 				}
 				delete(self.spotChecker.reg, node.ID)
+				delete(self.spotChecker.tasks, node.ID)
 				self.spotChecker.lock2.Unlock()
 			}
 
@@ -276,7 +296,11 @@ func (self *NodeDaoImpl) GetSpotCheckList() ([]*SpotCheckList, error) {
 			if self.spotChecker.reg[node.ID] == nil {
 				self.spotChecker.reg[node.ID] = make(map[string]*list.Element)
 			}
+			if self.spotChecker.tasks[node.ID] == nil {
+				self.spotChecker.tasks[node.ID] = make(map[string]string)
+			}
 			self.spotChecker.reg[node.ID][spotCheckList.TaskID.Hex()] = nil
+			self.spotChecker.tasks[node.ID][spotCheckList.TaskID.Hex()] = spotCheckTask.VNI
 			self.spotChecker.lock2.Unlock()
 			return spotCheckLists, nil
 		}
@@ -325,15 +349,29 @@ func (self *NodeDaoImpl) Punish(node *Node, percent int64, mark bool) error {
 	return nil
 }
 
+// func (self *NodeDaoImpl) GetSTNode() (*Node, error) {
+// 	collection := self.client.Database(YottaDB).Collection(NodeTab)
+// 	node := new(Node)
+// 	options := options.FindOneOptions{}
+// 	options.Sort = bson.D{{"timestamp", -1}}
+// 	err := collection.FindOne(context.Background(), bson.M{"_id": bson.M{"$mod": bson.A{incr, index}}, "valid": 1, "status": 1, "bandwidth": bson.M{"$lt": 50}, "timestamp": bson.M{"$gt": time.Now().Unix() - IntervalTime*2}, "version": bson.M{"$gte": 6}}, &options).Decode(node)
+// 	if err != nil {
+// 		return nil, err
+// 	}
+// 	return node, nil
+// }
+
 func (self *NodeDaoImpl) GetSTNode() (*Node, error) {
 	collection := self.client.Database(YottaDB).Collection(NodeTab)
-	node := new(Node)
-	options := options.FindOneOptions{}
-	options.Sort = bson.D{{"timestamp", -1}}
-	err := collection.FindOne(context.Background(), bson.M{"_id": bson.M{"$mod": bson.A{incr, index}}, "valid": 1, "status": 1, "bandwidth": bson.M{"$lt": 50}, "timestamp": bson.M{"$gt": time.Now().Unix() - IntervalTime*2}, "version": bson.M{"$gte": 6}}, &options).Decode(node)
+	c, err := collection.CountDocuments(context.Background(), bson.M{"_id": bson.M{"$mod": bson.A{incr, index}}, "usedSpace": bson.M{"$gt": 0}, "status": 1, "version": bson.M{"$gte": 6}})
 	if err != nil {
-		return nil, err
+		return nil, errors.New("error when get count of spotcheckable nodes")
 	}
+	d, err := collection.CountDocuments(context.Background(), bson.M{"_id": bson.M{"$mod": bson.A{incr, index}}, "status": 1, "timestamp": bson.M{"$gt": time.Now().Unix() - IntervalTime*3}, "version": bson.M{"$gte": 6}})
+	if err != nil {
+		return nil, errors.New("error when get count of spotcheck-executing nodes")
+	}
+	node := NewNode(1, "", "", "", "", "", 0, nil, 0, 0, 0, 0, 0, c, d, 0, 0, 0, 0, 0, 0)
 	return node, nil
 }
 
@@ -344,7 +382,7 @@ func (self *NodeDaoImpl) GetSTNodes(count int64) ([]*Node, error) {
 	options.Limit = &count
 	nodes := make([]*Node, 0)
 	collection := self.client.Database(YottaDB).Collection(NodeTab)
-	cur, err := collection.Find(context.Background(), bson.M{"_id": bson.M{"$mod": bson.A{incr, index}}, "valid": 1, "status": 1, "bandwidth": bson.M{"$lt": 50}, "timestamp": bson.M{"$gt": time.Now().Unix() - IntervalTime*2}, "version": bson.M{"$gte": 6}}, &options)
+	cur, err := collection.Find(context.Background(), bson.M{"_id": bson.M{"$mod": bson.A{incr, index}}, "valid": 1, "status": 1, "bandwidth": bson.M{"$lt": 50}, "timestamp": bson.M{"$gt": time.Now().Unix() - IntervalTime*3}, "version": bson.M{"$gte": 6}}, &options)
 	if err != nil {
 		return nil, err
 	}

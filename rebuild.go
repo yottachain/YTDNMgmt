@@ -182,7 +182,7 @@ func (self *NodeDaoImpl) GetRebuildNode(count int64) (*Node, error) {
 	collection := self.client.Database(YottaDB).Collection(NodeTab)
 	options := options.FindOptions{}
 	options.Sort = bson.D{{"timestamp", -1}}
-	cur, err := collection.Find(context.Background(), bson.M{"valid": 1, "status": 1, "bandwidth": bson.M{"$lt": 50}, "timestamp": bson.M{"$gt": time.Now().Unix() - IntervalTime*2}, "version": bson.M{"$gte": 6}}, &options)
+	cur, err := collection.Find(context.Background(), bson.M{"valid": 1, "status": 1, "bandwidth": bson.M{"$lt": 50}, "timestamp": bson.M{"$gt": time.Now().Unix() - IntervalTime*3}, "version": bson.M{"$gte": 6}}, &options)
 	if err != nil {
 		return nil, err
 	}

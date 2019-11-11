@@ -58,5 +58,11 @@ type DrawForfeit struct {
 	Caller  eos.AccountName `json:"caller"`
 }
 
+type MActive struct {
+	Owner   eos.AccountName `json:"owner"`
+	MinerID uint64          `json:"minerid"`
+	Caller  eos.AccountName `json:"caller"`
+}
+
 // YTASymbol represents the standard YTA symbol on the chain.
 var YTASymbol = eos.Symbol{Precision: 4, Symbol: "YTA"}

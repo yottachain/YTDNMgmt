@@ -30,14 +30,14 @@ func NewHost() (*Host, error) {
 	return &Host{lhost: host}, nil
 }
 
-func (host *Host) CheckVNI(node *Node, vni []byte) (bool, error) {
+func (host *Host) CheckVNI(node *Node, vni []byte) (int, error) {
 	maddrs, err := stringListToMaddrs(node.Addrs)
 	if err != nil {
-		return false, err
+		return 0, err
 	}
 	pid, err := peer.IDB58Decode(node.NodeID)
 	if err != nil {
-		return false, err
+		return 0, err
 	}
 	info := ps.PeerInfo{
 		pid,
@@ -50,27 +50,30 @@ func (host *Host) CheckVNI(node *Node, vni []byte) (bool, error) {
 	err = host.lhost.Connect(ctx, info)
 	if err != nil {
 		log.Printf("recheck: connect node failed: %d %s\n", node.ID, err.Error())
-		return false, nil
+		return 1, nil
 	}
 	downloadRequest := &pb.DownloadShardRequest{VHF: vni}
 	checkData, err := proto.Marshal(downloadRequest)
 	if err != nil {
 		log.Println("error when marshalling protobuf message: downloadrequest: %s\n", err.Error())
-		return false, err
+		return 0, err
 	}
 	// 发送下载分片命令
 	shardData, err := host.SendMsg(node.NodeID, "/node/0.0.2", append(pb.MsgIDDownloadShardRequest.Bytes(), checkData...))
 	if err != nil {
 		log.Println("SN send recheck command failed: %d %s %s\n", node.ID, vni, err.Error())
-		return false, err
+		return 1, nil
 	}
 	var share pb.DownloadShardResponse
 	err = proto.Unmarshal(shardData[2:], &share)
 	if err != nil {
 		log.Println("SN unmarshal recheck response failed: %d %s %s\n", node.ID, vni, err.Error())
-		return false, err
+		return 0, err
 	}
-	return downloadRequest.VerifyVHF(share.Data), nil
+	if downloadRequest.VerifyVHF(share.Data) {
+		return 0, nil
+	}
+	return 2, nil
 }
 
 func (host *Host) SendMsg(id string, msgType string, msg []byte) ([]byte, error) {

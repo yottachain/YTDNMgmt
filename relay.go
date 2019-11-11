@@ -158,7 +158,7 @@ func (self *NodeDaoImpl) AllocRelayNode() *Node {
 	node := new(Node)
 	options := options.FindOneOptions{}
 	options.Sort = bson.D{{"timestamp", -1}}
-	err := collection.FindOne(context.Background(), bson.M{"valid": 1, "status": 1, "relay": 1, "bandwidth": bson.M{"$lt": 50}, "timestamp": bson.M{"$gt": time.Now().Unix() - IntervalTime*2}}, &options).Decode(node)
+	err := collection.FindOne(context.Background(), bson.M{"valid": 1, "status": 1, "relay": 1, "bandwidth": bson.M{"$lt": 50}, "timestamp": bson.M{"$gt": time.Now().Unix() - IntervalTime*3}}, &options).Decode(node)
 	if err != nil {
 		return nil
 	}
