@@ -6,15 +6,12 @@ import (
 	"fmt"
 	"log"
 	"math/rand"
-	"os"
 	"strings"
 	"time"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
-
-var excludeAddrPrefix = os.Getenv("NODEMGMT_EXCLUDEADDR")
 
 func init() {
 	rand.Seed(time.Now().UnixNano())
@@ -27,7 +24,7 @@ func (self *NodeDaoImpl) AddrCheck(oldNode, newNode *Node) (relayUrl string, err
 	if RelayUrlCheck(newNode.Addrs) {
 		newNode.Relay = 0
 	}
-	n := rand.Intn(10000)
+	n := rand.Intn(200 * int(connectivityTestInterval))
 	if n > 200 && EqualSorted(oldNode.Addrs, newNode.Addrs) {
 		return "", nil
 	}
@@ -158,7 +155,7 @@ func (self *NodeDaoImpl) AllocRelayNode() *Node {
 	node := new(Node)
 	options := options.FindOneOptions{}
 	options.Sort = bson.D{{"timestamp", -1}}
-	err := collection.FindOne(context.Background(), bson.M{"valid": 1, "status": 1, "relay": 1, "bandwidth": bson.M{"$lt": 50}, "timestamp": bson.M{"$gt": time.Now().Unix() - IntervalTime*3}}, &options).Decode(node)
+	err := collection.FindOne(context.Background(), bson.M{"valid": 1, "status": 1, "relay": 1, "timestamp": bson.M{"$gt": time.Now().Unix() - IntervalTime*avaliableNodeTimeGap}}, &options).Decode(node)
 	if err != nil {
 		return nil
 	}

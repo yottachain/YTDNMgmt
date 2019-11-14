@@ -16,25 +16,25 @@ import (
 	"github.com/yottachain/YTDNMgmt/eostx"
 )
 
+//NodeDaoImpl node manipulator implemention
 type NodeDaoImpl struct {
-	client      *mongo.Client
-	eostx       *eostx.EosTX
-	host        *Host
-	ns          *NodesSelector
-	bpID        int32
-	spotChecker *SpotChecker
+	client *mongo.Client
+	eostx  *eostx.EosTX
+	host   *Host
+	ns     *NodesSelector
+	bpID   int32
 }
 
 var incr int64 = 0
 var index int32 = -1
 
 //NewInstance create a new instance of NodeDaoImpl
-func NewInstance(mongoURL, eosURL, bpAccount, bpPrivkey, contractOwnerM, contractOwnerD string, bpID int32) (*NodeDaoImpl, error) {
+func NewInstance(mongoURL, eosURL, bpAccount, bpPrivkey, contractOwnerM, contractOwnerD, shadowAccount string, bpID int32) (*NodeDaoImpl, error) {
 	client, err := mongo.Connect(context.Background(), options.Client().ApplyURI(mongoURL))
 	if err != nil {
 		return nil, err
 	}
-	etx, err := eostx.NewInstance(eosURL, bpAccount, bpPrivkey, contractOwnerM, contractOwnerD)
+	etx, err := eostx.NewInstance(eosURL, bpAccount, bpPrivkey, contractOwnerM, contractOwnerD, shadowAccount)
 	if err != nil {
 		return nil, err
 	}
@@ -54,67 +54,20 @@ func NewInstance(mongoURL, eosURL, bpAccount, bpPrivkey, contractOwnerM, contrac
 		incr = c
 	}
 	if index == -1 {
-		idx, err := getCurrentSuperNodeIndex(client)
-		if err != nil {
-			return nil, err
-		}
-		index = idx
+		index = bpID
 	}
 	return dao, nil
-}
-
-func getCurrentSuperNodeIndex(client *mongo.Client) (int32, error) {
-	collection := client.Database(YottaDB).Collection(SequenceTab)
-	m := make(map[string]int32)
-	err := collection.FindOne(context.Background(), bson.M{"_id": SuperNodeIdxType}).Decode(&m)
-	if err != nil {
-		return 0, err
-	}
-	return m["seq"], nil
 }
 
 func getCurrentNodeIndex(client *mongo.Client) (int32, error) {
 	collection := client.Database(YottaDB).Collection(SequenceTab)
 	m := make(map[string]int32)
-	err := collection.FindOne(context.Background(), bson.M{"_id": NodeIdxType}).Decode(&m)
+	err := collection.FindOne(context.Background(), bson.M{"_id": NodeIdxType}).Decode(m)
 	if err != nil {
 		return 0, err
 	}
 	return m["seq"], nil
 }
-
-// // generate a new id for Node collection
-// func newID(client *mongo.Client) (int32, error) {
-// 	if incr == 0 {
-// 		collection := client.Database(YottaDB).Collection(SuperNodeTab)
-// 		c, err := collection.CountDocuments(context.Background(), bson.D{})
-// 		if err != nil {
-// 			return 0, err
-// 		}
-// 		incr = c
-// 	}
-// 	collection := client.Database(YottaDB).Collection(SequenceTab)
-// 	initseq, err := getCurrentSuperNodeIndex(client)
-// 	if err != nil {
-// 		return 0, err
-// 	}
-// 	_, err = collection.InsertOne(context.Background(), bson.M{"_id": NodeIdxType, "seq": initseq})
-// 	if err != nil {
-// 		errstr := err.Error()
-// 		if !strings.ContainsAny(errstr, "duplicate key error") {
-// 			return 0, err
-// 		}
-// 	}
-// 	opts := new(options.FindOneAndUpdateOptions)
-// 	opts = opts.SetReturnDocument(options.After)
-// 	result := collection.FindOneAndUpdate(context.Background(), bson.M{"_id": NodeIdxType}, bson.M{"$inc": bson.M{"seq": incr}}, opts)
-// 	m := make(map[string]int32)
-// 	err = result.Decode(&m)
-// 	if err != nil {
-// 		return 0, err
-// 	}
-// 	return m["seq"], nil
-// }
 
 //NewNodeID get newest id of node
 func (self *NodeDaoImpl) NewNodeID() (int32, error) {
@@ -127,7 +80,7 @@ func (self *NodeDaoImpl) NewNodeID() (int32, error) {
 		}
 	}
 	m := make(map[string]int32)
-	err = collection.FindOne(context.Background(), bson.M{"_id": NodeIdxType}).Decode(&m)
+	err = collection.FindOne(context.Background(), bson.M{"_id": NodeIdxType}).Decode(m)
 	if err != nil {
 		return 0, err
 	}
@@ -205,11 +158,11 @@ func (self *NodeDaoImpl) ChangeMinerPool(trx string) error {
 	minerProfit := string(poolData.MinerProfit)
 	quota := poolData.MaxSpace
 	if minerID%int32(incr) != index {
-		return errors.New("transaction sends to incorrect super node.")
+		return errors.New("transaction sends to incorrect super node")
 	}
 	collection := self.client.Database(YottaDB).Collection(NodeTab)
 	node := new(Node)
-	err = collection.FindOne(context.Background(), bson.M{"_id": minerID}).Decode(&node)
+	err = collection.FindOne(context.Background(), bson.M{"_id": minerID}).Decode(node)
 	if err != nil {
 		return err
 	}
@@ -226,7 +179,7 @@ func (self *NodeDaoImpl) ChangeMinerPool(trx string) error {
 		return err
 	}
 	if afterReg {
-		err = collection.FindOne(context.Background(), bson.M{"_id": minerID}).Decode(&node)
+		err = collection.FindOne(context.Background(), bson.M{"_id": minerID}).Decode(node)
 		if err != nil {
 			return err
 		}
@@ -252,43 +205,6 @@ func (self *NodeDaoImpl) ChangeMinerPool(trx string) error {
 
 //RegisterNode create a new data node
 func (self *NodeDaoImpl) RegisterNode(node *Node) (*Node, error) {
-	// if node == nil {
-	// 	return nil, errors.New("node is null")
-	// }
-	// if node.ID == 0 {
-	// 	return nil, errors.New("node ID must not be null")
-	// }
-	// if node.NodeID == "" {
-	// 	return nil, errors.New("node ID must not be null")
-	// }
-	// if node.PubKey == "" {
-	// 	return nil, errors.New("public key must not be null")
-	// }
-	// if node.Status != 0 {
-	// 	return nil, errors.New("node status is not after-preregister")
-	// }
-	// collection := self.client.Database(YottaDB).Collection(NodeTab)
-	// n := new(Node)
-	// err := collection.FindOne(context.Background(), bson.M{"_id": node.ID}).Decode(&n)
-	// if err != nil {
-	// 	return nil, err
-	// }
-	// if node.Owner != n.Owner {
-	// 	return nil, errors.New("owner not match")
-	// }
-	// n.NodeID = node.NodeID
-	// n.PubKey = node.PubKey
-	// n.Status = 1
-	// n.Timestamp = time.Now().Unix()
-
-	// opts := new(options.FindOneAndUpdateOptions)
-	// opts = opts.SetReturnDocument(options.After)
-	// result := collection.FindOneAndUpdate(context.Background(), bson.M{"_id": n.ID}, bson.M{"$set": bson.M{"nodeid": n.NodeID, "pubkey": n.PubKey, "status": n.Status, "timestamp": n.Timestamp}}, opts)
-	// err = result.Decode(&node)
-	// if err != nil {
-	// 	return nil, err
-	// }
-	// return node, nil
 	return nil, errors.New("no use")
 }
 
@@ -305,9 +221,12 @@ func (self *NodeDaoImpl) UpdateNodeStatus(node *Node) (*Node, error) {
 	}
 	collection := self.client.Database(YottaDB).Collection(NodeTab)
 	n := new(Node)
-	err := collection.FindOne(context.Background(), bson.M{"_id": node.ID}).Decode(&n)
+	err := collection.FindOne(context.Background(), bson.M{"_id": node.ID}).Decode(n)
 	if err != nil {
 		return nil, err
+	}
+	if time.Now().Unix()-n.Timestamp < 50 {
+		return nil, errors.New("report too frequence.")
 	}
 	if n.Quota == 0 || n.AssignedSpace == 0 {
 		return nil, fmt.Errorf("node %d has not been pledged or added to a pool", n.ID)
@@ -322,25 +241,19 @@ func (self *NodeDaoImpl) UpdateNodeStatus(node *Node) (*Node, error) {
 	if n.Status > 1 {
 		status = n.Status
 	}
-	//weight := math.Sqrt(2*math.Pow(float64(node.CPU)/100, 2) + 2*math.Pow(float64(node.Memory)/100, 2) + 2*math.Pow(float64(node.Bandwidth)/100, 2) + math.Pow(float64(n.UsedSpace)/float64(Min(n.AssignedSpace /*, n.Quota, node.MaxDataSpace*/)), 2))
 	weight := float64(Min(n.AssignedSpace, n.Quota, node.MaxDataSpace) - n.UsedSpace)
 	if weight < 0 {
 		weight = 0
 	}
 	opts := new(options.FindOneAndUpdateOptions)
 	opts = opts.SetReturnDocument(options.After)
-	// var timestamp int64
-	// if self.CheckErrorNode(node.ID) {
 	timestamp := time.Now().Unix()
-	// } else {
-	// 	timestamp = n.Timestamp
-	// }
 	update := bson.M{"$set": bson.M{"cpu": node.CPU, "memory": node.Memory, "bandwidth": node.Bandwidth, "maxDataSpace": node.MaxDataSpace, "addrs": node.Addrs, "weight": weight, "valid": node.Valid, "relay": node.Relay, "status": status, "timestamp": timestamp, "version": node.Version}}
 	if node.UsedSpace != 0 {
 		update = bson.M{"$set": bson.M{"cpu": node.CPU, "memory": node.Memory, "bandwidth": node.Bandwidth, "maxDataSpace": node.MaxDataSpace, "realSpace": node.UsedSpace, "addrs": node.Addrs, "weight": weight, "valid": node.Valid, "relay": node.Relay, "status": status, "timestamp": timestamp, "version": node.Version}}
 	}
 	result := collection.FindOneAndUpdate(context.Background(), bson.M{"_id": node.ID}, update, opts)
-	err = result.Decode(&n)
+	err = result.Decode(n)
 	if err != nil {
 		return nil, err
 	}
@@ -350,13 +263,13 @@ func (self *NodeDaoImpl) UpdateNodeStatus(node *Node) (*Node, error) {
 		n.Addrs = nil
 	}
 
-	if n.UsedSpace+8192 > n.ProductiveSpace {
+	if n.UsedSpace+prePurphaseThreshold > n.ProductiveSpace {
 		assignable := Min(n.AssignedSpace, n.Quota, n.MaxDataSpace) - n.ProductiveSpace
 		if assignable <= 0 {
 			log.Printf("node %d has no space for allocating\n", n.ID)
 		} else {
-			if assignable >= 65536 {
-				assignable = 65536
+			if assignable >= prePurphaseAmount {
+				assignable = prePurphaseAmount
 			}
 			err = self.IncrProductiveSpace(node.ID, assignable)
 			if err != nil {
@@ -374,17 +287,6 @@ func (self *NodeDaoImpl) UpdateNodeStatus(node *Node) (*Node, error) {
 	return n, nil
 }
 
-func (self *NodeDaoImpl) CheckErrorNode(id int32) bool {
-	collection := self.client.Database(YottaDB).Collection(ErrorNodeTab)
-	m := make(map[string]interface{})
-	err := collection.FindOne(context.Background(), bson.M{"_id": 1, "nodes": bson.M{"$in": bson.A{id}}}, options.FindOne().SetProjection(bson.M{"nodes": 1})).Decode(&m)
-	if err != nil {
-		return true
-	} else {
-		return false
-	}
-}
-
 //IncrUsedSpace increase user space of one node
 func (self *NodeDaoImpl) IncrUsedSpace(id int32, incr int64) error {
 	if incr < 0 {
@@ -392,11 +294,10 @@ func (self *NodeDaoImpl) IncrUsedSpace(id int32, incr int64) error {
 	}
 	collection := self.client.Database(YottaDB).Collection(NodeTab)
 	n := new(Node)
-	err := collection.FindOne(context.Background(), bson.M{"_id": id}).Decode(&n)
+	err := collection.FindOne(context.Background(), bson.M{"_id": id}).Decode(n)
 	if err != nil {
 		return err
 	}
-	//weight := math.Sqrt(2*math.Pow(float64(n.CPU)/100, 2) + 2*math.Pow(float64(n.Memory)/100, 2) + 2*math.Pow(float64(n.Bandwidth)/100, 2) + math.Pow(float64(n.UsedSpace+incr)/float64(Min(n.AssignedSpace /*, n.Quota, n.MaxDataSpace*/)), 2))
 	weight := float64(Min(n.AssignedSpace, n.Quota, n.MaxDataSpace) - n.UsedSpace)
 	_, err = collection.UpdateOne(context.Background(), bson.M{"_id": id}, bson.M{"$set": bson.M{"weight": weight}, "$inc": bson.M{"usedSpace": incr}})
 	return err
@@ -415,83 +316,6 @@ func (self *NodeDaoImpl) IncrProductiveSpace(id int32, incr int64) error {
 //AllocNodes by shard count
 func (self *NodeDaoImpl) AllocNodes(shardCount int32, errids []int32) ([]*Node, error) {
 	return self.ns.Alloc(shardCount, errids)
-	// sc := shardCount
-	// if shardCount == 1 {
-	// 	shardCount = 2
-	// }
-	// collection := self.client.Database(YottaDB).Collection(NodeTab)
-	// nodes := make([]*Node, 0)
-	// m := make(map[int32]int64)
-	// var i int64
-	// options := options.FindOptions{}
-	// //options.Sort = bson.D{{"weight", 1}}
-	// options.Sort = bson.D{{"timestamp", -1}}
-	// limit := int64(shardCount)
-	// options.Limit = &limit
-	// for {
-	// 	cond := bson.M{"valid": 1, "status": 1, "assignedSpace": bson.M{"$gt": 0}, "quota": bson.M{"$gt": 0}, "timestamp": bson.M{"$gt": time.Now().Unix() - IntervalTime*3}, "version": bson.M{"$gte": 6}}
-	// 	if errids != nil && len(errids) > 0 {
-	// 		cond["_id"] = bson.M{"$nin": errids}
-	// 	}
-	// 	cur, err := collection.Find(context.Background(), cond, &options)
-	// 	if err != nil {
-	// 		return nil, err
-	// 	}
-	// 	canLoop := false
-	// 	for cur.Next(context.Background()) {
-	// 		result := new(Node)
-	// 		err := cur.Decode(result)
-	// 		if err != nil {
-	// 			cur.Close(context.Background())
-	// 			return nil, err
-	// 		}
-
-	// 		m[result.ID] += 1
-	// 		// increase 1GB when remain space less than 1/8 GB
-	// 		if result.UsedSpace+m[result.ID]+8192 > result.ProductiveSpace {
-	// 			if result.ID%int32(incr) != index {
-	// 				m[result.ID] -= 1
-	// 				continue
-	// 			}
-	// 			assignable := Min(result.AssignedSpace /*, result.Quota, result.MaxDataSpace*/) - result.ProductiveSpace
-	// 			if assignable <= 0 {
-	// 				m[result.ID] -= 1
-	// 				continue
-	// 			}
-	// 			if assignable >= 65536 {
-	// 				assignable = 65536
-	// 			}
-	// 			err := self.IncrProductiveSpace(result.ID, assignable)
-	// 			if err != nil {
-	// 				m[result.ID] -= 1
-	// 				continue
-	// 			}
-	// 			err = self.eostx.AddSpace(result.ProfitAcc, uint64(result.ID), uint64(assignable))
-	// 			if err != nil {
-	// 				self.IncrProductiveSpace(result.ID, -1*assignable)
-	// 				m[result.ID] -= 1
-	// 				continue
-	// 			}
-	// 			result.ProductiveSpace += assignable
-	// 		}
-
-	// 		nodes = append(nodes, result)
-	// 		i += 1
-	// 		canLoop = true
-	// 		if i == int64(shardCount) {
-	// 			cur.Close(context.Background())
-	// 			if sc == 1 && len(nodes) > 0 {
-	// 				return nodes[0:1], nil
-	// 			}
-	// 			return nodes, nil
-	// 		}
-	// 	}
-	// 	cur.Close(context.Background())
-	// 	if !canLoop {
-	// 		break
-	// 	}
-	// }
-	// return nil, errors.New("no enough data nodes can be allocted")
 }
 
 //SyncNode sync node info to other SN
@@ -589,7 +413,7 @@ func (self *NodeDaoImpl) GetSuperNodePrivateKey(id int32) (string, error) {
 		}
 		return result.PrivKey, nil
 	}
-	return "", errors.New("No result")
+	return "", errors.New("no result")
 }
 
 //GetNodeIDByPubKey get node ID by public key
@@ -608,7 +432,7 @@ func (self *NodeDaoImpl) GetNodeIDByPubKey(pubkey string) (int32, error) {
 		}
 		return result.ID, nil
 	}
-	return 0, errors.New("No result")
+	return 0, errors.New("no result")
 }
 
 //GetNodeByPubKey get node by public key
@@ -646,34 +470,11 @@ func (self *NodeDaoImpl) GetSuperNodeIDByPubKey(pubkey string) (int32, error) {
 		}
 		return result.ID, nil
 	}
-	return 0, errors.New("No result")
+	return 0, errors.New("no result")
 }
 
 //AddDNI add digest of one shard
 func (self *NodeDaoImpl) AddDNI(id int32, shard []byte) error {
-	// node := new(Node)
-	// collectionNode := self.client.Database(YottaDB).Collection(NodeTab)
-	// err := collectionNode.FindOne(context.Background(), bson.M{"_id": id}).Decode(&node)
-	// if err != nil {
-	// 	return err
-	// }
-	// assignable := Min(node.AssignedSpace, node.Quota, node.MaxDataSpace)
-	// if assignable <= 0 {
-	// 	return errors.New("assignable space is 0")
-	// }
-	// if assignable >= 65536 {
-	// 	assignable = 65536
-	// }
-	// err = self.IncrProductiveSpace(node.ID, assignable)
-	// if err != nil {
-	// 	return err
-	// }
-	// err = self.eostx.AddSpace(node.ProfitAcc, uint64(node.ID), uint64(assignable))
-	// if err != nil {
-	// 	self.IncrProductiveSpace(node.ID, -1*assignable)
-	// 	return err
-	// }
-
 	collection := self.client.Database(YottaDB).Collection(DNITab)
 	_, err := collection.InsertOne(context.Background(), bson.M{"_id": primitive.NewObjectID(), "shard": shard, "minerID": id})
 	if err != nil {
@@ -688,37 +489,13 @@ func (self *NodeDaoImpl) AddDNI(id int32, shard []byte) error {
 		_, err = collection.UpdateOne(context.Background(), bson.M{"_id": id}, bson.M{"$inc": bson.M{"usedSpace": 1}})
 		return err
 	}
-	// _, err = collection.UpdateOne(context.Background(), bson.M{"_id": id}, bson.M{"$push": bson.M{"shards": shard}})
-	// if err != nil {
-	// 	return err
-	// }
-
-	// pipeline := mongo.Pipeline{
-	// 	{{"$match", bson.D{{"_id", id}}}},
-	// 	{{"$project", bson.D{{"cnt", bson.D{{"$size", "$shards"}}}}}},
-	// }
-	// cur, err := collection.Aggregate(context.Background(), pipeline)
-	// if err != nil {
-	// 	return err
-	// }
-	// result := new(ShardCount)
-	// defer cur.Close(context.Background())
-	// if cur.Next(context.Background()) {
-	// 	err := cur.Decode(&result)
-	// 	if err != nil {
-	// 		return err
-	// 	}
-	// }
-	// collection = self.client.Database(YottaDB).Collection(NodeTab)
-	// _, err = collection.UpdateOne(context.Background(), bson.M{"_id": result.ID}, bson.M{"$set": bson.M{"usedSpace": result.Cnt}})
-	// return err
 }
 
 //ActiveNodesList show id and public IP of all active data nodes
 func (self *NodeDaoImpl) ActiveNodesList() ([]*Node, error) {
 	nodes := make([]*Node, 0)
 	collection := self.client.Database(YottaDB).Collection(NodeTab)
-	cur, err := collection.Find(context.Background(), bson.M{"valid": 1, "status": 1, "timestamp": bson.M{"$gt": time.Now().Unix() - IntervalTime*3}})
+	cur, err := collection.Find(context.Background(), bson.M{"valid": 1, "status": 1, "timestamp": bson.M{"$gt": time.Now().Unix() - IntervalTime*avaliableNodeTimeGap}})
 	if err != nil {
 		return nil, err
 	}
@@ -738,7 +515,7 @@ func (self *NodeDaoImpl) ActiveNodesList() ([]*Node, error) {
 //Statistics of data nodes
 func (self *NodeDaoImpl) Statistics() (*NodeStat, error) {
 	collection := self.client.Database(YottaDB).Collection(NodeTab)
-	active, err := collection.CountDocuments(context.Background(), bson.M{"valid": 1, "status": 1, "timestamp": bson.M{"$gt": time.Now().Unix() - IntervalTime*3}})
+	active, err := collection.CountDocuments(context.Background(), bson.M{"valid": 1, "status": 1, "timestamp": bson.M{"$gt": time.Now().Unix() - IntervalTime*avaliableNodeTimeGap}})
 	if err != nil {
 		return nil, err
 	}
@@ -757,7 +534,7 @@ func (self *NodeDaoImpl) Statistics() (*NodeStat, error) {
 	result := new(NodeStat)
 	defer cur.Close(context.Background())
 	if cur.Next(context.Background()) {
-		err := cur.Decode(&result)
+		err := cur.Decode(result)
 		if err != nil {
 			return nil, err
 		}

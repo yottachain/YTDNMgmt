@@ -7,6 +7,7 @@ type EosTX struct {
 	BpAccount      string
 	ContractOwnerM string
 	ContractOwnerD string
+	ShadowAccount  string
 }
 
 type RegMiner struct {

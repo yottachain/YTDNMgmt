@@ -70,13 +70,6 @@ type SuperNode struct {
 	Addrs []string `bson:"addrs"`
 }
 
-//ContractInfo instance
-// type ContractInfo struct {
-// 	ID      int32  `bson:"_id"`
-// 	User    string `bson:"user"`
-// 	PrivKey string `bson:"privkey"`
-// }
-
 //NodeStat statistics of data node
 type NodeStat struct {
 	ActiveMiners    int64 `bson:"activeMiners"`
@@ -95,11 +88,9 @@ type ShardCount struct {
 
 //SpotCheckList list of spot check
 type SpotCheckList struct {
-	TaskID   primitive.ObjectID `bson:"_id"`
-	TaskList []*SpotCheckTask   `bson:"taskList"`
-	//Progress  int32              `bson:"progress"`
-	Timestamp int64 `bson:"timestamp"`
-	//Duration  int64              `bson:"duration"`
+	TaskID    primitive.ObjectID `bson:"_id"`
+	TaskList  []*SpotCheckTask   `bson:"taskList"`
+	Timestamp int64              `bson:"timestamp"`
 }
 
 //SpotCheckTask one spot check task
@@ -112,18 +103,17 @@ type SpotCheckTask struct {
 
 //SpotCheckRecord spot check task in database
 type SpotCheckRecord struct {
-	TaskID    primitive.ObjectID `bson:"_id"`
-	Nodes     map[string]int     `bson:"nodes"`
-	Timestamp int64              `bson:"timestamp"`
+	// TaskID    primitive.ObjectID `bson:"_id"`
+	// Nodes     map[string]int     `bson:"nodes"`
+	TaskID    string `bson:"_id"`
+	NID       int32  `bson:"nid"`
+	VNI       string `bson:"vni"`
+	Status    int32  `bson:"status"` // 0 - send to client, 1 - receive invalid node, 2 - rechecking
+	Timestamp int64  `bson:"timestamp"`
+	ErrCount  int64  `bson:"errCount"`
 }
 
-//DNI_old
-type DNI_old struct {
-	ID     int32              `bson:"_id"`
-	Shards []primitive.Binary `bson:"shards"`
-}
-
-//DNI
+//DNI dni struct
 type DNI struct {
 	ID      primitive.ObjectID `bson:"_id"`
 	Shard   primitive.Binary   `bson:"shard"`
@@ -131,7 +121,7 @@ type DNI struct {
 	Delete  int32              `bson:"delete"`
 }
 
-//VNI
+//VNI vni struct
 type VNI struct {
 	ID  int32  `bson:"_id"`
 	VNI []byte `bson:"vni"`
@@ -146,7 +136,6 @@ const (
 	SequenceTab  = "Sequence"
 	SpotCheckTab = "SpotCheck"
 	ErrorNodeTab = "ErrorNode"
-	//ContractInfoTab = "ContractInfo"
 )
 
 //index type of node and supernode collection

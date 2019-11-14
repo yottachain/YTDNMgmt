@@ -23,6 +23,7 @@ const NODEMGMT_BPACCOUNT = NODEMGMT_ETCD_PREFIX + "bpAccount"
 const NODEMGMT_BPPRIVKEY = NODEMGMT_ETCD_PREFIX + "bpPrivkey"
 const NODEMGMT_CONTRACTOWNERM = NODEMGMT_ETCD_PREFIX + "contractOwnerM"
 const NODEMGMT_CONTRACTOWNERD = NODEMGMT_ETCD_PREFIX + "contractOwnerD"
+const NODEMGMT_SHADOWACCOUNT = NODEMGMT_ETCD_PREFIX + "shadowAccount"
 const NODEMGMT_BPID = NODEMGMT_ETCD_PREFIX + "bpid"
 
 func main() {
@@ -143,6 +144,18 @@ func main() {
 		contractOwnerD := resp.Kvs[0].Value
 		log.Printf("Read contract owner D from ETCD: %s\n", contractOwnerD)
 
+		resp, err = clnt.Get(context.Background(), NODEMGMT_SHADOWACCOUNT)
+		if err != nil {
+			log.Printf("get %s failed, err: %s\n", NODEMGMT_SHADOWACCOUNT, err)
+			continue
+		}
+		if len(resp.Kvs) == 0 {
+			log.Printf("get %s failed, no content\n", NODEMGMT_SHADOWACCOUNT)
+			continue
+		}
+		shadowAccount := resp.Kvs[0].Value
+		log.Printf("Read shadow account from ETCD: %s\n", shadowAccount)
+
 		resp, err = clnt.Get(context.Background(), NODEMGMT_BPID)
 		if err != nil {
 			log.Printf("get %s failed, err: %s\n", NODEMGMT_BPID, err)
@@ -160,7 +173,7 @@ func main() {
 		}
 		log.Printf("Read BP ID from ETCD: %d\n", bpid)
 
-		nodeDao, err := nodemgmt.NewInstance(string(mongoURL), string(eosURL), string(bpAccount), string(bpPrivkey), string(contractOwnerM), string(contractOwnerD), int32(bpid))
+		nodeDao, err := nodemgmt.NewInstance(string(mongoURL), string(eosURL), string(bpAccount), string(bpPrivkey), string(contractOwnerM), string(contractOwnerD), string(shadowAccount), int32(bpid))
 		if err != nil {
 			log.Fatalf("create nodemgmt instance failed, err: %s\n", err)
 		}
@@ -290,7 +303,7 @@ func main2() {
 	// 	log.Fatalln(err.Error())
 	// }
 
-	nodeDao, _ := nodemgmt.NewInstance("mongodb://122.152.203.189:27017", "http://152.136.18.185:8888", "username1234", "5JcDH48njDbUQLu1R8SWwKsfWLnqBpWXDDiCgxFC3hioDuwLhVx", "hddpool12345", "hddpool12345", 2)
+	nodeDao, _ := nodemgmt.NewInstance("mongodb://122.152.203.189:27017", "http://152.136.18.185:8888", "username1234", "5JcDH48njDbUQLu1R8SWwKsfWLnqBpWXDDiCgxFC3hioDuwLhVx", "hddpool12345", "hddpool12345", "producer1", 2)
 	nodes, err := nodeDao.AllocNodes(320, nil)
 	if err != nil {
 		panic(err.Error())

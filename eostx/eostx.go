@@ -14,7 +14,7 @@ import (
 )
 
 // NewInstance create a new eostx instance contans connect url, contract owner and it's private key
-func NewInstance(url, bpAccount, privateKey, contractOwnerM, contractOwnerD string) (*EosTX, error) {
+func NewInstance(url, bpAccount, privateKey, contractOwnerM, contractOwnerD, shadowAccount string) (*EosTX, error) {
 	api := eos.New(url)
 	keyBag := &eos.KeyBag{}
 	err := keyBag.ImportPrivateKey(privateKey)
@@ -27,7 +27,7 @@ func NewInstance(url, bpAccount, privateKey, contractOwnerM, contractOwnerD stri
 		pubkey, _ := ecc.NewPublicKey(fmt.Sprintf("%s%s", "EOS", publickey))
 		return []ecc.PublicKey{pubkey}, nil
 	})
-	return &EosTX{API: api, BpAccount: bpAccount, ContractOwnerM: contractOwnerM, ContractOwnerD: contractOwnerD}, nil
+	return &EosTX{API: api, BpAccount: bpAccount, ContractOwnerM: contractOwnerM, ContractOwnerD: contractOwnerD, ShadowAccount: shadowAccount}, nil
 }
 
 // AddMiner call contract to add a record of datanode owner and miner ID
@@ -65,7 +65,7 @@ func (eostx *EosTX) AddSpace(owner string, minerID, space uint64) error {
 		Account: eos.AN(eostx.ContractOwnerM),
 		Name:    eos.ActN("addmprofit"),
 		Authorization: []eos.PermissionLevel{
-			{Actor: eos.AN(eostx.BpAccount), Permission: eos.PN("active")},
+			{Actor: eos.AN(eostx.ShadowAccount), Permission: eos.PN("active")},
 		},
 		ActionData: eos.NewActionData(Profit{Owner: eos.AN(owner), MinerID: minerID, Space: space, Caller: eos.AN(eostx.BpAccount)}),
 	}
@@ -177,7 +177,7 @@ func (eostx *EosTX) payForfeit(user string, minerID uint64, count *eos.Asset) er
 		Account: eos.AN(eostx.ContractOwnerD),
 		Name:    eos.ActN("payforfeit"),
 		Authorization: []eos.PermissionLevel{
-			{Actor: eos.AN(eostx.BpAccount), Permission: eos.PN("active")},
+			{Actor: eos.AN(eostx.ShadowAccount), Permission: eos.PN("active")},
 		},
 		ActionData: eos.NewActionData(PayForfeit{User: eos.AN(user), MinerID: minerID, Quant: *count, AccType: 2, Caller: eos.AN(eostx.BpAccount)}),
 	}
@@ -204,7 +204,7 @@ func (eostx *EosTX) drawForfeit(user string) error {
 		Account: eos.AN(eostx.ContractOwnerD),
 		Name:    eos.ActN("drawforfeit"),
 		Authorization: []eos.PermissionLevel{
-			{Actor: eos.AN(eostx.BpAccount), Permission: eos.PN("active")},
+			{Actor: eos.AN(eostx.ShadowAccount), Permission: eos.PN("active")},
 		},
 		ActionData: eos.NewActionData(DrawForfeit{User: eos.AN(user), AccType: 2, Caller: eos.AN(eostx.BpAccount)}),
 	}
@@ -231,7 +231,7 @@ func (eostx *EosTX) cutVote(user string) error {
 		Account: eos.AN(eostx.ContractOwnerD),
 		Name:    eos.ActN("cutvote"),
 		Authorization: []eos.PermissionLevel{
-			{Actor: eos.AN(eostx.BpAccount), Permission: eos.PN("active")},
+			{Actor: eos.AN(eostx.ShadowAccount), Permission: eos.PN("active")},
 		},
 		ActionData: eos.NewActionData(DrawForfeit{User: eos.AN(user), AccType: 2, Caller: eos.AN(eostx.BpAccount)}),
 	}
@@ -265,7 +265,7 @@ func (eostx *EosTX) CalculateProfit(owner string, minerID uint64, flag bool) err
 		Account: eos.AN(eostx.ContractOwnerM),
 		Name:    eos.ActN(actionName),
 		Authorization: []eos.PermissionLevel{
-			{Actor: eos.AN(eostx.BpAccount), Permission: eos.PN("active")},
+			{Actor: eos.AN(eostx.ShadowAccount), Permission: eos.PN("active")},
 		},
 		ActionData: eos.NewActionData(MActive{Owner: eos.AN(owner), MinerID: minerID, Caller: eos.AN(eostx.BpAccount)}),
 	}

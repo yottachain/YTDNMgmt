@@ -38,12 +38,12 @@ func init() {
 // Start NodeSelector
 func (s *NodesSelector) Start(ctx context.Context, nodeMgr *NodeDaoImpl) {
 	s.refresh(nodeMgr)
-	ticker := time.NewTicker(10 * time.Minute)
+	ticker := time.NewTicker(time.Duration(nodeAllocRefreshInterval) * time.Minute)
 	go func(t *time.Ticker) {
 		for {
 			select {
 			case <-ctx.Done():
-				log.Printf("Stop refresh operation of NodeSelector")
+				log.Printf("stop refresh operation of NodeSelector")
 				return
 			case <-t.C:
 				s.refresh(nodeMgr)
@@ -58,10 +58,10 @@ func (s *NodesSelector) refresh(nodeMgr *NodeDaoImpl) {
 	nodeIDs := make([]int32, 0)
 	var sum int64
 	collection := nodeMgr.client.Database(YottaDB).Collection(NodeTab)
-	cond := bson.M{"valid": 1, "status": 1, "assignedSpace": bson.M{"$gt": 0}, "quota": bson.M{"$gt": 0}, "cpu": bson.M{"$lt": 98}, "memory": bson.M{"$lt": 95}, "timestamp": bson.M{"$gt": time.Now().Unix() - IntervalTime*3}, "$or": bson.A{bson.M{"weight": bson.M{"$gt": 65536}}, bson.M{"weight": bson.M{"$lt": 0.9}}}, "version": bson.M{"$gte": 6}}
+	cond := bson.M{"valid": 1, "status": 1, "assignedSpace": bson.M{"$gt": 0}, "quota": bson.M{"$gt": 0}, "cpu": bson.M{"$lt": 98}, "memory": bson.M{"$lt": 95}, "timestamp": bson.M{"$gt": time.Now().Unix() - IntervalTime*avaliableNodeTimeGap}, "weight": bson.M{"$gt": 65536}, "version": bson.M{"$gte": minerVersionThreadshold}}
 	cur, err := collection.Find(context.Background(), cond)
 	if err != nil {
-		log.Printf("Error when refresh NodeSelector: %s", err)
+		log.Printf("error when refresh NodeSelector: %s", err)
 		return
 	}
 	defer cur.Close(context.Background())
@@ -69,14 +69,11 @@ func (s *NodesSelector) refresh(nodeMgr *NodeDaoImpl) {
 		result := new(Node)
 		err := cur.Decode(result)
 		if err != nil {
-			log.Printf("Error when refresh NodeSelector: %s", err)
+			log.Printf("error when refresh NodeSelector: %s", err)
 			return
 		}
 		if result.Weight <= 0 {
 			continue
-		}
-		if result.Weight < 1 {
-			result.Weight = float64(Min(result.AssignedSpace, result.Quota, result.MaxDataSpace)-result.UsedSpace) * (1 - result.Weight)
 		}
 		sum += int64(result.Weight)
 		nodeMap[sum] = result
@@ -92,7 +89,7 @@ func (s *NodesSelector) refresh(nodeMgr *NodeDaoImpl) {
 	} else {
 		s.Sum = 0
 	}
-	log.Printf("Refresh finished, %d nodes can be allocated.", len(rg))
+	log.Printf("refresh finished, %d nodes can be allocated.", len(rg))
 }
 
 // Alloc nodes for client
@@ -144,7 +141,7 @@ func (s *NodesSelector) Alloc(shardCount int32, errids []int32) ([]*Node, error)
 		allcNodeIds[id] = true
 		nodes = append(nodes, nodeMap[n])
 	}
-	log.Printf("Allocated %d nodes.", len(nodes))
+	log.Printf("allocated %d nodes.", len(nodes))
 	return nodes, nil
 }
 

@@ -5,6 +5,7 @@ go 1.13
 require (
 	github.com/eoscanada/eos-go v0.8.16
 	github.com/golang/protobuf v1.3.2
+	github.com/ivpusic/grpool v1.0.0
 	github.com/libp2p/go-libp2p v0.4.1
 	github.com/libp2p/go-libp2p-core v0.2.4
 	github.com/libp2p/go-libp2p-peer v0.2.0

@@ -5,8 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"log"
-	"os"
-	"strconv"
 	"time"
 
 	"go.mongodb.org/mongo-driver/bson"
@@ -14,31 +12,18 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
-var selectedNode int64
-
-func init() {
-	sn := os.Getenv("SELECTEDNODE")
-	ep, err := strconv.ParseInt(sn, 10, 64)
-	if err != nil {
-		selectedNode = 30
-	} else {
-		selectedNode = ep
-	}
-}
-
 func (self *NodeDaoImpl) GetInvalidNodes() ([]*ShardCount, error) {
 	lists := make([]*ShardCount, 0)
 	collection := self.client.Database(YottaDB).Collection(DNITab)
 	collectionNode := self.client.Database(YottaDB).Collection(NodeTab)
-	cur, err := collectionNode.Find(context.Background(), bson.M{"_id": bson.M{"$mod": bson.A{incr, index}}, "status": 2, "tasktimestamp": bson.M{"$exists": true, "$ne": nil, "$lt": time.Now().Unix() - 1800}})
-	// cur, err := collectionNode.Find(context.Background(), bson.M{"$and": bson.A{bson.M{"_id": selectedNode}, bson.M{"_id": bson.M{"$mod": bson.A{incr, index}}}}})
+	cur, err := collectionNode.Find(context.Background(), bson.M{"_id": bson.M{"$mod": bson.A{incr, index}}, "status": 2, "tasktimestamp": bson.M{"$exists": true, "$ne": nil, "$lt": time.Now().Unix() - invalidNodeTimeGap}})
 	if err != nil {
 		log.Printf("GetInvalidNodes error: %s\n", err.Error())
 		return nil, err
 	}
 	for cur.Next(context.Background()) {
 		result := new(Node)
-		err := cur.Decode(&result)
+		err := cur.Decode(result)
 		if err != nil {
 			return nil, err
 		}
@@ -67,47 +52,12 @@ func (self *NodeDaoImpl) GetInvalidNodes() ([]*ShardCount, error) {
 		lists = append(lists, shardCount)
 	}
 	return lists, nil
-
-	// _, err := collection.UpdateMany(context.Background(), bson.M{"_id": bson.M{"$mod": bson.A{incr, index}}, "tasktimestamp": bson.M{"$exists": true, "$ne": nil, "$lt": time.Now().Unix() - 1800}}, bson.M{"$pull": bson.M{"shards": []byte{0}}})
-	// if err != nil {
-	// 	return nil, err
-	// }
-	// pipeline := mongo.Pipeline{
-	// 	{{"$match", bson.D{{"_id", bson.M{"$mod": bson.A{incr, index}}}, {"timestamp", bson.M{"$exists": true, "$ne": nil}}, {"timestamp", bson.M{"$lt": time.Now().Unix() - 1800}}}}},
-	// 	{{"$project", bson.D{{"cnt", bson.D{{"$size", "$shards"}}}}}},
-	// }
-	// cur, err := collection.Aggregate(context.Background(), pipeline)
-	// if err != nil {
-	// 	return nil, err
-	// }
-	// defer cur.Close(context.Background())
-	// for cur.Next(context.Background()) {
-	// 	result := new(ShardCount)
-	// 	err := cur.Decode(&result)
-	// 	if err != nil {
-	// 		return nil, err
-	// 	}
-	// 	if result.Cnt == 0 {
-	// 		_, err := collection.UpdateOne(context.Background(), bson.M{"_id": result.ID}, bson.M{"$unset": bson.M{"timestamp": ""}})
-	// 		if err != nil {
-	// 			return nil, err
-	// 		}
-	// 		_, err = collectionNode.UpdateOne(context.Background(), bson.M{"_id": result.ID}, bson.M{"$set": bson.M{"usedSpace": 0, "status": 3}})
-	// 		if err != nil {
-	// 			return nil, err
-	// 		}
-
-	// 		continue
-	// 	}
-	// 	lists = append(lists, *result)
-	// }
-	// return lists, nil
 }
 
 func (self *NodeDaoImpl) GetRebuildItem(minerID int32, index, total int64) (*Node, []primitive.Binary, error) {
 	collection := self.client.Database(YottaDB).Collection(NodeTab)
 	n := new(Node)
-	err := collection.FindOne(context.Background(), bson.M{"_id": minerID}).Decode(&n)
+	err := collection.FindOne(context.Background(), bson.M{"_id": minerID}).Decode(n)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -152,44 +102,20 @@ func (self *NodeDaoImpl) GetRebuildItem(minerID int32, index, total int64) (*Nod
 		return nil, nil, err
 	}
 	return rebuildNode, shards, nil
-
-	// pipeline := mongo.Pipeline{
-	// 	{{"$match", bson.D{{"_id", minerID}}}},
-	// 	{{"$project", bson.D{{"shards", bson.D{{"$slice", bson.A{"$shards", from, count}}}}}}},
-	// }
-	// cur, err := collectionDNI.Aggregate(context.Background(), pipeline)
-	// if err != nil {
-	// 	return nil, nil, err
-	// }
-	// result := new(DNI)
-	// defer cur.Close(context.Background())
-	// if cur.Next(context.Background()) {
-	// 	err := cur.Decode(&result)
-	// 	if err != nil {
-	// 		return nil, nil, err
-	// 	}
-	// } else {
-	// 	return nil, nil, fmt.Errorf("no miner with ID: %d", minerID)
-	// }
-	// rebuildNode, err := self.GetRebuildNode(count)
-	// if err != nil {
-	// 	return nil, nil, err
-	// }
-	// return rebuildNode, result.Shards, nil
 }
 
 func (self *NodeDaoImpl) GetRebuildNode(count int64) (*Node, error) {
 	collection := self.client.Database(YottaDB).Collection(NodeTab)
 	options := options.FindOptions{}
 	options.Sort = bson.D{{"timestamp", -1}}
-	cur, err := collection.Find(context.Background(), bson.M{"valid": 1, "status": 1, "bandwidth": bson.M{"$lt": 50}, "timestamp": bson.M{"$gt": time.Now().Unix() - IntervalTime*3}, "version": bson.M{"$gte": 6}}, &options)
+	cur, err := collection.Find(context.Background(), bson.M{"valid": 1, "status": 1, "timestamp": bson.M{"$gt": time.Now().Unix() - IntervalTime*avaliableNodeTimeGap}, "version": bson.M{"$gte": minerVersionThreadshold}}, &options)
 	if err != nil {
 		return nil, err
 	}
 	result := new(Node)
 	defer cur.Close(context.Background())
 	for cur.Next(context.Background()) {
-		err := cur.Decode(&result)
+		err := cur.Decode(result)
 		if err != nil {
 			return nil, err
 		}
@@ -198,7 +124,7 @@ func (self *NodeDaoImpl) GetRebuildNode(count int64) (*Node, error) {
 		if availible < count {
 			continue
 		}
-		allocated := count - (availible - assignable) + 65536 - (count-(availible-assignable))%65536
+		allocated := count - (availible - assignable) + prePurphaseAmount - (count-(availible-assignable))%prePurphaseAmount
 		if allocated > assignable {
 			allocated = assignable
 		}
@@ -222,7 +148,6 @@ func (self *NodeDaoImpl) GetRebuildNode(count int64) (*Node, error) {
 func (self *NodeDaoImpl) DeleteDNI(minerID int32, shard []byte) error {
 	collectionDNI := self.client.Database(YottaDB).Collection(DNITab)
 	collectionNode := self.client.Database(YottaDB).Collection(NodeTab)
-	//_, err := collectionDNI.UpdateOne(context.Background(), bson.M{"_id": minerID, "shards": shard}, bson.M{"$set": bson.M{"shards.$": []byte{0}, "timestamp": time.Now().Unix()}})
 	_, err := collectionDNI.UpdateOne(context.Background(), bson.M{"minerID": minerID, "shard": shard}, bson.M{"$set": bson.M{"delete": 1}})
 	if err != nil {
 		return err
