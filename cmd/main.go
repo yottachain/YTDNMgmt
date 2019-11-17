@@ -177,7 +177,7 @@ func main() {
 		if err != nil {
 			log.Fatalf("create nodemgmt instance failed, err: %s\n", err)
 		}
-		log.Printf("create nodemgmt instance successful.\n")
+		log.Printf("create nodemgmt instance successful\n")
 		server := &nodemgmt.Server{NodeService: nodeDao}
 
 		nodemgmtPortStr := os.Getenv("NODEMGMT_GRPCPORT")
@@ -187,13 +187,13 @@ func main() {
 		}
 		lis, err := net.Listen("tcp", fmt.Sprintf(":%d", nodemgmtPort))
 		if err != nil {
-			log.Fatalf("failed to listen port %d: %v", nodemgmtPort, err)
+			log.Fatalf("failed to listen port %d: %v\n", nodemgmtPort, err)
 		}
 		log.Printf("GRPC address: 0.0.0.0:%d\n", nodemgmtPort)
 		grpcServer := grpc.NewServer()
 		pb.RegisterYTDNMgmtServer(grpcServer, server)
 		grpcServer.Serve(lis)
-		log.Printf("GRPC server started.")
+		log.Printf("GRPC server started\n")
 		break
 	}
 }
@@ -201,7 +201,7 @@ func main() {
 func main1() {
 	conn, err := grpc.Dial("127.0.0.1:1234", grpc.WithInsecure())
 	if err != nil {
-		log.Fatalf("failed to dial: %v", err)
+		log.Fatalf("failed to dial: %v\n", err)
 	}
 	defer conn.Close()
 	client := pb.NewYTDNMgmtClient(conn)

@@ -25,6 +25,8 @@ var recheckRetryInterval int32     // retry interval of recheck task
 var spotcheckInterval int32        // interval time of spotcheck
 var connectivityTestInterval int32 // interval time of connectivity test
 
+var ipDBPath string //path of IPDB
+
 func init() {
 	excludeAddrPrefix = os.Getenv("NODEMGMT_EXCLUDEADDR")
 	prePurphaseThresholdStr := os.Getenv("NODEMGMT_PREPURCHASETHREADSHOLD")
@@ -62,7 +64,7 @@ func init() {
 	minerVersionThreadsholdStr := os.Getenv("NODEMGMT_MINERVERSIONTHREADSHOLD")
 	mvt, err := strconv.Atoi(minerVersionThreadsholdStr)
 	if err != nil {
-		minerVersionThreadshold = 12
+		minerVersionThreadshold = 10
 	} else {
 		minerVersionThreadshold = int32(mvt)
 	}
@@ -121,5 +123,10 @@ func init() {
 		connectivityTestInterval = 60
 	} else {
 		connectivityTestInterval = int32(cti)
+	}
+
+	ipDBPath := os.Getenv("NODEMGMT_IPDBPATH")
+	if ipDBPath == "" {
+		ipDBPath = "/app/yotta.ipdb"
 	}
 }

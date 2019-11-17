@@ -226,7 +226,7 @@ func (self *NodeDaoImpl) UpdateNodeStatus(node *Node) (*Node, error) {
 		return nil, err
 	}
 	if time.Now().Unix()-n.Timestamp < 50 {
-		return nil, errors.New("report too frequence.")
+		return nil, errors.New("reporting is too frequency")
 	}
 	if n.Quota == 0 || n.AssignedSpace == 0 {
 		return nil, fmt.Errorf("node %d has not been pledged or added to a pool", n.ID)
@@ -241,7 +241,8 @@ func (self *NodeDaoImpl) UpdateNodeStatus(node *Node) (*Node, error) {
 	if n.Status > 1 {
 		status = n.Status
 	}
-	weight := float64(Min(n.AssignedSpace, n.Quota, node.MaxDataSpace) - n.UsedSpace)
+	// weight := float64(Min(n.AssignedSpace, n.Quota, node.MaxDataSpace) - n.UsedSpace)
+	weight := n.AssignedSpace
 	if weight < 0 {
 		weight = 0
 	}

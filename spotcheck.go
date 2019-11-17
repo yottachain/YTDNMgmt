@@ -25,8 +25,8 @@ func init() {
 }
 
 func (self *NodeDaoImpl) StartRecheck() {
-	log.Printf("spotcheck: starting recheck executor...")
-	log.Printf("spotcheck: clear spotcheck tasks...")
+	log.Printf("spotcheck: starting recheck executor...\n")
+	log.Printf("spotcheck: clear spotcheck tasks...\n")
 	collection := self.client.Database(YottaDB).Collection(SpotCheckTab)
 	collection.DeleteMany(context.Background(), bson.M{"status": 0})
 	collection.UpdateMany(context.Background(), bson.M{"status": 2}, bson.M{"$set": bson.M{"status": 1}})
@@ -53,7 +53,9 @@ func (self *NodeDaoImpl) doRecheck() {
 				cur.Close(context.Background())
 				continue
 			}
-			if time.Now().Unix()-spr.Timestamp > 3600*24 {
+			t := time.Now().Unix() - spr.Timestamp
+			if t > 3600*24 {
+				log.Printf("spotcheck: miner %d has been offline for %d seconds\n", spr.NID, t)
 				_, err := collectionErr.InsertOne(context.Background(), spr)
 				if err != nil {
 					log.Printf("spotcheck: error when insert timeout task to error node collection: %d -> %s -> %s\n", spr.NID, spr.TaskID, err.Error())
@@ -180,7 +182,6 @@ func (self *NodeDaoImpl) CheckVNI(node *Node, spr *SpotCheckRecord) (bool, error
 		log.Printf("spotcheck: error when marshalling protobuf message: downloadrequest: %d -> %s -> %s\n", node.ID, spr.VNI, err.Error())
 		return false, err
 	}
-	// 发送下载分片命令
 	shardData, err := self.host.SendMsg(node.NodeID, "/node/0.0.2", append(pb.MsgIDDownloadShardRequest.Bytes(), checkData...))
 	if err != nil {
 		log.Printf("spotcheck: SN send recheck command failed: %d -> %s -> %s\n", node.ID, spr.VNI, err.Error())

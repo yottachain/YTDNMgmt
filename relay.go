@@ -30,13 +30,13 @@ func (self *NodeDaoImpl) AddrCheck(oldNode, newNode *Node) (relayUrl string, err
 	}
 	if self.ConnectivityCheck(oldNode.NodeID, newNode.Addrs) {
 		if oldNode.Valid == 0 {
-			log.Printf("---- Node %d becomes valid.", oldNode.ID)
+			log.Printf("---- Node %d becomes valid\n", oldNode.ID)
 		}
 		newNode.Valid = 1
 		return "", nil
 	} else {
 		if oldNode.Valid == 1 {
-			log.Printf("---- Node %d becomes invalid.", oldNode.ID)
+			log.Printf("---- Node %d becomes invalid\n", oldNode.ID)
 		}
 		newNode.Valid = 0
 		newNode.Relay = 0

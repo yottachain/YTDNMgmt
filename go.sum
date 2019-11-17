@@ -113,6 +113,8 @@ github.com/ipfs/go-ipfs-util v0.0.1 h1:Wz9bL2wB2YBJqggkA4dD7oSmqB4cAnpNbGrlHJulv
 github.com/ipfs/go-ipfs-util v0.0.1/go.mod h1:spsl5z8KUnrve+73pOhSVZND1SIxPW5RyBCNzQxlJBc=
 github.com/ipfs/go-log v0.0.1 h1:9XTUN/rW64BCG1YhPK9Hoy3q8nr4gOmHHBpgFdfw6Lc=
 github.com/ipfs/go-log v0.0.1/go.mod h1:kL1d2/hzSpI0thNYjiKfjanbVNU+IIGA/WnNESY9leM=
+github.com/ipipdotnet/ipdb-go v1.2.0 h1:Afa0qx/SgRevzIK8Qg1TevuD5M28kFLWbzPvU+GQJ08=
+github.com/ipipdotnet/ipdb-go v1.2.0/go.mod h1:6SFLNyXDBF6q99FQvbOZJQCc2rdPrB1V5DSy4S83RSw=
 github.com/ivpusic/grpool v1.0.0 h1:+FCiCo3GhfsvzfXuJWnpJUNb/VaqyYVgG8C+qvh07Rc=
 github.com/ivpusic/grpool v1.0.0/go.mod h1:WPmiAI5ExAn06vg+0JzyPzXMQutJmpb7TrBtyLJkOHQ=
 github.com/jackpal/gateway v1.0.5 h1:qzXWUJfuMdlLMtt0a3Dgt+xkWQiA5itDEITVJtuSwMc=
