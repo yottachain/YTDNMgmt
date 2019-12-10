@@ -62,7 +62,7 @@ func NewInstance(mongoURL, eosURL, bpAccount, bpPrivkey, contractOwnerM, contrac
 func getCurrentNodeIndex(client *mongo.Client) (int32, error) {
 	collection := client.Database(YottaDB).Collection(SequenceTab)
 	m := make(map[string]int32)
-	err := collection.FindOne(context.Background(), bson.M{"_id": NodeIdxType}).Decode(m)
+	err := collection.FindOne(context.Background(), bson.M{"_id": NodeIdxType}).Decode(&m)
 	if err != nil {
 		return 0, err
 	}
@@ -80,7 +80,7 @@ func (self *NodeDaoImpl) NewNodeID() (int32, error) {
 		}
 	}
 	m := make(map[string]int32)
-	err = collection.FindOne(context.Background(), bson.M{"_id": NodeIdxType}).Decode(m)
+	err = collection.FindOne(context.Background(), bson.M{"_id": NodeIdxType}).Decode(&m)
 	if err != nil {
 		return 0, err
 	}

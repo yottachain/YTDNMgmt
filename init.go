@@ -125,8 +125,8 @@ func init() {
 		connectivityTestInterval = int32(cti)
 	}
 
-	ipDBPath := os.Getenv("NODEMGMT_IPDBPATH")
+	ipDBPath = os.Getenv("NODEMGMT_IPDBPATH")
 	if ipDBPath == "" {
-		ipDBPath = "/app/yotta.ipdb"
+		ipDBPath = "/app/ytsn/yotta.ipdb"
 	}
 }
