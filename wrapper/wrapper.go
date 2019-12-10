@@ -381,7 +381,7 @@ func AllocNodes(shardCount C.int, errIDs *C.int, size C.int) *C.allocnoderet {
 		return createAllocnoderet(nil, errors.New("Node management module has not started"))
 	}
 	var gErrIDs []int32
-	if size > 0 {
+	if errIDs!=nil && size > 0 {
 		length := int(size)
 		tmpslice := (*[1 << 30]C.int)(unsafe.Pointer(errIDs))[:length:length]
 		gErrIDs = make([]int32, length)
