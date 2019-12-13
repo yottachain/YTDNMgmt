@@ -303,12 +303,13 @@ func main2() {
 	// 	log.Fatalln(err.Error())
 	// }
 
-	nodeDao, _ := nodemgmt.NewInstance("mongodb://122.152.203.189:27017", "http://152.136.18.185:8888", "username1234", "5JcDH48njDbUQLu1R8SWwKsfWLnqBpWXDDiCgxFC3hioDuwLhVx", "hddpool12345", "hddpool12345", "producer1", 2)
+	nodeDao, _ := nodemgmt.NewInstance("mongodb://129.211.72.15:27017", "http://129.211.72.15:8888", "username1234", "5JcDH48njDbUQLu1R8SWwKsfWLnqBpWXDDiCgxFC3hioDuwLhVx", "hddpool12345", "hddpool12345", "producer1", 1)
 	nodes, err := nodeDao.AllocNodes(320, nil)
+	nodes2, err := nodeDao.AllocNodes(320, nil)
 	if err != nil {
 		panic(err.Error())
 	}
-	fmt.Printf("%d nodes", len(nodes))
+	fmt.Printf("%d %d nodes", len(nodes), len(nodes2))
 	// err := nodeDao.AddDNI(4, []byte{49, 50, 51, 52, 53, 54, 55})
 	// err = nodeDao.AddDNI(4, []byte{52, 53, 54, 55})
 	// err = nodeDao.AddDNI(4, []byte{56, 57, 58, 59})

@@ -72,10 +72,11 @@ func GetRelayUrl(addrs []string) string {
 }
 
 func (self *NodeDaoImpl) ConnectivityCheck(nodeID string, addrs []string) bool {
-	err := self.host.TestNetwork(nodeID, addrs)
-	if err != nil {
-		return false
-	}
+	// err := self.host.TestNetwork(nodeID, addrs)
+	// if err != nil {
+	// 	return false
+	// }
+	log.Printf("### cancel connectivity check")
 	return true
 }
 
@@ -101,6 +102,7 @@ func CheckPublicAddr(addrs []string) string {
 			strings.HasPrefix(addr, "/ip4/172.29.") ||
 			strings.HasPrefix(addr, "/ip4/172.30.") ||
 			strings.HasPrefix(addr, "/ip4/172.31.") ||
+			strings.HasPrefix(addr, "/ip6/") ||
 			strings.HasPrefix(addr, "/p2p-circuit/") ||
 			strings.Index(addr, "/p2p/") != -1 {
 			if excludeAddrPrefix != "" && strings.HasPrefix(addr, excludeAddrPrefix) {
@@ -137,6 +139,7 @@ func CheckPublicAddrs(addrs []string) []string {
 			strings.HasPrefix(addr, "/ip4/172.29.") ||
 			strings.HasPrefix(addr, "/ip4/172.30.") ||
 			strings.HasPrefix(addr, "/ip4/172.31.") ||
+			strings.HasPrefix(addr, "/ip6/") ||
 			strings.HasPrefix(addr, "/p2p-circuit/") ||
 			strings.Index(addr, "/p2p/") != -1 {
 			if excludeAddrPrefix != "" && strings.HasPrefix(addr, excludeAddrPrefix) {

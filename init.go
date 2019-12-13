@@ -24,6 +24,7 @@ var recheckRetries int32           // retry count during rechecking when network
 var recheckRetryInterval int32     // retry interval of recheck task
 var spotcheckInterval int32        // interval time of spotcheck
 var connectivityTestInterval int32 // interval time of connectivity test
+var punishGapUnit int64            //unit of time gap for punishing
 
 var ipDBPath string //path of IPDB
 
@@ -123,6 +124,14 @@ func init() {
 		connectivityTestInterval = 60
 	} else {
 		connectivityTestInterval = int32(cti)
+	}
+
+	punishGapUnitStr := os.Getenv("NODEMGMT_PUNISHGAPUNIT")
+	pgu, err := strconv.Atoi(punishGapUnitStr)
+	if err != nil {
+		punishGapUnit = 3600
+	} else {
+		punishGapUnit = int64(pgu)
 	}
 
 	ipDBPath = os.Getenv("NODEMGMT_IPDBPATH")

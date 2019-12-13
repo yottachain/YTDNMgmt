@@ -64,7 +64,7 @@ func (s *NodesSelector) GetRegionInfo(node *Node) string {
 	if maddrPub == "" {
 		return ""
 	}
-	str := strings.TrimLeft(maddrPub, "/ip4/")
+	str := strings.TrimPrefix(maddrPub, "/ip4/")
 	str = str[0:strings.Index(str, "/")]
 	m, err := s.db.FindMap(str, "EN")
 	if err != nil {
@@ -167,6 +167,7 @@ func (s *NodesSelector) refresh(nodeMgr *NodeDaoImpl) error {
 		log.Printf("alloc: total weight of %s: %d\n", v.Name, v.Sum)
 	}
 	sort.Sort(Int32Slice(s.nodeIDs))
+	s.Root = root
 	log.Printf("refresh finished, %d nodes can be allocated\n", nodeCount)
 	return nil
 }
@@ -190,6 +191,7 @@ func (s *NodesSelector) Alloc(shardCount int32, errids []int32) ([]*Node, error)
 		s := shardCount / int32(t-len(errids))
 		m := shardCount % int32(t-len(errids))
 		if s > 0 {
+			log.Printf("alloc: duplicate allocate: s=%d, m=%d\n", s, m)
 			ns := make([]*Node, 0)
 			for _, rm := range regionMap {
 				for _, v := range rm.Nodes {
@@ -207,7 +209,7 @@ func (s *NodesSelector) Alloc(shardCount int32, errids []int32) ([]*Node, error)
 		}
 		shardCount = m
 	}
-	allcNodeIds := make(map[int32]bool)
+	// allcNodeIds := make(map[int32]bool)
 	for i := 0; i < int(shardCount); i++ {
 		r := rand.Int63n(totalWeight)
 		index := rangeSearch(rg, r)
@@ -219,15 +221,18 @@ func (s *NodesSelector) Alloc(shardCount int32, errids []int32) ([]*Node, error)
 		index = rangeSearch(nodeRegion.Ranges, r)
 		n = nodeRegion.Ranges[index]
 		id := nodeRegion.Nodes[n].ID
+		//log.Printf("alloc: allocate node: %d\n", id)
 		if binarySearch32(errids, id) != -1 {
+			//log.Printf("alloc: node in error list, skip: %d\n", id)
 			i--
 			continue
 		}
-		if allcNodeIds[id] {
-			i--
-			continue
-		}
-		allcNodeIds[id] = true
+		// if allcNodeIds[id] {
+		// 	log.Printf("alloc: node have been allocated, skip: %d\n", id)
+		// 	i--
+		// 	continue
+		// }
+		// allcNodeIds[id] = true
 		nodes = append(nodes, nodeRegion.Nodes[n])
 	}
 	log.Printf("alloc: allocated %d nodes", len(nodes))
