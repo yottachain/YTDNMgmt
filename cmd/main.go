@@ -11,6 +11,7 @@ import (
 	"time"
 
 	nodemgmt "github.com/yottachain/YTDNMgmt"
+	"github.com/yottachain/YTDNMgmt/eostx"
 	pb "github.com/yottachain/YTDNMgmt/pb"
 	"go.etcd.io/etcd/clientv3"
 	"google.golang.org/grpc"
@@ -265,12 +266,17 @@ func main2() {
 	// 	log.Fatalln(err.Error())
 	// }
 
-	// etx, _ := eostx.NewInstance("http://152.136.17.115:8888", "producer1", "5HtM6e3mQNLEu2TkQ1ZrbMNpRQiHGsKxEsLdxd9VsdCmp1um8QH", "hddpool12345")
-	// rate, err := etx.GetExchangeRate()
-	// if err != nil {
-	// 	log.Fatalln(err.Error())
-	// }
-	// fmt.Println(rate)
+	etx, _ := eostx.NewInstance("http://122.152.203.189:8888", "producer3", "5KYpTLUmohnEuQamSuSB3ARHwUY6MyrtDS64StrWdaLBXGfBr9Z", "hddpool12345", "hdddeposit12", "shadow3")
+	rate, err := etx.GetExchangeRate()
+	if err != nil {
+		log.Fatalln(err)
+	}
+	fmt.Println(rate)
+	pledgeData, err := etx.GetPledgeData(uint64(1477))
+	if err != nil {
+		log.Fatalln(err)
+	}
+	fmt.Println(pledgeData)
 
 	// o := new(nodemgmt.Node)
 	// o.NodeID = "16Uiu2HAmT2HyPoPBGSmc53G7uKsPtW9uvT4abQaafXFPstPTi6zv"

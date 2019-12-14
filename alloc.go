@@ -120,6 +120,7 @@ func (s *NodesSelector) Start(ctx context.Context, nodeMgr *NodeDaoImpl) {
 
 func (s *NodesSelector) refresh(nodeMgr *NodeDaoImpl) error {
 	log.Printf("alloc: refreshing node map\n")
+	nodeIDs := make([]int32, 0)
 	regionMap := make(map[string]*WRegion)
 	collection := nodeMgr.client.Database(YottaDB).Collection(NodeTab)
 	cond := bson.M{"valid": 1, "status": 1, "assignedSpace": bson.M{"$gt": 0}, "quota": bson.M{"$gt": 0}, "cpu": bson.M{"$lt": 98}, "memory": bson.M{"$lt": 95}, "timestamp": bson.M{"$gt": time.Now().Unix() - IntervalTime*avaliableNodeTimeGap}, "weight": bson.M{"$gt": 65536}, "version": bson.M{"$gte": minerVersionThreadshold}}
@@ -152,7 +153,7 @@ func (s *NodesSelector) refresh(nodeMgr *NodeDaoImpl) error {
 		regionMap[region].Sum += int64(result.Weight)
 		regionMap[region].Nodes[regionMap[region].Sum] = result
 		regionMap[region].Ranges = append(regionMap[region].Ranges, regionMap[region].Sum)
-		s.nodeIDs = append(s.nodeIDs, result.ID)
+		nodeIDs = append(nodeIDs, result.ID)
 		nodeCount++
 	}
 	root := new(WRoot)
@@ -166,8 +167,9 @@ func (s *NodesSelector) refresh(nodeMgr *NodeDaoImpl) error {
 		root.Index[v.Name] = v.Sum
 		log.Printf("alloc: total weight of %s: %d\n", v.Name, v.Sum)
 	}
-	sort.Sort(Int32Slice(s.nodeIDs))
+	sort.Sort(Int32Slice(nodeIDs))
 	s.Root = root
+	s.nodeIDs = nodeIDs
 	log.Printf("refresh finished, %d nodes can be allocated\n", nodeCount)
 	return nil
 }
