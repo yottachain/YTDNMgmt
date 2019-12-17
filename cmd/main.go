@@ -272,11 +272,13 @@ func main2() {
 		log.Fatalln(err)
 	}
 	fmt.Println(rate)
-	pledgeData, err := etx.GetPledgeData(uint64(1477))
+	pledgeData, err := etx.GetPledgeData(uint64(1587))
 	if err != nil {
 		log.Fatalln(err)
 	}
 	fmt.Println(pledgeData)
+	asset := eostx.NewYTAAsset(10000)
+	etx.DeducePledge(uint64(1587), &asset)
 
 	// o := new(nodemgmt.Node)
 	// o.NodeID = "16Uiu2HAmT2HyPoPBGSmc53G7uKsPtW9uvT4abQaafXFPstPTi6zv"

@@ -144,7 +144,7 @@ func (self *NodeDaoImpl) checkDataNode(spr *SpotCheckRecord) {
 		if err != nil {
 			log.Printf("warning: spotcheck: error happens when update task %s status to 1: %s\n", spr.TaskID, err.Error())
 		} else {
-			log.Printf("spotcheck: vni check error: %d -> %s -> %s -> %s\n", spr.NID, spr.TaskID, spr.VNI, err.Error())
+			log.Printf("spotcheck: vni check error: %d -> %s -> %s\n", spr.NID, spr.TaskID, spr.VNI)
 		}
 	} else {
 		if b {
@@ -166,7 +166,7 @@ func (self *NodeDaoImpl) checkDataNode(spr *SpotCheckRecord) {
 					if err != nil {
 						log.Printf("warning: spotcheck: error happens when update task %s status to 1: %s\n", spr.TaskID, err.Error())
 					} else {
-						log.Printf("spotcheck: get random vni%d error: %d -> %s -> %s -> %s\n", i, spr.NID, spr.TaskID, spr.VNI, err.Error())
+						log.Printf("spotcheck: get random vni%d error: %d -> %s -> %s\n", i, spr.NID, spr.TaskID, spr.VNI)
 					}
 					return
 				}
@@ -176,7 +176,7 @@ func (self *NodeDaoImpl) checkDataNode(spr *SpotCheckRecord) {
 					if err != nil {
 						log.Printf("warning: spotcheck: error happens when update task %s status to 1: %s\n", spr.TaskID, err.Error())
 					} else {
-						log.Printf("spotcheck: vni%d check error: %d -> %s -> %s -> %s\n", i, spr.NID, spr.TaskID, spr.VNI, err.Error())
+						log.Printf("spotcheck: vni%d check error: %d -> %s -> %s\n", i, spr.NID, spr.TaskID, spr.VNI)
 					}
 					return
 				}
