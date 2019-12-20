@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
 	"log"
 	"net"
@@ -10,8 +11,9 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/mr-tron/base58"
+
 	nodemgmt "github.com/yottachain/YTDNMgmt"
-	"github.com/yottachain/YTDNMgmt/eostx"
 	pb "github.com/yottachain/YTDNMgmt/pb"
 	"go.etcd.io/etcd/clientv3"
 	"google.golang.org/grpc"
@@ -266,19 +268,19 @@ func main2() {
 	// 	log.Fatalln(err.Error())
 	// }
 
-	etx, _ := eostx.NewInstance("http://122.152.203.189:8888", "producer3", "5KYpTLUmohnEuQamSuSB3ARHwUY6MyrtDS64StrWdaLBXGfBr9Z", "hddpool12345", "hdddeposit12", "shadow3")
-	rate, err := etx.GetExchangeRate()
-	if err != nil {
-		log.Fatalln(err)
-	}
-	fmt.Println(rate)
-	pledgeData, err := etx.GetPledgeData(uint64(1587))
-	if err != nil {
-		log.Fatalln(err)
-	}
-	fmt.Println(pledgeData)
-	asset := eostx.NewYTAAsset(10000)
-	etx.DeducePledge(uint64(1587), &asset)
+	// etx, _ := eostx.NewInstance("http://122.152.203.189:8888", "producer3", "5KYpTLUmohnEuQamSuSB3ARHwUY6MyrtDS64StrWdaLBXGfBr9Z", "hddpool12345", "hdddeposit12", "shadow3")
+	// rate, err := etx.GetExchangeRate()
+	// if err != nil {
+	// 	log.Fatalln(err)
+	// }
+	// fmt.Println(rate)
+	// pledgeData, err := etx.GetPledgeData(uint64(1587))
+	// if err != nil {
+	// 	log.Fatalln(err)
+	// }
+	// fmt.Println(pledgeData)
+	// asset := eostx.NewYTAAsset(10000)
+	// etx.DeducePledge(uint64(1587), &asset)
 
 	// o := new(nodemgmt.Node)
 	// o.NodeID = "16Uiu2HAmT2HyPoPBGSmc53G7uKsPtW9uvT4abQaafXFPstPTi6zv"
@@ -312,12 +314,23 @@ func main2() {
 	// }
 
 	nodeDao, _ := nodemgmt.NewInstance("mongodb://129.211.72.15:27017", "http://129.211.72.15:8888", "username1234", "5JcDH48njDbUQLu1R8SWwKsfWLnqBpWXDDiCgxFC3hioDuwLhVx", "hddpool12345", "hddpool12345", "producer1", 1)
-	nodes, err := nodeDao.AllocNodes(320, nil)
-	nodes2, err := nodeDao.AllocNodes(320, nil)
+	node := &nodemgmt.Node{ID: 1431, NodeID: "16Uiu2HAmDu9dWMzxVgzuJF6N7Nt7BQgJyCDTzLmGPohHsjvv7Qye", Addrs: []string{"/ip4/223.99.20.156/tcp/9201"}}
+	rawvni := "AqSAXfof9gIAAadbjMw6Yxs2Kjy/s4IJG8Ra"
+	vnibytes, _ := base64.StdEncoding.DecodeString(rawvni)
+	fmt.Println(base58.Encode(vnibytes))
+	spr := &nodemgmt.SpotCheckRecord{VNI: rawvni}
+	b, err := nodeDao.CheckVNI(node, spr)
 	if err != nil {
 		panic(err.Error())
 	}
-	fmt.Printf("%d %d nodes", len(nodes), len(nodes2))
+	fmt.Printf("%v\n", b)
+	// nodes, err := nodeDao.AllocNodes(320, nil)
+	// nodes2, err := nodeDao.AllocNodes(320, nil)
+	// if err != nil {
+	// 	panic(err.Error())
+	// }
+	// fmt.Printf("%d %d nodes", len(nodes), len(nodes2))
+
 	// err := nodeDao.AddDNI(4, []byte{49, 50, 51, 52, 53, 54, 55})
 	// err = nodeDao.AddDNI(4, []byte{52, 53, 54, 55})
 	// err = nodeDao.AddDNI(4, []byte{56, 57, 58, 59})

@@ -17,9 +17,11 @@ func init() {
 	rand.Seed(time.Now().UnixNano())
 }
 
+// AddrCheck check if address of node is connectable
 func (self *NodeDaoImpl) AddrCheck(oldNode, newNode *Node) (relayUrl string, err error) {
 	if newNode == nil {
-		return "", errors.New("Node can not be nil")
+		log.Println("relay: AddrCheck: node cannot be null")
+		return "", errors.New("node cannot be nil")
 	}
 	if RelayUrlCheck(newNode.Addrs) {
 		newNode.Relay = 0
@@ -28,15 +30,16 @@ func (self *NodeDaoImpl) AddrCheck(oldNode, newNode *Node) (relayUrl string, err
 	if n > 200 && EqualSorted(oldNode.Addrs, newNode.Addrs) {
 		return "", nil
 	}
+	log.Printf("relay: AddrCheck: connectivity check of node %d\n", oldNode.ID)
 	if self.ConnectivityCheck(oldNode.NodeID, newNode.Addrs) {
 		if oldNode.Valid == 0 {
-			log.Printf("---- Node %d becomes valid\n", oldNode.ID)
+			log.Printf("relay: AddrCheck: node %d becomes valid\n", oldNode.ID)
 		}
 		newNode.Valid = 1
 		return "", nil
 	} else {
 		if oldNode.Valid == 1 {
-			log.Printf("---- Node %d becomes invalid\n", oldNode.ID)
+			log.Printf("relay: AddrCheck: node %d becomes invalid\n", oldNode.ID)
 		}
 		newNode.Valid = 0
 		newNode.Relay = 0
@@ -72,11 +75,11 @@ func GetRelayUrl(addrs []string) string {
 }
 
 func (self *NodeDaoImpl) ConnectivityCheck(nodeID string, addrs []string) bool {
-	// err := self.host.TestNetwork(nodeID, addrs)
-	// if err != nil {
-	// 	return false
-	// }
-	log.Printf("### cancel connectivity check")
+	err := self.host.TestNetwork(nodeID, addrs)
+	if err != nil {
+		return false
+	}
+	//log.Printf("### cancel connectivity check")
 	return true
 }
 

@@ -148,7 +148,7 @@ func (self *NodeDaoImpl) GetRebuildNode(count int64) (*Node, error) {
 func (self *NodeDaoImpl) DeleteDNI(minerID int32, shard []byte) error {
 	collectionDNI := self.client.Database(YottaDB).Collection(DNITab)
 	collectionNode := self.client.Database(YottaDB).Collection(NodeTab)
-	_, err := collectionDNI.UpdateOne(context.Background(), bson.M{"minerID": minerID, "shard": shard}, bson.M{"$set": bson.M{"delete": 1}})
+	_, err := collectionDNI.UpdateOne(context.Background(), bson.M{"minerID": minerID, "delete": 0, "shard": shard}, bson.M{"$set": bson.M{"delete": 1}})
 	if err != nil {
 		return err
 	}

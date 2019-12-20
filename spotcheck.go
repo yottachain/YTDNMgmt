@@ -10,7 +10,10 @@ import (
 	"time"
 
 	"github.com/eoscanada/eos-go"
+	proto "github.com/golang/protobuf/proto"
 	"github.com/ivpusic/grpool"
+	pbh "github.com/yottachain/P2PHost/pb"
+	pb "github.com/yottachain/YTDNMgmt/pb"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo/options"
@@ -21,16 +24,16 @@ func init() {
 }
 
 func (self *NodeDaoImpl) StartRecheck() {
-	log.Printf("spotcheck: starting recheck executor...\n")
-	log.Printf("spotcheck: clear spotcheck tasks...\n")
+	log.Printf("spotcheck: StartRecheck: starting recheck executor...\n")
+	log.Printf("spotcheck: StartRecheck: clear spotcheck tasks...\n")
 	collection := self.client.Database(YottaDB).Collection(SpotCheckTab)
 	_, err := collection.DeleteMany(context.Background(), bson.M{"status": 0})
 	if err != nil {
-		log.Printf("spotcheck: error happens when delete spotcheck collection: %s\n", err.Error())
+		log.Printf("spotcheck: StartRecheck: error happens when deleting spotcheck tasks with status 0: %s\n", err.Error())
 	}
 	_, err = collection.UpdateMany(context.Background(), bson.M{"status": 2}, bson.M{"$set": bson.M{"status": 1}})
 	if err != nil {
-		log.Printf("spotcheck: error happens when update spotcheck collection: %s\n", err.Error())
+		log.Printf("spotcheck: StartRecheck: error happens when update spotcheck tasks with status 2 to 1: %s\n", err.Error())
 	}
 	go self.doRecheck()
 }
@@ -44,7 +47,7 @@ func (self *NodeDaoImpl) doRecheck() {
 	for {
 		cur, err := collection.Find(context.Background(), bson.M{"status": 1})
 		if err != nil {
-			log.Printf("spotcheck: error when select recheckable task: %s\n", err.Error())
+			log.Printf("spotcheck: doRecheck: error when selecting recheckable task: %s\n", err.Error())
 			time.Sleep(time.Second * time.Duration(10))
 			continue
 		}
@@ -52,14 +55,14 @@ func (self *NodeDaoImpl) doRecheck() {
 			spr := new(SpotCheckRecord)
 			err := cur.Decode(spr)
 			if err != nil {
-				log.Printf("spotcheck: error when decode recheckable task: %s\n", err.Error())
+				log.Printf("spotcheck: doRecheck: error when decoding recheckable task: %s\n", err.Error())
 				cur.Close(context.Background())
 				continue
 			}
 			n := new(Node)
 			err = collectionNode.FindOne(context.Background(), bson.M{"_id": spr.NID}).Decode(n)
 			if err != nil {
-				log.Printf("spotcheck: error when decode node: %s\n", err.Error())
+				log.Printf("spotcheck: doRecheck: error when decoding node: %s\n", err.Error())
 				cur.Close(context.Background())
 				continue
 			}
@@ -105,17 +108,26 @@ func (self *NodeDaoImpl) doRecheck() {
 				if err != nil {
 					log.Printf("warning: spotcheck: error happens when punishing 100%%: %s\n", err.Error())
 				}
+				err = self.eostx.CalculateProfit(n.Owner, uint64(n.ID), false)
+				if err != nil {
+					log.Printf("warning: spotcheck: error happens when stop profit calculation: %s\n", err.Error())
+				}
 				continue
 			}
-			_, err = collection.UpdateOne(context.Background(), bson.M{"_id": spr.TaskID}, bson.M{"$set": bson.M{"status": 2}})
-			if err != nil {
-				log.Printf("spotcheck: error when update recheckable task to status 2: %s\n", err.Error())
-				cur.Close(context.Background())
-				continue
-			}
-			spr.Status = 2
-			pool.JobQueue <- func() {
-				self.checkDataNode(spr)
+			//calculate probability for rechecking
+			r := rand.Int63n(10 * int64(spotcheckInterval))
+			if r < 10 {
+				// rechecking
+				_, err = collection.UpdateOne(context.Background(), bson.M{"_id": spr.TaskID}, bson.M{"$set": bson.M{"status": 2}})
+				if err != nil {
+					log.Printf("spotcheck: error when update recheckable task to status 2: %s\n", err.Error())
+					cur.Close(context.Background())
+					continue
+				}
+				spr.Status = 2
+				pool.JobQueue <- func() {
+					self.checkDataNode(spr)
+				}
 			}
 		}
 		cur.Close(context.Background())
@@ -203,14 +215,14 @@ func (self *NodeDaoImpl) checkDataNode(spr *SpotCheckRecord) {
 					log.Printf("warning: spotcheck: error happens when update task %s status to 1: %s\n", spr.TaskID, err.Error())
 				}
 			}
-			//self.Punish(n, 100, true)
+			self.Punish(n, 100, true)
 		}
 	}
 }
 
 //CheckVNI check whether vni is correct
 func (self *NodeDaoImpl) CheckVNI(node *Node, spr *SpotCheckRecord) (bool, error) {
-	return false, errors.New("fake result of CheckVNI")
+	// return false, errors.New("fake result of CheckVNI")
 	// log.Printf("spotcheck: check VNI of node: %d -> %s\n", node.ID, spr.VNI)
 	// maddrs, err := stringListToMaddrs(node.Addrs)
 	// if err != nil {
@@ -226,8 +238,8 @@ func (self *NodeDaoImpl) CheckVNI(node *Node, spr *SpotCheckRecord) (bool, error
 	// 	pid,
 	// 	maddrs,
 	// }
-	// ctx, cancle := context.WithTimeout(context.Background(), time.Second*time.Duration(connectTimeout))
-	// defer cancle()
+	ctx, cancle := context.WithTimeout(context.Background(), time.Second*time.Duration(connectTimeout))
+	defer cancle()
 	// defer self.host.lhost.Network().ClosePeer(pid)
 	// defer self.host.lhost.Network().(*swarm.Swarm).Backoff().Clear(pid)
 	// err = self.host.lhost.Connect(ctx, info)
@@ -235,33 +247,41 @@ func (self *NodeDaoImpl) CheckVNI(node *Node, spr *SpotCheckRecord) (bool, error
 	// 	log.Printf("spotcheck: connect node failed: %d -> %s -> %s\n", node.ID, spr.VNI, err.Error())
 	// 	return false, err
 	// }
-	// rawvni, err := base64.StdEncoding.DecodeString(spr.VNI)
-	// if err != nil {
-	// 	log.Printf("spotcheck: error when unmarshaling VNI: %d %s %s\n", node.ID, spr.VNI, err.Error())
-	// 	return false, err
-	// }
-	// downloadRequest := &pb.DownloadShardRequest{VHF: rawvni}
-	// checkData, err := proto.Marshal(downloadRequest)
-	// if err != nil {
-	// 	log.Printf("spotcheck: error when marshalling protobuf message: downloadrequest: %d -> %s -> %s\n", node.ID, spr.VNI, err.Error())
-	// 	return false, err
-	// }
-	// shardData, err := self.host.SendMsg(node.NodeID, "/node/0.0.2", append(pb.MsgIDDownloadShardRequest.Bytes(), checkData...))
-	// if err != nil {
-	// 	log.Printf("spotcheck: SN send recheck command failed: %d -> %s -> %s\n", node.ID, spr.VNI, err.Error())
-	// 	return false, err
-	// }
-	// var share pb.DownloadShardResponse
-	// err = proto.Unmarshal(shardData[2:], &share)
-	// if err != nil {
-	// 	log.Printf("spotcheck: SN unmarshal recheck response failed: %d -> %s -> %s\n", node.ID, spr.VNI, err.Error())
-	// 	return false, err
-	// }
-	// if downloadRequest.VerifyVHF(share.Data) {
-	// 	return true, nil
-	// } else {
-	// 	return false, nil
-	// }
+	req := &pbh.ConnectReq{Id: node.NodeID, Addrs: node.Addrs}
+	_, err := self.host.lhost.Connect(ctx, req)
+	if err != nil {
+		return false, err
+	}
+	defer self.host.lhost.DisConnect(context.Background(), &pbh.StringMsg{Value: node.NodeID})
+
+	rawvni, err := base64.StdEncoding.DecodeString(spr.VNI)
+	if err != nil {
+		log.Printf("spotcheck: error when unmarshaling VNI: %d %s %s\n", node.ID, spr.VNI, err.Error())
+		return false, err
+	}
+	rawvni = rawvni[len(rawvni)-16:]
+	downloadRequest := &pb.DownloadShardRequest{VHF: rawvni}
+	checkData, err := proto.Marshal(downloadRequest)
+	if err != nil {
+		log.Printf("spotcheck: error when marshalling protobuf message: downloadrequest: %d -> %s -> %s\n", node.ID, spr.VNI, err.Error())
+		return false, err
+	}
+	shardData, err := self.host.SendMsg(node.NodeID, append(pb.MsgIDDownloadShardRequest.Bytes(), checkData...))
+	if err != nil {
+		log.Printf("spotcheck: SN send recheck command failed: %d -> %s -> %s\n", node.ID, spr.VNI, err.Error())
+		return false, err
+	}
+	var share pb.DownloadShardResponse
+	err = proto.Unmarshal(shardData[2:], &share)
+	if err != nil {
+		log.Printf("spotcheck: SN unmarshal recheck response failed: %d -> %s -> %s\n", node.ID, spr.VNI, err.Error())
+		return false, err
+	}
+	if downloadRequest.VerifyVHF(share.Data) {
+		return true, nil
+	} else {
+		return false, nil
+	}
 }
 
 // UpdateTaskStatus process error task of spotchecking
@@ -271,24 +291,25 @@ func (self *NodeDaoImpl) UpdateTaskStatus(taskid string, invalidNodeList []int32
 		spr := new(SpotCheckRecord)
 		err := collection.FindOne(context.Background(), bson.M{"_id": taskid}).Decode(spr)
 		if err != nil {
-			log.Printf("spotcheck: error when fetch spotcheck task in mongodb: %d -> %s -> %s\n", id, taskid, err.Error())
+			log.Printf("spotcheck: UpdateTaskStatus: error when fetching spotcheck task in mongodb: %d -> %s -> %s\n", id, taskid, err.Error())
 			continue
 		}
 		if spr.Status > 0 {
-			log.Printf("spotcheck: task has already under rechecking: %d -> %s -> %s\n", id, taskid, err.Error())
+			log.Printf("spotcheck: UpdateTaskStatus: task is already under rechecking: %d -> %s -> %s\n", id, taskid, err.Error())
 			continue
 		}
 		sping := new(SpotCheckRecord)
 		err = collection.FindOne(context.Background(), bson.M{"nid": id, "status": bson.M{"$gt": 0}}).Decode(sping)
 		if err != nil {
+			log.Printf("spotcheck: UpdateTaskStatus: update task status to 1: %s\n", taskid)
 			_, err := collection.UpdateOne(context.Background(), bson.M{"_id": taskid}, bson.M{"$set": bson.M{"status": 1, "timestamp": time.Now().Unix()}})
 			if err != nil {
-				log.Printf("warning: spotcheck: error happens when update task %s status to 1: %s\n", spr.TaskID, err.Error())
+				log.Printf("spotcheck: UpdateTaskStatus: error happens when updating task %s status to 1: %s\n", spr.TaskID, err.Error())
 			}
 		}
 		_, err = collection.DeleteMany(context.Background(), bson.M{"nid": id, "status": 0})
 		if err != nil {
-			log.Printf("warning: spotcheck: error happens when delete task %s: %s\n", spr.TaskID, err.Error())
+			log.Printf("spotcheck: UpdateTaskStatus: error when deleting tasks with node ID %d: %s\n", id, err.Error())
 		}
 	}
 	return nil
@@ -316,7 +337,7 @@ func (self *NodeDaoImpl) GetSpotCheckList() ([]*SpotCheckList, error) {
 	for range [10]byte{} {
 		total, err := collection.CountDocuments(context.Background(), bson.M{"_id": bson.M{"$mod": bson.A{incr, index}}, "usedSpace": bson.M{"$gt": 0}, "assignedSpace": bson.M{"$gt": 0}, "status": 1})
 		if err != nil {
-			log.Printf("spotcheck: error when get total count of spotcheckable nodes: %s\n", err.Error())
+			log.Printf("spotcheck: GetSpotCheckList: error when calculating total count of spotcheckable nodes: %s\n", err.Error())
 			continue
 		}
 		if total == 0 {
@@ -330,18 +351,18 @@ func (self *NodeDaoImpl) GetSpotCheckList() ([]*SpotCheckList, error) {
 		optionf.Skip = &skip
 		cur, err := collection.Find(context.Background(), bson.M{"_id": bson.M{"$mod": bson.A{incr, index}}, "usedSpace": bson.M{"$gt": 0}, "assignedSpace": bson.M{"$gt": 0}, "status": 1}, optionf)
 		if err != nil {
-			log.Printf("spotcheck: error when get spotcheck list: %s\n", err.Error())
+			log.Printf("spotcheck: GetSpotCheckList: error when fetching spotcheckable node: %s\n", err.Error())
 			continue
 		}
 		if cur.Next(context.Background()) {
 			node := new(Node)
 			err := cur.Decode(node)
 			if err != nil {
-				log.Printf("spotcheck: error when get spot task: %s\n", err.Error())
+				log.Printf("spotcheck: GetSpotCheckList: error when decoding spot task: %s\n", err.Error())
 				cur.Close(context.Background())
 				continue
 			}
-			log.Printf("spotcheck: node %d wil be spotchecked\n", node.ID)
+			log.Printf("spotcheck: GetSpotCheckList: node %d wil be spotchecked\n", node.ID)
 			spotCheckTask := new(SpotCheckTask)
 			spotCheckTask.ID = node.ID
 			spotCheckTask.NodeID = node.NodeID
@@ -353,11 +374,11 @@ func (self *NodeDaoImpl) GetSpotCheckList() ([]*SpotCheckList, error) {
 			}
 			spotCheckTask.VNI, err = self.GetRandomVNI(node.ID, rand.Int63n(node.UsedSpace))
 			if err != nil {
-				log.Printf("spotcheck: error when get spotcheck vni: %d %s\n", node.ID, err.Error())
+				log.Printf("spotcheck: GetSpotCheckList: error when selecting random vni: %d %s\n", node.ID, err.Error())
 				cur.Close(context.Background())
 				continue
 			}
-			log.Printf("spotcheck: select random VNI for node %d -> %s\n", node.ID, spotCheckTask.VNI)
+			log.Printf("spotcheck: GetSpotCheckList: select random VNI for node %d -> %s\n", node.ID, spotCheckTask.VNI)
 			spotCheckList.TaskID = primitive.NewObjectID()
 			spotCheckList.Timestamp = time.Now().Unix()
 			spotCheckList.TaskList = append(spotCheckList.TaskList, spotCheckTask)
@@ -367,10 +388,10 @@ func (self *NodeDaoImpl) GetSpotCheckList() ([]*SpotCheckList, error) {
 			sping := new(SpotCheckRecord)
 			err = collection.FindOne(context.Background(), bson.M{"nid": spotCheckTask.ID, "status": bson.M{"$gt": 0}}).Decode(sping)
 			if err == nil {
-				log.Printf("warning: spotcheck: task with same node id %d is under rechecking: %s\n", spotCheckTask.ID, spotCheckList.TaskID)
+				log.Printf("spotcheck: GetSpotCheckList: warning: node %d is already under rechecking: %s\n", spotCheckTask.ID, sping.TaskID)
 				_, err = collectionSpotCheck.DeleteMany(context.Background(), bson.M{"nid": spotCheckTask.ID, "status": 0})
 				if err != nil {
-					log.Printf("warning: spotcheck: error when delete spotcheck task when another task with same node is under rechecking: %d %s\n", node.ID, err.Error())
+					log.Printf("spotcheck: GetSpotCheckList: error when deleting spotcheck task when another task with same node is under rechecking: %d %s\n", node.ID, err.Error())
 				}
 				return nil, fmt.Errorf("a spotcheck task with node id %d is under rechecking: %s", spotCheckTask.ID, spotCheckList.TaskID)
 			}
@@ -407,6 +428,7 @@ func (self *NodeDaoImpl) Punish(node *Node, percent int64, mark bool) error {
 		return err
 	}
 	totalAsset := pledgeData.Total
+	leftAsset := pledgeData.Deposit
 	punishAsset := pledgeData.Deposit
 
 	punishFee := int64(totalAsset.Amount) * percent / 100
@@ -417,7 +439,8 @@ func (self *NodeDaoImpl) Punish(node *Node, percent int64, mark bool) error {
 	if err != nil {
 		return err
 	}
-	newAssignedSpace := node.AssignedSpace - int64(punishAsset.Amount)*65536*int64(rate)/1000000
+	//newAssignedSpace := node.AssignedSpace - int64(punishAsset.Amount)*65536*int64(rate)/1000000
+	newAssignedSpace := int64(leftAsset.Amount-punishAsset.Amount) * 65536 * int64(rate) / 1000000
 	if newAssignedSpace < 0 {
 		newAssignedSpace = 0
 	}
