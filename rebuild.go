@@ -105,44 +105,72 @@ func (self *NodeDaoImpl) GetRebuildItem(minerID int32, index, total int64) (*Nod
 }
 
 func (self *NodeDaoImpl) GetRebuildNode(count int64) (*Node, error) {
-	collection := self.client.Database(YottaDB).Collection(NodeTab)
-	options := options.FindOptions{}
-	options.Sort = bson.D{{"timestamp", -1}}
-	cur, err := collection.Find(context.Background(), bson.M{"valid": 1, "status": 1, "timestamp": bson.M{"$gt": time.Now().Unix() - IntervalTime*avaliableNodeTimeGap}, "version": bson.M{"$gte": minerVersionThreadshold}}, &options)
+	// collection := self.client.Database(YottaDB).Collection(NodeTab)
+	// for range [10]byte{} {
+	// 	total, err := collection.CountDocuments(context.Background(), bson.M{"valid": 1, "status": 1, "timestamp": bson.M{"$gt": time.Now().Unix() - IntervalTime*avaliableNodeTimeGap}, "version": bson.M{"$gte": minerVersionThreadshold}})
+	// 	if err != nil {
+	// 		log.Printf("rebuild: GetRebuildNode: error when calculating total count of rebuildable nodes: %s\n", err.Error())
+	// 		continue
+	// 	}
+	// 	if total == 0 {
+	// 		log.Printf("rebuild: GetRebuildNode: count of rebuildable nodes is 0\n")
+	// 		continue
+	// 	}
+	// 	index := rand.Intn(int(total))
+	// 	options := options.FindOptions{}
+	// 	skip := int64(index)
+	// 	limit := int64(1)
+	// 	options.Limit = &limit
+	// 	options.Skip = &skip
+	// 	//options.Sort = bson.D{{"timestamp", -1}}
+	// 	cur, err := collection.Find(context.Background(), bson.M{"valid": 1, "status": 1, "timestamp": bson.M{"$gt": time.Now().Unix() - IntervalTime*avaliableNodeTimeGap}, "version": bson.M{"$gte": minerVersionThreadshold}}, &options)
+	// 	if err != nil {
+	// 		log.Printf("rebuild: GetRebuildNode: error when creating cursor: %s\n", err.Error())
+	// 		continue
+	// 	}
+	// 	result := new(Node)
+	// 	if cur.Next(context.Background()) {
+	// 		err := cur.Decode(result)
+	// 		if err != nil {
+	// 			cur.Close(context.Background())
+	// 			log.Printf("rebuild: GetRebuildNode: error when decoding rebuildable nodes: %s\n", err.Error())
+	// 			continue
+	// 		}
+	// 		// availible := Min(result.AssignedSpace, result.Quota, result.MaxDataSpace) - result.UsedSpace
+	// 		// assignable := Min(result.AssignedSpace, result.Quota, result.MaxDataSpace) - result.ProductiveSpace
+	// 		// if availible < count {
+	// 		// 	continue
+	// 		// }
+	// 		// allocated := count - (availible - assignable) + prePurphaseAmount - (count-(availible-assignable))%prePurphaseAmount
+	// 		// if allocated > assignable {
+	// 		// 	allocated = assignable
+	// 		// }
+	// 		// if allocated > 0 {
+	// 		// 	err = self.IncrProductiveSpace(result.ID, allocated)
+	// 		// 	if err != nil {
+	// 		// 		return nil, err
+	// 		// 	}
+	// 		// 	err = self.eostx.AddSpace(result.ProfitAcc, uint64(result.ID), uint64(allocated))
+	// 		// 	if err != nil {
+	// 		// 		self.IncrProductiveSpace(result.ID, -1*allocated)
+	// 		// 		return nil, err
+	// 		// 	}
+	// 		// 	result.ProductiveSpace += allocated
+	// 		// }
+	// 		return result, nil
+	// 	}
+	// }
+	// return nil, fmt.Errorf("no nodes can be allocated")
+	nodes, err := self.ns.Alloc(1, []int32{})
 	if err != nil {
+		log.Printf("rebuild: GetRebuildNode: error when allocating rebuildable node: %s\n", err.Error())
 		return nil, err
 	}
-	result := new(Node)
-	defer cur.Close(context.Background())
-	for cur.Next(context.Background()) {
-		err := cur.Decode(result)
-		if err != nil {
-			return nil, err
-		}
-		availible := Min(result.AssignedSpace, result.Quota, result.MaxDataSpace) - result.UsedSpace
-		assignable := Min(result.AssignedSpace, result.Quota, result.MaxDataSpace) - result.ProductiveSpace
-		if availible < count {
-			continue
-		}
-		allocated := count - (availible - assignable) + prePurphaseAmount - (count-(availible-assignable))%prePurphaseAmount
-		if allocated > assignable {
-			allocated = assignable
-		}
-		if allocated > 0 {
-			err = self.IncrProductiveSpace(result.ID, allocated)
-			if err != nil {
-				return nil, err
-			}
-			err = self.eostx.AddSpace(result.ProfitAcc, uint64(result.ID), uint64(allocated))
-			if err != nil {
-				self.IncrProductiveSpace(result.ID, -1*allocated)
-				return nil, err
-			}
-			result.ProductiveSpace += allocated
-		}
-		return result, nil
+	if nodes == nil || len(nodes) == 0 {
+		log.Printf("rebuild: GetRebuildNode: no rebuildable nodes can be allocated\n")
+		return nil, fmt.Errorf("no rebuildable nodes can be allocated")
 	}
-	return nil, fmt.Errorf("no node could be allocated")
+	return nodes[0], nil
 }
 
 func (self *NodeDaoImpl) DeleteDNI(minerID int32, shard []byte) error {

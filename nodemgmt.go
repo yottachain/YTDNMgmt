@@ -272,7 +272,7 @@ func (self *NodeDaoImpl) UpdateNodeStatus(node *Node) (*Node, error) {
 	}
 	if n.Quota == 0 || n.AssignedSpace == 0 {
 		log.Printf("nodemgmt: UpdateNodeStatus: warning: node %d has not been pledged or added to a pool\n", n.ID)
-		return nil, fmt.Errorf("node %d has not been pledged or added to a pool", n.ID)
+		//return nil, fmt.Errorf("node %d has not been pledged or added to a pool", n.ID)
 	}
 	node.Valid = n.Valid
 	node.Addrs = CheckPublicAddrs(node.Addrs)

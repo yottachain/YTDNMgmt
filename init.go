@@ -25,6 +25,10 @@ var recheckRetryInterval int32     // retry interval of recheck task
 var spotcheckInterval int32        // interval time of spotcheck
 var connectivityTestInterval int32 // interval time of connectivity test
 var punishGapUnit int64            //unit of time gap for punishing
+var punishPhase1 int               //first phase period of punishment
+var punishPhase2 int               //second phase period of punishment
+var punishPhase3 int               //third phase period of punishment
+var rebuildPhase int               //phase period of node rebuild
 
 var ipDBPath string //path of IPDB
 
@@ -113,7 +117,7 @@ func init() {
 	spotcheckIntervalStr := os.Getenv("NODEMGMT_SPOTCHECKINTERVAL")
 	si, err := strconv.Atoi(spotcheckIntervalStr)
 	if err != nil {
-		spotcheckInterval = 60
+		spotcheckInterval = 60 //60min
 	} else {
 		spotcheckInterval = int32(si)
 	}
@@ -129,9 +133,41 @@ func init() {
 	punishGapUnitStr := os.Getenv("NODEMGMT_PUNISHGAPUNIT")
 	pgu, err := strconv.Atoi(punishGapUnitStr)
 	if err != nil {
-		punishGapUnit = 3600
+		punishGapUnit = 60 //60s
 	} else {
 		punishGapUnit = int64(pgu)
+	}
+
+	punishPhase1Str := os.Getenv("NODEMGMT_PUNISHPHASE1")
+	pp1, err := strconv.Atoi(punishPhase1Str)
+	if err != nil || pp1 > 10080 {
+		punishPhase1 = 240
+	} else {
+		punishPhase1 = pp1
+	}
+
+	punishPhase2Str := os.Getenv("NODEMGMT_PUNISHPHASE2")
+	pp2, err := strconv.Atoi(punishPhase2Str)
+	if err != nil || pp2 > 10080 {
+		punishPhase2 = 1440
+	} else {
+		punishPhase2 = pp2
+	}
+
+	punishPhase3Str := os.Getenv("NODEMGMT_PUNISHPHASE3")
+	pp3, err := strconv.Atoi(punishPhase3Str)
+	if err != nil || pp3 > 10080 {
+		punishPhase3 = 10080
+	} else {
+		punishPhase3 = pp3
+	}
+
+	rebuildPhaseStr := os.Getenv("NODEMGMT_REBUILDPHASE")
+	rp, err := strconv.Atoi(rebuildPhaseStr)
+	if err != nil || rp > 10080 {
+		rebuildPhase = 1440
+	} else {
+		rebuildPhase = rp
 	}
 
 	ipDBPath = os.Getenv("NODEMGMT_IPDBPATH")
