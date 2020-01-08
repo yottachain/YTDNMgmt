@@ -8,10 +8,12 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/ipipdotnet/ipdb-go"
 	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/mongo"
 )
 
 // NodesSelector allocate nodes for client
@@ -101,7 +103,7 @@ func (s *NodesSelector) Start(ctx context.Context, nodeMgr *NodeDaoImpl) {
 	}()
 	err = s.refresh(nodeMgr)
 	if err != nil {
-		log.Fatalf("alloc: Start: fatal when refreshing IPDB: %s\n", err.Error())
+		log.Fatalf("alloc: Start: error when refreshing node list: %s\n", err.Error())
 	}
 	// refresh allocatable nodes list regularly
 	ticker := time.NewTicker(time.Duration(nodeAllocRefreshInterval) * time.Minute)
@@ -109,13 +111,109 @@ func (s *NodesSelector) Start(ctx context.Context, nodeMgr *NodeDaoImpl) {
 		for {
 			select {
 			case <-ctx.Done():
-				log.Printf("alloc: Start: stop refresh operation of NodeSelector\n")
+				log.Printf("alloc: Start: stop refresh operation of node\n")
 				return
 			case <-t.C:
 				_ = s.refresh(nodeMgr)
 			}
 		}
 	}(ticker)
+
+	err = s.refreshPoolWeight(nodeMgr)
+	if err != nil {
+		log.Fatalf("alloc: Start: error when refreshing pool weight: %s\n", err.Error())
+	}
+	// refresh pool weight regularly
+	ticker2 := time.NewTicker(time.Duration(poolWeightRefreshInterval) * time.Minute)
+	go func(t *time.Ticker) {
+		for {
+			select {
+			case <-ctx.Done():
+				log.Printf("alloc: Start: stop refresh operation of pool weight\n")
+				return
+			case <-t.C:
+				_ = s.refreshPoolWeight(nodeMgr)
+			}
+		}
+	}(ticker2)
+}
+
+func (s *NodesSelector) refreshPoolWeight(nodeMgr *NodeDaoImpl) error {
+	if atomic.LoadInt32(&(nodeMgr.master)) == 0 {
+		return nil
+	}
+	now := time.Now().Unix()
+	collection := nodeMgr.client.Database(YottaDB).Collection(NodeTab)
+	collectionPW := nodeMgr.client.Database(YottaDB).Collection(PoolWeightTab)
+	pipeline1 := mongo.Pipeline{
+		{{"$match", bson.D{{"status", bson.D{{"$lt", 3}}}}}},
+		{{"$project", bson.D{{"usedSpace", 1}}}},
+		{{"$group", bson.D{{"_id", ""}, {"totalSpace", bson.D{{"$sum", "$usedSpace"}}}}}},
+	}
+	cur, err := collection.Aggregate(context.Background(), pipeline1)
+	if err != nil {
+		log.Printf("alloc: refreshPoolWeight: error when aggregating total space: %s\n", err.Error())
+		return err
+	}
+	ts := new(PoolWeight)
+	if cur.Next(context.Background()) {
+		err := cur.Decode(ts)
+		if err != nil {
+			log.Printf("alloc: refreshPoolWeight: error when decoding total space: %s\n", err.Error())
+			cur.Close(context.Background())
+			return err
+		}
+	}
+	cur.Close(context.Background())
+	totalSpace := ts.TotalSpace
+
+	errTime := now - int64(spotcheckInterval+punishPhase1)*60
+	pipeline2 := mongo.Pipeline{
+		{{"$match", bson.D{{"poolOwner", bson.D{{"$ne", ""}}}, {"status", bson.D{{"$lt", 3}}}}}},
+		//{{"$project", bson.D{{"poolOwner", 1}, {"usedSpace", 1}}}},
+		{{"$project", bson.D{{"poolOwner", 1}, {"usedSpace", 1}, {"err", bson.D{{"$cond", bson.D{{"if", bson.D{{"$or", bson.A{bson.D{{"$eq", bson.A{"$status", 2}}}, bson.D{{"$lt", bson.A{"$timestamp", errTime}}}}}}}, {"then", 1}, {"else", 0}}}}}}}},
+		{{"$group", bson.D{{"_id", "$poolOwner"}, {"poolTotalSpace", bson.D{{"$sum", "$usedSpace"}}}, {"poolTotalCount", bson.D{{"$sum", 1}}}, {"poolErrorCount", bson.D{{"$sum", "$err"}}}}}},
+	}
+	cur, err = collection.Aggregate(context.Background(), pipeline2)
+	if err != nil {
+		log.Printf("alloc: refreshPoolWeight: error when doing aggregate: %s\n", err.Error())
+		return err
+	}
+	defer cur.Close(context.Background())
+	for cur.Next(context.Background()) {
+		result := new(PoolWeight)
+		err := cur.Decode(result)
+		if err != nil {
+			log.Printf("alloc: refreshPoolWeight: error when decoding PoolWeight: %s\n", err.Error())
+			continue
+		}
+		result.Timestamp = now
+		result.TotalSpace = totalSpace
+		_, err = collectionPW.InsertOne(context.Background(), result)
+		if err != nil {
+			errstr := err.Error()
+			if !strings.ContainsAny(errstr, "duplicate key error") {
+				log.Printf("alloc: refreshPoolWeight: error when inserting pool weight %s to database: %s\n", result.ID, err.Error())
+				continue
+			} else {
+				_, err := collectionPW.UpdateOne(context.Background(), bson.M{"_id": result.ID}, bson.M{"$set": bson.M{"poolTotalSpace": result.PoolTotalSpace, "totalSpace": totalSpace, "timestamp": result.Timestamp}})
+				if err != nil {
+					log.Printf("alloc: refreshPoolWeight: error when updating pool weight %s in database: %s\n", result.ID, err.Error())
+					continue
+				}
+			}
+		}
+
+	}
+
+	//TODO: Get PoolReferralSpace and ReferralSpace from SN
+
+	_, err = collectionPW.DeleteMany(context.Background(), bson.M{"timestamp": bson.M{"$ne": now}})
+	if err != nil {
+		log.Printf("alloc: refreshPoolWeight: error when deleting expired pool weight in database: %s\n", err.Error())
+		return err
+	}
+	return nil
 }
 
 func (s *NodesSelector) refresh(nodeMgr *NodeDaoImpl) error {
@@ -123,7 +221,7 @@ func (s *NodesSelector) refresh(nodeMgr *NodeDaoImpl) error {
 	nodeIDs := make([]int32, 0)
 	regionMap := make(map[string]*WRegion)
 	collection := nodeMgr.client.Database(YottaDB).Collection(NodeTab)
-	cond := bson.M{"valid": 1, "status": 1, "assignedSpace": bson.M{"$gt": 0}, "quota": bson.M{"$gt": 0}, "cpu": bson.M{"$lt": 98}, "memory": bson.M{"$lt": 95}, "timestamp": bson.M{"$gt": time.Now().Unix() - IntervalTime*avaliableNodeTimeGap}, "weight": bson.M{"$gt": 65536}, "version": bson.M{"$gte": minerVersionThreadshold}}
+	cond := bson.M{"valid": 1, "status": 1, "assignedSpace": bson.M{"$gt": 0}, "quota": bson.M{"$gt": 0}, "cpu": bson.M{"$lt": 98}, "memory": bson.M{"$lt": 95}, "timestamp": bson.M{"$gt": time.Now().Unix() - IntervalTime*avaliableNodeTimeGap}, "weight": bson.M{"$gt": 0}, "version": bson.M{"$gte": minerVersionThreshold}}
 	cur, err := collection.Find(context.Background(), cond)
 	if err != nil {
 		log.Printf("alloc: refresh: error when refreshing NodeSelector: %s\n", err)

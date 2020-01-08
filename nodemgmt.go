@@ -5,7 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"math"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/mr-tron/base58"
@@ -25,13 +27,14 @@ type NodeDaoImpl struct {
 	host   *Host
 	ns     *NodesSelector
 	bpID   int32
+	master int32
 }
 
 var incr int64 = 0
 var index int32 = -1
 
 //NewInstance create a new instance of NodeDaoImpl
-func NewInstance(mongoURL, eosURL, bpAccount, bpPrivkey, contractOwnerM, contractOwnerD, shadowAccount string, bpID int32) (*NodeDaoImpl, error) {
+func NewInstance(mongoURL, eosURL, bpAccount, bpPrivkey, contractOwnerM, contractOwnerD, shadowAccount string, bpID int32, isMaster int32) (*NodeDaoImpl, error) {
 	client, err := mongo.Connect(context.Background(), options.Client().ApplyURI(mongoURL))
 	if err != nil {
 		log.Printf("nodemgmt: NewInstance: error when creating mongodb client: %s %s\n", mongoURL, err.Error())
@@ -50,7 +53,7 @@ func NewInstance(mongoURL, eosURL, bpAccount, bpPrivkey, contractOwnerM, contrac
 		return nil, err
 	}
 	log.Println("nodemgmt: NewInstance: create host")
-	dao := &NodeDaoImpl{client: client, eostx: etx, host: host, ns: &NodesSelector{}, bpID: bpID}
+	dao := &NodeDaoImpl{client: client, eostx: etx, host: host, ns: &NodesSelector{}, bpID: bpID, master: isMaster}
 	dao.StartRecheck()
 	dao.ns.Start(context.Background(), dao)
 	if incr == 0 {
@@ -68,6 +71,15 @@ func NewInstance(mongoURL, eosURL, bpAccount, bpPrivkey, contractOwnerM, contrac
 		log.Printf("nodemgmt: NewInstance: index of SN: %d\n", index)
 	}
 	return dao, nil
+}
+
+//SetMaster change master status
+func (self *NodeDaoImpl) SetMaster(master int32) {
+	atomic.StoreInt32(&(self.master), master)
+}
+
+func (self *NodeDaoImpl) ChangeEosURL(eosURL string) {
+	self.eostx.ChangeEosURL(eosURL)
 }
 
 func getCurrentNodeIndex(client *mongo.Client) (int32, error) {
@@ -154,6 +166,7 @@ func (self *NodeDaoImpl) PreRegisterNode(trx string) error {
 	node.Owner = adminAccount
 	node.ProfitAcc = profitAccount
 	node.PoolID = ""
+	node.PoolOwner = ""
 	node.Quota = 0
 	node.AssignedSpace = pledgeAmount * 65536 * int64(rate) / 1000000 //TODO: 1YTA=1G 后需调整
 	node.Valid = 0
@@ -167,7 +180,7 @@ func (self *NodeDaoImpl) PreRegisterNode(trx string) error {
 		log.Printf("nodemgmt: PreRegisterNode: error when inserting node to database: %d %s\n", minerID, err.Error())
 		return err
 	}
-	log.Printf("nodemgmt: PreRegisterNode: new node registered: ID->%d, noeID->%s, pubkey->%s, owner->%s, proficAcc->%s, assignedSpace->%d\n", node.ID, node.NodeID, node.PubKey, node.Owner, node.ProfitAcc, node.AssignedSpace)
+	log.Printf("nodemgmt: PreRegisterNode: new node registered: ID->%d, nodeID->%s, pubkey->%s, owner->%s, proficAcc->%s, assignedSpace->%d\n", node.ID, node.NodeID, node.PubKey, node.Owner, node.ProfitAcc, node.AssignedSpace)
 	return nil
 }
 
@@ -182,6 +195,11 @@ func (self *NodeDaoImpl) ChangeMinerPool(trx string) error {
 	poolID := string(poolData.PoolID)
 	minerProfit := string(poolData.MinerProfit)
 	quota := poolData.MaxSpace
+	poolInfo, err := self.eostx.GetPoolInfoByPoolID(poolID)
+	if err != nil {
+		log.Printf("nodemgmt: ChangeMinerPool: error when get pool owner: %d %s\n", minerID, err.Error())
+		return err
+	}
 	if minerID%int32(incr) != index {
 		log.Printf("nodemgmt: ChangeMinerPool: minerID %d is not belong to SN%d\n", minerID, index)
 		return errors.New("transaction sends to incorrect super node")
@@ -202,7 +220,7 @@ func (self *NodeDaoImpl) ChangeMinerPool(trx string) error {
 	if node.Status == 0 && node.ProductiveSpace == 0 {
 		afterReg = true
 	}
-	_, err = collection.UpdateOne(context.Background(), bson.M{"_id": minerID}, bson.M{"$set": bson.M{"poolID": poolID, "profitAcc": minerProfit, "quota": quota}})
+	_, err = collection.UpdateOne(context.Background(), bson.M{"_id": minerID}, bson.M{"$set": bson.M{"poolID": poolID, "poolOwner": poolInfo.Owner, "profitAcc": minerProfit, "quota": quota}})
 	if err != nil {
 		log.Printf("nodemgmt: ChangeMinerPool: error when updating poolID->%s, profitAcc->%s, quota->%d: %s\n", poolID, minerProfit, quota, err.Error())
 		return err
@@ -219,8 +237,8 @@ func (self *NodeDaoImpl) ChangeMinerPool(trx string) error {
 			log.Printf("nodemgmt: ChangeMinerPool: warning: assignable space is %d\n", assignable)
 			return fmt.Errorf("assignable space is %d", assignable)
 		}
-		if assignable >= 65536 {
-			assignable = 65536
+		if assignable >= prePurphaseAmount {
+			assignable = prePurphaseAmount
 		}
 		err := self.IncrProductiveSpace(node.ID, assignable)
 		if err != nil {
@@ -266,13 +284,16 @@ func (self *NodeDaoImpl) UpdateNodeStatus(node *Node) (*Node, error) {
 		log.Printf("nodemgmt: UpdateNodeStatus: error when decoding node %d: %s\n", node.ID, err.Error())
 		return nil, err
 	}
-	if time.Now().Unix()-n.Timestamp < 50 {
+	if time.Now().Unix()-n.Timestamp < 20 {
 		log.Printf("nodemgmt: UpdateNodeStatus: warning: reporting of node %d is too frequency\n", n.ID)
 		return nil, errors.New("reporting is too frequency")
 	}
-	if n.Quota == 0 || n.AssignedSpace == 0 {
-		log.Printf("nodemgmt: UpdateNodeStatus: warning: node %d has not been pledged or added to a pool\n", n.ID)
-		//return nil, fmt.Errorf("node %d has not been pledged or added to a pool", n.ID)
+	if n.Quota == 0 {
+		log.Printf("nodemgmt: UpdateNodeStatus: warning: node %d has not been added to a pool\n", n.ID)
+		return nil, fmt.Errorf("node %d has not been added to a pool", n.ID)
+	}
+	if n.AssignedSpace == 0 {
+		log.Printf("nodemgmt: UpdateNodeStatus: warning: node %d has not been pledged or punished all deposit\n", n.ID)
 	}
 	node.Valid = n.Valid
 	node.Addrs = CheckPublicAddrs(node.Addrs)
@@ -281,22 +302,57 @@ func (self *NodeDaoImpl) UpdateNodeStatus(node *Node) (*Node, error) {
 		log.Printf("nodemgmt: UpdateNodeStatus: error when checking public address of node %d: %s\n", n.ID, err.Error())
 		return nil, err
 	}
+	if n.PoolID != "" && n.PoolOwner == "" {
+		poolInfo, err := self.eostx.GetPoolInfoByPoolID(n.PoolID)
+		if err != nil {
+			log.Printf("nodemgmt: UpdateNodeStatus: error when get pool owner %d: %s\n", n.ID, err.Error())
+			return nil, err
+		}
+		node.PoolOwner = string(poolInfo.Owner)
+	} else {
+		node.PoolOwner = n.PoolOwner
+	}
 	var status int32 = 1
 	if n.Status > 1 {
 		status = n.Status
 	}
-	// weight := float64(Min(n.AssignedSpace, n.Quota, node.MaxDataSpace) - n.UsedSpace)
-	weight := n.AssignedSpace
+	// calculate w1
+	leftSpace := float64(Min(n.AssignedSpace, n.Quota, node.MaxDataSpace) - n.UsedSpace)
+	w11 := math.Atan(leftSpace/10000) * 1.6 / math.Pi
+	w12 := 0.8
+	if n.CPU >= 90 {
+		w12 = math.Atan(math.Pow(1.02, math.Pow(1.02, 30*float64(100-n.CPU))-1)-1) * 1.6 / math.Pi
+	}
+	w13 := 0.8
+	if n.Memory >= 80 {
+		w13 = math.Atan(math.Pow(1.01, math.Pow(1.01, 30*float64(100-n.Memory))-1)-1) * 1.6 / math.Pi
+	}
+	w14 := 0.8
+	if n.Bandwidth >= 80 {
+		w14 = math.Atan(math.Pow(1.01, math.Pow(1.01, 30*float64(100-n.Bandwidth))-1)-1) * 1.6 / math.Pi
+	}
+	w1 := math.Sqrt(math.Sqrt(w11*w12*w13*w14)) + 0.6
+	// calculate w2
+	w2 := self.calculateW2(n.PoolOwner)
+	// calculate w3
+	w3 := float64(n.AssignedSpace) / 67108864
+	// calculate w4
+	w4 := 1.0
+	if node.Rebuilding == 1 {
+		w4 = 0.1
+	}
+	weight := int64(float64(n.AssignedSpace) * w1 * w2 * w3 * w4)
+	// weight := n.AssignedSpace
 	if weight < 0 {
 		weight = 0
 	}
 	opts := new(options.FindOneAndUpdateOptions)
 	opts = opts.SetReturnDocument(options.After)
 	timestamp := time.Now().Unix()
-	update := bson.M{"$set": bson.M{"cpu": node.CPU, "memory": node.Memory, "bandwidth": node.Bandwidth, "maxDataSpace": node.MaxDataSpace, "addrs": node.Addrs, "weight": weight, "valid": node.Valid, "relay": node.Relay, "status": status, "timestamp": timestamp, "version": node.Version}}
-	if node.UsedSpace != 0 {
-		update = bson.M{"$set": bson.M{"cpu": node.CPU, "memory": node.Memory, "bandwidth": node.Bandwidth, "maxDataSpace": node.MaxDataSpace, "realSpace": node.UsedSpace, "addrs": node.Addrs, "weight": weight, "valid": node.Valid, "relay": node.Relay, "status": status, "timestamp": timestamp, "version": node.Version}}
-	}
+	update := bson.M{"$set": bson.M{"poolOwner": node.PoolOwner, "cpu": node.CPU, "memory": node.Memory, "bandwidth": node.Bandwidth, "maxDataSpace": node.MaxDataSpace, "addrs": node.Addrs, "weight": weight, "valid": node.Valid, "relay": node.Relay, "status": status, "timestamp": timestamp, "version": node.Version, "rebuilding": node.Rebuilding}}
+	// if node.UsedSpace != 0 {
+	// 	update = bson.M{"$set": bson.M{"cpu": node.CPU, "memory": node.Memory, "bandwidth": node.Bandwidth, "maxDataSpace": node.MaxDataSpace, "realSpace": node.UsedSpace, "addrs": node.Addrs, "weight": weight, "valid": node.Valid, "relay": node.Relay, "status": status, "timestamp": timestamp, "version": node.Version}}
+	// }
 	result := collection.FindOneAndUpdate(context.Background(), bson.M{"_id": node.ID}, update, opts)
 	err = result.Decode(n)
 	if err != nil {
@@ -318,15 +374,15 @@ func (self *NodeDaoImpl) UpdateNodeStatus(node *Node) (*Node, error) {
 			if assignable >= prePurphaseAmount {
 				assignable = prePurphaseAmount
 			}
-			err = self.IncrProductiveSpace(node.ID, assignable)
+			err = self.IncrProductiveSpace(n.ID, assignable)
 			if err != nil {
 				log.Printf("nodemgmt: UpdateNodeStatus: error when increasing productive space for node %d: %s\n", n.ID, err.Error())
 				return nil, err
 			}
-			err = self.eostx.AddSpace(node.ProfitAcc, uint64(node.ID), uint64(assignable))
+			err = self.eostx.AddSpace(n.ProfitAcc, uint64(n.ID), uint64(assignable))
 			if err != nil {
 				log.Printf("nodemgmt: UpdateNodeStatus: error when adding space for node %d: %s\n", n.ID, err.Error())
-				self.IncrProductiveSpace(node.ID, -1*assignable)
+				self.IncrProductiveSpace(n.ID, -1*assignable)
 				return nil, err
 			}
 			n.ProductiveSpace += assignable
@@ -334,6 +390,20 @@ func (self *NodeDaoImpl) UpdateNodeStatus(node *Node) (*Node, error) {
 		}
 	}
 	return n, nil
+}
+
+func (self *NodeDaoImpl) calculateW2(poolOwner string) float64 {
+	pw := new(PoolWeight)
+	collection := self.client.Database(YottaDB).Collection(PoolWeightTab)
+	err := collection.FindOne(context.Background(), bson.M{"_id": poolOwner}).Decode(pw)
+	if err != nil {
+		log.Printf("nodemgmt: calculateW2: error when decoding weight of pool %s: %s\n", poolOwner, err.Error())
+		return 1
+	}
+	if pw.PoolTotalSpace == 0 || pw.ReferralSpace == 0 || pw.TotalSpace == 0 {
+		return 1
+	}
+	return 1 + (float64(pw.PoolReferralSpace)/float64(pw.PoolTotalSpace))/(float64(pw.ReferralSpace)/float64(pw.TotalSpace))
 }
 
 //IncrUsedSpace increase user space of one node
@@ -354,9 +424,9 @@ func (self *NodeDaoImpl) IncrUsedSpace(id int32, incr int64) error {
 
 //IncrProductiveSpace increase productive space of one node
 func (self *NodeDaoImpl) IncrProductiveSpace(id int32, incr int64) error {
-	if incr < 0 {
-		return errors.New("incremental space cannot be minus")
-	}
+	// if incr < 0 {
+	// 	return errors.New("incremental space cannot be minus")
+	// }
 	collection := self.client.Database(YottaDB).Collection(NodeTab)
 	_, err := collection.UpdateOne(context.Background(), bson.M{"_id": id}, bson.M{"$inc": bson.M{"productiveSpace": incr}})
 	return err
@@ -384,7 +454,7 @@ func (self *NodeDaoImpl) SyncNode(node *Node) error {
 			log.Printf("nodemgmt: SyncNode: error when inserting node %d to database: %s\n", node.ID, err.Error())
 			return err
 		} else {
-			_, err := collection.UpdateOne(context.Background(), bson.M{"_id": node.ID}, bson.M{"$set": bson.M{"nodeid": node.NodeID, "pubkey": node.PubKey, "owner": node.Owner, "profitAcc": node.ProfitAcc, "poolID": node.PoolID, "quota": node.Quota, "addrs": node.Addrs, "cpu": node.CPU, "memory": node.Memory, "bandwidth": node.Bandwidth, "maxDataSpace": node.MaxDataSpace, "assignedSpace": node.AssignedSpace, "productiveSpace": node.ProductiveSpace, "usedSpace": node.UsedSpace, "weight": node.Weight, "valid": node.Valid, "relay": node.Relay, "status": node.Status, "timestamp": node.Timestamp, "version": node.Version}})
+			_, err := collection.UpdateOne(context.Background(), bson.M{"_id": node.ID}, bson.M{"$set": bson.M{"nodeid": node.NodeID, "pubkey": node.PubKey, "owner": node.Owner, "profitAcc": node.ProfitAcc, "poolID": node.PoolID, "poolOwner": node.PoolOwner, "quota": node.Quota, "addrs": node.Addrs, "cpu": node.CPU, "memory": node.Memory, "bandwidth": node.Bandwidth, "maxDataSpace": node.MaxDataSpace, "assignedSpace": node.AssignedSpace, "productiveSpace": node.ProductiveSpace, "usedSpace": node.UsedSpace, "weight": node.Weight, "valid": node.Valid, "relay": node.Relay, "status": node.Status, "timestamp": node.Timestamp, "version": node.Version, "rebuilding": node.Rebuilding}})
 			if err != nil {
 				log.Printf("nodemgmt: SyncNode: error when updating record of node %d in database: %s\n", node.ID, err.Error())
 				return err
@@ -567,7 +637,7 @@ func (self *NodeDaoImpl) AddDNI(id int32, shard []byte) error {
 func (self *NodeDaoImpl) ActiveNodesList() ([]*Node, error) {
 	nodes := make([]*Node, 0)
 	collection := self.client.Database(YottaDB).Collection(NodeTab)
-	cur, err := collection.Find(context.Background(), bson.M{"valid": 1, "status": 1, "assignedSpace": bson.M{"$gt": 0}, "quota": bson.M{"$gt": 0}, "cpu": bson.M{"$lt": 98}, "memory": bson.M{"$lt": 95}, "timestamp": bson.M{"$gt": time.Now().Unix() - IntervalTime*avaliableNodeTimeGap}, "weight": bson.M{"$gt": 65536}, "version": bson.M{"$gte": minerVersionThreadshold}})
+	cur, err := collection.Find(context.Background(), bson.M{"valid": 1, "status": 1, "assignedSpace": bson.M{"$gt": 0}, "quota": bson.M{"$gt": 0}, "cpu": bson.M{"$lt": 98}, "memory": bson.M{"$lt": 95}, "timestamp": bson.M{"$gt": time.Now().Unix() - IntervalTime*avaliableNodeTimeGap}, "weight": bson.M{"$gt": 0}, "version": bson.M{"$gte": minerVersionThreshold}})
 	if err != nil {
 		log.Printf("nodemgmt: ActiveNodesList: error when finding active nodes list: %s\n", err.Error())
 		return nil, err
@@ -589,7 +659,7 @@ func (self *NodeDaoImpl) ActiveNodesList() ([]*Node, error) {
 //Statistics of data nodes
 func (self *NodeDaoImpl) Statistics() (*NodeStat, error) {
 	collection := self.client.Database(YottaDB).Collection(NodeTab)
-	active, err := collection.CountDocuments(context.Background(), bson.M{"valid": 1, "status": 1, "assignedSpace": bson.M{"$gt": 0}, "quota": bson.M{"$gt": 0}, "cpu": bson.M{"$lt": 98}, "memory": bson.M{"$lt": 95}, "timestamp": bson.M{"$gt": time.Now().Unix() - IntervalTime*avaliableNodeTimeGap}, "weight": bson.M{"$gt": 65536}, "version": bson.M{"$gte": minerVersionThreadshold}})
+	active, err := collection.CountDocuments(context.Background(), bson.M{"valid": 1, "status": 1, "assignedSpace": bson.M{"$gt": 0}, "quota": bson.M{"$gt": 0}, "cpu": bson.M{"$lt": 98}, "memory": bson.M{"$lt": 95}, "timestamp": bson.M{"$gt": time.Now().Unix() - IntervalTime*avaliableNodeTimeGap}, "weight": bson.M{"$gt": 0}, "version": bson.M{"$gte": minerVersionThreshold}})
 	if err != nil {
 		log.Printf("nodemgmt: Statistics: error when counting active nodes: %s\n", err.Error())
 		return nil, err

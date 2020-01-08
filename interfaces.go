@@ -4,6 +4,8 @@ import "go.mongodb.org/mongo-driver/bson/primitive"
 
 //All operations of node management
 type NodeDao interface {
+	SetMaster(master int32)
+	ChangeEosURL(eosURL string)
 	NewNodeID() (int32, error)
 	PreRegisterNode(trx string) error
 	ChangeMinerPool(trx string) error
@@ -30,4 +32,5 @@ type NodeDao interface {
 	GetRebuildItem(minerID int32, index, total int64) (*Node, []primitive.Binary, error)
 	GetRebuildNode(count int64) (*Node, error)
 	DeleteDNI(minerID int32, shard []byte) error
+	FinishRebuild(id int32) error
 }

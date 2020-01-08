@@ -107,7 +107,7 @@ func (self *NodeDaoImpl) GetRebuildItem(minerID int32, index, total int64) (*Nod
 func (self *NodeDaoImpl) GetRebuildNode(count int64) (*Node, error) {
 	// collection := self.client.Database(YottaDB).Collection(NodeTab)
 	// for range [10]byte{} {
-	// 	total, err := collection.CountDocuments(context.Background(), bson.M{"valid": 1, "status": 1, "timestamp": bson.M{"$gt": time.Now().Unix() - IntervalTime*avaliableNodeTimeGap}, "version": bson.M{"$gte": minerVersionThreadshold}})
+	// 	total, err := collection.CountDocuments(context.Background(), bson.M{"valid": 1, "status": 1, "timestamp": bson.M{"$gt": time.Now().Unix() - IntervalTime*avaliableNodeTimeGap}, "version": bson.M{"$gte": minerVersionThreshold}})
 	// 	if err != nil {
 	// 		log.Printf("rebuild: GetRebuildNode: error when calculating total count of rebuildable nodes: %s\n", err.Error())
 	// 		continue
@@ -123,7 +123,7 @@ func (self *NodeDaoImpl) GetRebuildNode(count int64) (*Node, error) {
 	// 	options.Limit = &limit
 	// 	options.Skip = &skip
 	// 	//options.Sort = bson.D{{"timestamp", -1}}
-	// 	cur, err := collection.Find(context.Background(), bson.M{"valid": 1, "status": 1, "timestamp": bson.M{"$gt": time.Now().Unix() - IntervalTime*avaliableNodeTimeGap}, "version": bson.M{"$gte": minerVersionThreadshold}}, &options)
+	// 	cur, err := collection.Find(context.Background(), bson.M{"valid": 1, "status": 1, "timestamp": bson.M{"$gt": time.Now().Unix() - IntervalTime*avaliableNodeTimeGap}, "version": bson.M{"$gte": minerVersionThreshold}}, &options)
 	// 	if err != nil {
 	// 		log.Printf("rebuild: GetRebuildNode: error when creating cursor: %s\n", err.Error())
 	// 		continue
@@ -170,7 +170,31 @@ func (self *NodeDaoImpl) GetRebuildNode(count int64) (*Node, error) {
 		log.Printf("rebuild: GetRebuildNode: no rebuildable nodes can be allocated\n")
 		return nil, fmt.Errorf("no rebuildable nodes can be allocated")
 	}
+	for _, n := range nodes {
+		self.setRebuildFlag(n.ID)
+		n.Rebuilding = 1
+	}
 	return nodes[0], nil
+}
+
+func (self *NodeDaoImpl) setRebuildFlag(id int32) error {
+	collection := self.client.Database(YottaDB).Collection(NodeTab)
+	_, err := collection.UpdateOne(context.Background(), bson.M{"_id": id}, bson.M{"$set": bson.M{"rebuilding": 1}})
+	if err != nil {
+		log.Printf("rebuild: setRebuildFlag: error when change rebuild flag to 1: %s\n", err.Error())
+		return err
+	}
+	return nil
+}
+
+func (self *NodeDaoImpl) FinishRebuild(id int32) error {
+	collection := self.client.Database(YottaDB).Collection(NodeTab)
+	_, err := collection.UpdateOne(context.Background(), bson.M{"_id": id}, bson.M{"$set": bson.M{"rebuilding": 0}})
+	if err != nil {
+		log.Printf("rebuild: FinishRebuild: error when change rebuild flag to 0: %s\n", err.Error())
+		return err
+	}
+	return nil
 }
 
 func (self *NodeDaoImpl) DeleteDNI(minerID int32, shard []byte) error {

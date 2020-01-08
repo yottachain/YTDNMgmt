@@ -19,6 +19,8 @@ type Node struct {
 	ProfitAcc string `bson:"profitAcc"`
 	//ID of associated miner pool
 	PoolID string `bson:"poolID"`
+	//Owner of associated miner pool
+	PoolOwner string `bson:"poolOwner"`
 	//quota allocated by associated miner pool
 	Quota int64 `bson:"quota"`
 	//listening addresses of data node
@@ -49,11 +51,13 @@ type Node struct {
 	Timestamp int64 `bson:"timestamp"`
 	//version number of miner
 	Version int32 `bson:"version"`
+	//Rebuilding if node is under rebuilding
+	Rebuilding int32 `bson:"rebuilding"`
 }
 
 //NewNode create a node struct
-func NewNode(id int32, nodeid string, pubkey string, owner string, profitAcc string, poolID string, quota int64, addrs []string, cpu int32, memory int32, bandwidth int32, maxDataSpace int64, assignedSpace int64, productiveSpace int64, usedSpace int64, weight float64, valid int32, relay int32, status int32, timestamp int64, version int32) *Node {
-	return &Node{ID: id, NodeID: nodeid, PubKey: pubkey, Owner: owner, ProfitAcc: profitAcc, PoolID: poolID, Quota: quota, Addrs: addrs, CPU: cpu, Memory: memory, Bandwidth: bandwidth, MaxDataSpace: maxDataSpace, AssignedSpace: assignedSpace, ProductiveSpace: productiveSpace, UsedSpace: usedSpace, Weight: weight, Valid: valid, Relay: relay, Status: status, Timestamp: timestamp, Version: version}
+func NewNode(id int32, nodeid string, pubkey string, owner string, profitAcc string, poolID string, poolOwner string, quota int64, addrs []string, cpu int32, memory int32, bandwidth int32, maxDataSpace int64, assignedSpace int64, productiveSpace int64, usedSpace int64, weight float64, valid int32, relay int32, status int32, timestamp int64, version int32, rebuilding int32) *Node {
+	return &Node{ID: id, NodeID: nodeid, PubKey: pubkey, Owner: owner, ProfitAcc: profitAcc, PoolID: poolID, PoolOwner: poolOwner, Quota: quota, Addrs: addrs, CPU: cpu, Memory: memory, Bandwidth: bandwidth, MaxDataSpace: maxDataSpace, AssignedSpace: assignedSpace, ProductiveSpace: productiveSpace, UsedSpace: usedSpace, Weight: weight, Valid: valid, Relay: relay, Status: status, Timestamp: timestamp, Version: version, Rebuilding: rebuilding}
 }
 
 //SuperNode instance
@@ -127,15 +131,28 @@ type VNI struct {
 	VNI []byte `bson:"vni"`
 }
 
+//PoolWeight infomation of pool
+type PoolWeight struct {
+	ID                string `bson:"_id"`
+	PoolReferralSpace int64  `bson:"poolReferralSpace"`
+	PoolTotalSpace    int64  `bson:"poolTotalSpace"`
+	ReferralSpace     int64  `bson:"referralSpace"`
+	TotalSpace        int64  `bson:"totalSpace"`
+	PoolTotalCount    int64  `bson:"poolTotalCount"`
+	PoolErrorCount    int64  `bson:"poolErrorCount"`
+	Timestamp         int64  `bson:"timestamp"`
+}
+
 //relative DB and collection name
 const (
-	YottaDB      = "yotta"
-	NodeTab      = "Node"
-	SuperNodeTab = "SuperNode"
-	DNITab       = "Shards"
-	SequenceTab  = "Sequence"
-	SpotCheckTab = "SpotCheck"
-	ErrorNodeTab = "ErrorNode"
+	YottaDB       = "yotta"
+	NodeTab       = "Node"
+	SuperNodeTab  = "SuperNode"
+	DNITab        = "Shards"
+	SequenceTab   = "Sequence"
+	SpotCheckTab  = "SpotCheck"
+	ErrorNodeTab  = "ErrorNode"
+	PoolWeightTab = "PoolWeight"
 )
 
 //index type of node and supernode collection
@@ -156,6 +173,7 @@ func (node *Node) Convert() *pb.NodeMsg {
 		Owner:           node.Owner,
 		ProfitAcc:       node.ProfitAcc,
 		PoolID:          node.PoolID,
+		PoolOwner:       node.PoolOwner,
 		Quota:           node.Quota,
 		Addrs:           node.Addrs,
 		CPU:             node.CPU,
@@ -171,6 +189,7 @@ func (node *Node) Convert() *pb.NodeMsg {
 		Status:          node.Status,
 		Timestamp:       node.Timestamp,
 		Version:         node.Version,
+		Rebuilding:      node.Rebuilding,
 	}
 }
 
@@ -182,6 +201,7 @@ func (node *Node) Fillby(msg *pb.NodeMsg) {
 	node.Owner = msg.Owner
 	node.ProfitAcc = msg.ProfitAcc
 	node.PoolID = msg.PoolID
+	node.PoolOwner = msg.PoolOwner
 	node.Quota = msg.Quota
 	node.Addrs = msg.Addrs
 	node.CPU = msg.CPU
@@ -197,6 +217,7 @@ func (node *Node) Fillby(msg *pb.NodeMsg) {
 	node.Status = msg.Status
 	node.Timestamp = msg.Timestamp
 	node.Version = msg.Version
+	node.Rebuilding = msg.Rebuilding
 }
 
 // ConvertNodesToNodesMsg convert list of Node to list of NodeMsg

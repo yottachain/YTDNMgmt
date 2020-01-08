@@ -16,6 +16,9 @@ import (
 	nodemgmt "github.com/yottachain/YTDNMgmt"
 	pb "github.com/yottachain/YTDNMgmt/pb"
 	"go.etcd.io/etcd/clientv3"
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 	"google.golang.org/grpc"
 )
 
@@ -28,6 +31,7 @@ const NODEMGMT_CONTRACTOWNERM = NODEMGMT_ETCD_PREFIX + "contractOwnerM"
 const NODEMGMT_CONTRACTOWNERD = NODEMGMT_ETCD_PREFIX + "contractOwnerD"
 const NODEMGMT_SHADOWACCOUNT = NODEMGMT_ETCD_PREFIX + "shadowAccount"
 const NODEMGMT_BPID = NODEMGMT_ETCD_PREFIX + "bpid"
+const NODEMGMT_MASTER = NODEMGMT_ETCD_PREFIX + "master"
 
 func main() {
 	var enablePprof bool = true
@@ -159,6 +163,23 @@ func main() {
 		shadowAccount := resp.Kvs[0].Value
 		log.Printf("Read shadow account from ETCD: %s\n", shadowAccount)
 
+		resp, err = clnt.Get(context.Background(), NODEMGMT_MASTER)
+		if err != nil {
+			log.Printf("get %s failed, err: %s\n", NODEMGMT_MASTER, err)
+			continue
+		}
+		if len(resp.Kvs) == 0 {
+			log.Printf("get %s failed, no content\n", NODEMGMT_MASTER)
+			continue
+		}
+		masterstr := resp.Kvs[0].Value
+		master, err := strconv.Atoi(string(masterstr))
+		if err != nil {
+			log.Printf("parse %s failed, err: %s\n", NODEMGMT_MASTER, err)
+			continue
+		}
+		log.Printf("Read master status from ETCD: %d\n", master)
+
 		resp, err = clnt.Get(context.Background(), NODEMGMT_BPID)
 		if err != nil {
 			log.Printf("get %s failed, err: %s\n", NODEMGMT_BPID, err)
@@ -176,7 +197,7 @@ func main() {
 		}
 		log.Printf("Read BP ID from ETCD: %d\n", bpid)
 
-		nodeDao, err := nodemgmt.NewInstance(string(mongoURL), string(eosURL), string(bpAccount), string(bpPrivkey), string(contractOwnerM), string(contractOwnerD), string(shadowAccount), int32(bpid))
+		nodeDao, err := nodemgmt.NewInstance(string(mongoURL), string(eosURL), string(bpAccount), string(bpPrivkey), string(contractOwnerM), string(contractOwnerD), string(shadowAccount), int32(bpid), int32(master))
 		if err != nil {
 			log.Fatalf("create nodemgmt instance failed, err: %s\n", err)
 		}
@@ -216,6 +237,33 @@ func main1() {
 }
 
 func main2() {
+	client, err := mongo.Connect(context.Background(), options.Client().ApplyURI("mongodb://127.0.0.1:27017"))
+	if err != nil {
+		panic(err)
+	}
+	collection := client.Database("yotta").Collection("Node")
+	// pipeline := mongo.Pipeline{
+	// 	{{"$project", bson.D{{"maxDataSpace", 1}, {"assignedSpace", 1}, {"productiveSpace", 1}, {"usedSpace", 1}, {"_id", 0}}}},
+	// 	{{"$group", bson.D{{"_id", ""}, {"maxTotal", bson.D{{"$sum", "$maxDataSpace"}}}, {"assignedTotal", bson.D{{"$sum", "$assignedSpace"}}}, {"productiveTotal", bson.D{{"$sum", "$productiveSpace"}}}, {"usedTotal", bson.D{{"$sum", "$usedSpace"}}}}}},
+	// }
+	errTime := time.Now().Unix()
+	pipeline := mongo.Pipeline{
+		{{"$match", bson.D{{"poolOwner", bson.D{{"$ne", ""}}}, {"status", bson.D{{"$lt", 3}}}}}},
+		{{"$project", bson.D{{"poolOwner", 1}, {"usedSpace", 1}, {"err", bson.D{{"$cond", bson.D{{"if", bson.D{{"$or", bson.A{bson.D{{"$eq", bson.A{"$status", 2}}}, bson.D{{"$lt", bson.A{"$timestamp", errTime}}}}}}}, {"then", 1}, {"else", 0}}}}}}}},
+		{{"$group", bson.D{{"_id", "$poolOwner"}, {"poolTotalSpace", bson.D{{"$sum", "$usedSpace"}}}, {"poolTotalCount", bson.D{{"$sum", 1}}}, {"poolErrorCount", bson.D{{"$sum", "$err"}}}}}},
+	}
+	cur, err := collection.Aggregate(context.Background(), pipeline)
+	if err != nil {
+		panic(err)
+	}
+	defer cur.Close(context.Background())
+	for cur.Next(context.Background()) {
+		result := new(nodemgmt.PoolWeight)
+		err := cur.Decode(result)
+		if err != nil {
+			panic(err)
+		}
+	}
 	// port := 9002
 	// privkey := "5HtM6e3mQNLEu2TkQ1ZrbMNpRQiHGsKxEsLdxd9VsdCmp1um8QH"
 	// opts := []libp2p.Option{
@@ -313,7 +361,7 @@ func main2() {
 	// 	log.Fatalln(err.Error())
 	// }
 
-	nodeDao, _ := nodemgmt.NewInstance("mongodb://129.211.72.15:27017", "http://129.211.72.15:8888", "username1234", "5JcDH48njDbUQLu1R8SWwKsfWLnqBpWXDDiCgxFC3hioDuwLhVx", "hddpool12345", "hddpool12345", "producer1", 1)
+	nodeDao, _ := nodemgmt.NewInstance("mongodb://129.211.72.15:27017", "http://129.211.72.15:8888", "username1234", "5JcDH48njDbUQLu1R8SWwKsfWLnqBpWXDDiCgxFC3hioDuwLhVx", "hddpool12345", "hddpool12345", "producer1", 1, 1)
 	node := &nodemgmt.Node{ID: 1431, NodeID: "16Uiu2HAmDu9dWMzxVgzuJF6N7Nt7BQgJyCDTzLmGPohHsjvv7Qye", Addrs: []string{"/ip4/223.99.20.156/tcp/9201"}}
 	rawvni := "AqSAXfof9gIAAadbjMw6Yxs2Kjy/s4IJG8Ra"
 	vnibytes, _ := base64.StdEncoding.DecodeString(rawvni)

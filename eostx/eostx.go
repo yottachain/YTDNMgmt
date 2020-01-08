@@ -27,7 +27,7 @@ func NewInstance(url, bpAccount, privateKey, contractOwnerM, contractOwnerD, sha
 		pubkey, _ := ecc.NewPublicKey(fmt.Sprintf("%s%s", "EOS", publickey))
 		return []ecc.PublicKey{pubkey}, nil
 	})
-	return &EosTX{API: api, BpAccount: bpAccount, ContractOwnerM: contractOwnerM, ContractOwnerD: contractOwnerD, ShadowAccount: shadowAccount}, nil
+	return &EosTX{API: api, BpAccount: bpAccount, ContractOwnerM: contractOwnerM, ContractOwnerD: contractOwnerD, ShadowAccount: shadowAccount, PrivateKey: privateKey}, nil
 }
 
 // AddMiner call contract to add a record of datanode owner and miner ID
@@ -59,8 +59,26 @@ func (eostx *EosTX) AddMiner(owner string, minerID uint64) error {
 	return errors.New("no use")
 }
 
-// AddProfit call contract to add profit to a miner assigned by minerID
+//ChangeEosURL change EOS URL to another one
+func (eostx *EosTX) ChangeEosURL(eosURL string) {
+	eostx.Lock()
+	defer eostx.Unlock()
+	api := eos.New(eosURL)
+	keyBag := &eos.KeyBag{}
+	keyBag.ImportPrivateKey(eostx.PrivateKey)
+	api.SetSigner(keyBag)
+	api.SetCustomGetRequiredKeys(func(tx *eos.Transaction) ([]ecc.PublicKey, error) {
+		publickey, _ := ytcrypto.GetPublicKeyByPrivateKey(eostx.PrivateKey)
+		pubkey, _ := ecc.NewPublicKey(fmt.Sprintf("%s%s", "EOS", publickey))
+		return []ecc.PublicKey{pubkey}, nil
+	})
+	eostx.API = api
+}
+
+// AddSpace call contract to add profit to a miner assigned by minerID
 func (eostx *EosTX) AddSpace(owner string, minerID, space uint64) error {
+	eostx.RLock()
+	defer eostx.RUnlock()
 	action := &eos.Action{
 		Account: eos.AN(eostx.ContractOwnerM),
 		Name:    eos.ActN("addmprofit"),
@@ -89,6 +107,8 @@ func (eostx *EosTX) AddSpace(owner string, minerID, space uint64) error {
 
 //GetExchangeRate get exchange rate between YTA and storage space
 func (eostx *EosTX) GetExchangeRate() (int32, error) {
+	eostx.RLock()
+	defer eostx.RUnlock()
 	req := eos.GetTableRowsRequest{
 		Code:  eostx.ContractOwnerD,
 		Scope: eostx.ContractOwnerD,
@@ -116,6 +136,8 @@ func (eostx *EosTX) GetExchangeRate() (int32, error) {
 
 //GetPledgeData get pledge data of one miner
 func (eostx *EosTX) GetPledgeData(minerid uint64) (*PledgeData, error) {
+	eostx.RLock()
+	defer eostx.RUnlock()
 	req := eos.GetTableRowsRequest{
 		Code:       eostx.ContractOwnerD,
 		Scope:      eostx.ContractOwnerD,
@@ -129,10 +151,10 @@ func (eostx *EosTX) GetPledgeData(minerid uint64) (*PledgeData, error) {
 	}
 	resp, err := eostx.API.GetTableRows(req)
 	if err != nil {
-		return nil, fmt.Errorf("get table row failed, minerid: %s", minerid)
+		return nil, fmt.Errorf("get table row failed, minerid: %d", minerid)
 	}
 	if resp.More == true {
-		return nil, fmt.Errorf("more than one rows returned, minerid: %s", minerid)
+		return nil, fmt.Errorf("more than one rows returned, minerid: %d", minerid)
 	}
 	rows := make([]PledgeData, 0)
 	err = json.Unmarshal(resp.Rows, &rows)
@@ -156,6 +178,8 @@ func (eostx *EosTX) GetPledgeData(minerid uint64) (*PledgeData, error) {
 
 // PayForfeit invalid miner need to pay forfeit
 func (eostx *EosTX) DeducePledge(minerID uint64, count *eos.Asset) error {
+	eostx.RLock()
+	defer eostx.RUnlock()
 	data, err := eostx.GetPledgeData(minerID)
 	if err != nil {
 		return err
@@ -172,7 +196,42 @@ func (eostx *EosTX) DeducePledge(minerID uint64, count *eos.Asset) error {
 	return nil
 }
 
+// GetPoolInfoByPoolID fetch pool owner by pool ID
+func (eostx *EosTX) GetPoolInfoByPoolID(poolID string) (*PoolInfo, error) {
+	eostx.RLock()
+	defer eostx.RUnlock()
+	req := eos.GetTableRowsRequest{
+		Code:       eostx.ContractOwnerM,
+		Scope:      eostx.ContractOwnerM,
+		Table:      "storepool",
+		LowerBound: poolID,
+		UpperBound: poolID,
+		Limit:      1,
+		KeyType:    "name",
+		Index:      "1",
+		JSON:       true,
+	}
+	resp, err := eostx.API.GetTableRows(req)
+	if err != nil {
+		return nil, fmt.Errorf("get table row failed, pool ID: %s", poolID)
+	}
+	if resp.More == true {
+		return nil, fmt.Errorf("more than one rows returned, pool ID: %s", poolID)
+	}
+	rows := make([]PoolInfo, 0)
+	err = json.Unmarshal(resp.Rows, &rows)
+	if err != nil {
+		return nil, err
+	}
+	if len(rows) == 0 {
+		return nil, fmt.Errorf("no matched row found, minerid: %s", req.Scope)
+	}
+	return &rows[0], nil
+}
+
 func (eostx *EosTX) payForfeit(user string, minerID uint64, count *eos.Asset) error {
+	eostx.RLock()
+	defer eostx.RUnlock()
 	action := &eos.Action{
 		Account: eos.AN(eostx.ContractOwnerD),
 		Name:    eos.ActN("payforfeit"),
@@ -200,6 +259,8 @@ func (eostx *EosTX) payForfeit(user string, minerID uint64, count *eos.Asset) er
 }
 
 func (eostx *EosTX) drawForfeit(user string) error {
+	eostx.RLock()
+	defer eostx.RUnlock()
 	action := &eos.Action{
 		Account: eos.AN(eostx.ContractOwnerD),
 		Name:    eos.ActN("drawforfeit"),
@@ -227,6 +288,8 @@ func (eostx *EosTX) drawForfeit(user string) error {
 }
 
 func (eostx *EosTX) cutVote(user string) error {
+	eostx.RLock()
+	defer eostx.RUnlock()
 	action := &eos.Action{
 		Account: eos.AN(eostx.ContractOwnerD),
 		Name:    eos.ActN("cutvote"),
@@ -255,6 +318,8 @@ func (eostx *EosTX) cutVote(user string) error {
 
 // CalculateProfit whether continuing calculating profit for a miner
 func (eostx *EosTX) CalculateProfit(owner string, minerID uint64, flag bool) error {
+	eostx.RLock()
+	defer eostx.RUnlock()
 	var actionName string
 	if flag {
 		actionName = "mactive"
@@ -390,6 +455,8 @@ func (eostx *EosTX) ChangMinerPoolTrx(trx string) (*eos.SignedTransaction, *Chan
 }
 
 func (eostx *EosTX) SendTrx(signedTx *eos.SignedTransaction) error {
+	eostx.RLock()
+	defer eostx.RUnlock()
 	packedTx, err := signedTx.Pack(eos.CompressionNone)
 	if err != nil {
 		return err

@@ -9,6 +9,8 @@ option java_outer_classname = "NodeMgmtProto";
 
 // node management micro-servicew
 service YTDNMgmt {
+  rpc SetMaster(Int32Msg) returns (Empty) {}
+  rpc ChangeEosURL(StringMsg) returns (Empty) {}
   rpc NewNodeID (Empty) returns (Int32Msg) {}
   rpc PreRegisterNode(StringMsg) returns (Empty) {}
   rpc ChangeMinerPool(StringMsg) returns (Empty) {}
@@ -34,6 +36,7 @@ service YTDNMgmt {
   rpc GetRebuildItem(GetRebuildItemReq) returns(GetRebuildItemResp) {}
   rpc GetRebuildNode(Int64Msg) returns (NodeMsg) {}
   rpc DeleteDNI(DNIReq) returns (Empty) {}
+  rpc FinishRebuild(Int32Msg) returns (Empty) {}
 }
 
 // empty message
@@ -62,22 +65,24 @@ message NodeMsg {
 	string pubKey = 3;             //public key of data node
 	string owner = 4;              //owner account of this miner
 	string profitAcc = 5;          //profit account of this miner
-	string poolID = 6;             //ID of associated miner pool
-	int64 quota = 7;               //quota allocated by associated miner pool
-	repeated string addrs = 8;     //listening addresses of data node
-	int32 cPU = 9;                 //CPU usage of data node
-	int32 memory = 10;             //memory usage of data node
-	int32 bandwidth = 11;          //bandwidth usage of data node
-	int64 maxDataSpace = 12;       //max space of data node
-	int64 assignedSpace = 13;      //space assigned to YTFS
-	int64 productiveSpace = 14;    //pre-allocated space of data node
-	int64 usedSpace = 15;          //used space of data node
-	double weight = 16;            //weight for allocate data node
-	int32 valid = 17;              //Is node valid
-	int32 relay = 18;              //Is relay node
-	int32 status = 19;             //status code: 0 - registered 1 - active
-	int64 timestamp = 20;          //timestamp of status updating operation
-	int32 version = 21;            //version number of miner
+  string poolID = 6;             //ID of associated miner pool
+  string poolOwner = 7;          //Owner of associated miner pool
+	int64 quota = 8;               //quota allocated by associated miner pool
+	repeated string addrs = 9;     //listening addresses of data node
+	int32 cPU = 10;                 //CPU usage of data node
+	int32 memory = 11;             //memory usage of data node
+	int32 bandwidth = 12;          //bandwidth usage of data node
+	int64 maxDataSpace = 13;       //max space of data node
+	int64 assignedSpace = 14;      //space assigned to YTFS
+	int64 productiveSpace = 15;    //pre-allocated space of data node
+	int64 usedSpace = 16;          //used space of data node
+	double weight = 17;            //weight for allocate data node
+	int32 valid = 18;              //Is node valid
+	int32 relay = 19;              //Is relay node
+	int32 status = 20;             //status code: 0 - registered 1 - active
+	int64 timestamp = 21;          //timestamp of status updating operation
+  int32 version = 22;            //version number of miner
+  int32 rebuilding = 23;         //if node is under rebuilding
 }
 
 // SuperNode message

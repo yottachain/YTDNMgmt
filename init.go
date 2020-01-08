@@ -11,24 +11,29 @@ var prePurphaseThreshold int64 // how many left space remains to , default 32768
 var prePurphaseAmount int64    // storage amount of pre-purchase, default 32768(512MB)
 var avaliableNodeTimeGap int64 // last report time of one node within (NOW-avaliableNodeTimeGap) wil be considered active
 
-var nodeAllocRefreshInterval int64 // interval time of node allocation list refreshing
+var nodeAllocRefreshInterval int64  // interval time of node allocation list refreshing
+var poolWeightRefreshInterval int64 // interval time of pool weight refreshing
 
-var minerVersionThreadshold int32 // minimum version which active miner must satisfy
+var minerVersionThreshold int32 // minimum version which active miner must satisfy
 
 var connectTimeout int32 // connect timeout of all connections
 var readTimeout int32    // read timeout of all connections
 
 var invalidNodeTimeGap int64 // time gap for judging which node need to be rebuilt
 
-var recheckRetries int32           // retry count during rechecking when network connecting failed
-var recheckRetryInterval int32     // retry interval of recheck task
-var spotcheckInterval int32        // interval time of spotcheck
-var connectivityTestInterval int32 // interval time of connectivity test
-var punishGapUnit int64            //unit of time gap for punishing
-var punishPhase1 int               //first phase period of punishment
-var punishPhase2 int               //second phase period of punishment
-var punishPhase3 int               //third phase period of punishment
-var rebuildPhase int               //phase period of node rebuild
+var recheckRetries int32            // retry count during rechecking when network connecting failed
+var recheckRetryInterval int32      // retry interval of recheck task
+var spotcheckInterval int32         // interval time of spotcheck
+var connectivityTestInterval int32  // interval time of connectivity test
+var punishGapUnit int64             //unit of time gap for punishing
+var punishPhase1 int32              //first phase period of punishment
+var punishPhase2 int32              //second phase period of punishment
+var punishPhase3 int32              //third phase period of punishment
+var punishPhase1Percent int32       //punish percent of first phase
+var punishPhase2Percent int32       //punish percent of second phase
+var punishPhase3Percent int32       //punish percent of third phase
+var rebuildPhase int32              //phase period of node rebuild
+var errorNodePercentThreshold int32 //percent threshold of error miner of one pool,
 
 var ipDBPath string //path of IPDB
 
@@ -66,12 +71,20 @@ func init() {
 		nodeAllocRefreshInterval = int64(nari)
 	}
 
-	minerVersionThreadsholdStr := os.Getenv("NODEMGMT_MINERVERSIONTHREADSHOLD")
-	mvt, err := strconv.Atoi(minerVersionThreadsholdStr)
+	poolWeightRefreshIntervalStr := os.Getenv("NODEMGMT_POOLWEIGHTREFRESHINTERVAL")
+	pwri, err := strconv.Atoi(poolWeightRefreshIntervalStr)
 	if err != nil {
-		minerVersionThreadshold = 10
+		poolWeightRefreshInterval = 60
 	} else {
-		minerVersionThreadshold = int32(mvt)
+		poolWeightRefreshInterval = int64(pwri)
+	}
+
+	minerVersionThresholdStr := os.Getenv("NODEMGMT_MINERVERSIONTHRESHOLD")
+	mvt, err := strconv.Atoi(minerVersionThresholdStr)
+	if err != nil {
+		minerVersionThreshold = 1
+	} else {
+		minerVersionThreshold = int32(mvt)
 	}
 
 	connectTimeoutStr := os.Getenv("NODEMGMT_CONNECTTIMEOUT")
@@ -138,20 +151,44 @@ func init() {
 		punishGapUnit = int64(pgu)
 	}
 
+	punishPhase1PercentStr := os.Getenv("NODEMGMT_PUNISHPHASE1PERCENT")
+	ppp1, err := strconv.Atoi(punishPhase1PercentStr)
+	if err != nil || ppp1 > 100 {
+		punishPhase1Percent = 1
+	} else {
+		punishPhase1Percent = int32(ppp1)
+	}
+
+	punishPhase2PercentStr := os.Getenv("NODEMGMT_PUNISHPHASE2PERCENT")
+	ppp2, err := strconv.Atoi(punishPhase2PercentStr)
+	if err != nil || ppp2 > 100 {
+		punishPhase2Percent = 10
+	} else {
+		punishPhase2Percent = int32(ppp2)
+	}
+
+	punishPhase3PercentStr := os.Getenv("NODEMGMT_PUNISHPHASE3PERCENT")
+	ppp3, err := strconv.Atoi(punishPhase3PercentStr)
+	if err != nil || ppp3 > 100 {
+		punishPhase3Percent = 50
+	} else {
+		punishPhase3Percent = int32(ppp3)
+	}
+
 	punishPhase1Str := os.Getenv("NODEMGMT_PUNISHPHASE1")
 	pp1, err := strconv.Atoi(punishPhase1Str)
 	if err != nil || pp1 > 10080 {
-		punishPhase1 = 240
+		punishPhase1 = 1440
 	} else {
-		punishPhase1 = pp1
+		punishPhase1 = int32(pp1)
 	}
 
 	punishPhase2Str := os.Getenv("NODEMGMT_PUNISHPHASE2")
 	pp2, err := strconv.Atoi(punishPhase2Str)
 	if err != nil || pp2 > 10080 {
-		punishPhase2 = 1440
+		punishPhase2 = 4320
 	} else {
-		punishPhase2 = pp2
+		punishPhase2 = int32(pp2)
 	}
 
 	punishPhase3Str := os.Getenv("NODEMGMT_PUNISHPHASE3")
@@ -159,15 +196,23 @@ func init() {
 	if err != nil || pp3 > 10080 {
 		punishPhase3 = 10080
 	} else {
-		punishPhase3 = pp3
+		punishPhase3 = int32(pp3)
 	}
 
 	rebuildPhaseStr := os.Getenv("NODEMGMT_REBUILDPHASE")
 	rp, err := strconv.Atoi(rebuildPhaseStr)
 	if err != nil || rp > 10080 {
-		rebuildPhase = 1440
+		rebuildPhase = 10080
 	} else {
-		rebuildPhase = rp
+		rebuildPhase = int32(rp)
+	}
+
+	errorNodePercentThresholdStr := os.Getenv("NODEMGMT_ERRORNODEPERCENTTHRESHOLD")
+	enpt, err := strconv.Atoi(errorNodePercentThresholdStr)
+	if err != nil || enpt > 100 || enpt < 0 {
+		errorNodePercentThreshold = 95
+	} else {
+		errorNodePercentThreshold = int32(enpt)
 	}
 
 	ipDBPath = os.Getenv("NODEMGMT_IPDBPATH")

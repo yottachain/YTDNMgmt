@@ -1,6 +1,10 @@
 package eostx
 
-import eos "github.com/eoscanada/eos-go"
+import (
+	"sync"
+
+	eos "github.com/eoscanada/eos-go"
+)
 
 type EosTX struct {
 	API            *eos.API
@@ -8,6 +12,8 @@ type EosTX struct {
 	ContractOwnerM string
 	ContractOwnerD string
 	ShadowAccount  string
+	PrivateKey     string
+	sync.RWMutex
 }
 
 type RegMiner struct {
@@ -43,6 +49,13 @@ type PledgeData struct {
 	AccountName string    `json:"account_name"`
 	Deposit     eos.Asset `json:"deposit"`
 	Total       eos.Asset `json:"dep_total"`
+}
+
+type PoolInfo struct {
+	Owner     eos.AccountName `json:"pool_owner"`
+	PoolID    eos.AccountName `json:"pool_id"`
+	MaxSpace  string          `json:"max_space"`
+	SpaceLeft string          `json:"space_left"`
 }
 
 type PayForfeit struct {

@@ -13,6 +13,18 @@ type Server struct {
 	NodeService *NodeDaoImpl
 }
 
+// SetMaster implemented SetMaster function of YTDNMgmtServer
+func (server *Server) SetMaster(ctx context.Context, req *pb.Int32Msg) *pb.Empty {
+	server.NodeService.SetMaster(req.GetValue())
+	return &pb.Empty{}
+}
+
+// SetMaster implemented SetMaster function of YTDNMgmtServer
+func (server *Server) ChangeEosURL(ctx context.Context, req *pb.StringMsg) *pb.Empty {
+	server.NodeService.ChangeEosURL(req.GetValue())
+	return &pb.Empty{}
+}
+
 // NewNodeID implemented NewNodeID function of YTDNMgmtServer
 func (server *Server) NewNodeID(ctx context.Context, req *pb.Empty) (*pb.Int32Msg, error) {
 	id, err := server.NodeService.NewNodeID()
@@ -242,6 +254,15 @@ func (server *Server) GetRebuildNode(ctx context.Context, req *pb.Int64Msg) (*pb
 // DeleteDNI implemented DeleteDNI function of YTDNMgmtServer
 func (server *Server) DeleteDNI(ctx context.Context, req *pb.DNIReq) (*pb.Empty, error) {
 	err := server.NodeService.DeleteDNI(req.GetId(), req.GetShard())
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, err.Error())
+	}
+	return &pb.Empty{}, nil
+}
+
+// FinishRebuild implemented FinishRebuild function of YTDNMgmtServer
+func (server *Server) FinishRebuild(ctx context.Context, req *pb.Int32Msg) (*pb.Empty, error) {
+	err := server.NodeService.FinishRebuild(req.GetValue())
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, err.Error())
 	}
