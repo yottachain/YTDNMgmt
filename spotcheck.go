@@ -206,6 +206,10 @@ func (self *NodeDaoImpl) checkDataNode(spr *SpotCheckRecord) {
 		return
 	}
 	if n.Status > 1 {
+		_, err := collectionSpotCheck.UpdateOne(context.Background(), bson.M{"_id": spr.TaskID}, bson.M{"$set": bson.M{"status": 1}})
+		if err != nil {
+			log.Printf("spotcheck: checkDataNode: error happens when update task %s status to 1 whose node status is bigger than 1: %s\n", spr.TaskID, err.Error())
+		}
 		return
 	}
 	b, err := self.CheckVNI(n, spr)

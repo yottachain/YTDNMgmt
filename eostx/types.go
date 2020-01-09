@@ -1,10 +1,29 @@
 package eostx
 
 import (
+	"encoding/json"
+	"fmt"
 	"sync"
 
 	eos "github.com/eoscanada/eos-go"
 )
+
+type FlexString string
+
+func (fi *FlexString) UnmarshalJSON(b []byte) error {
+	if b[0] != '"' {
+		var intvalue int64
+		err := json.Unmarshal(b, &intvalue)
+		if err != nil {
+			return err
+		}
+		*fi = FlexString(fmt.Sprintf("%d", intvalue))
+		return nil
+	} else {
+		*fi = FlexString(string(b[1 : len(b)-1]))
+		return nil
+	}
+}
 
 type EosTX struct {
 	API            *eos.API
@@ -54,8 +73,8 @@ type PledgeData struct {
 type PoolInfo struct {
 	Owner     eos.AccountName `json:"pool_owner"`
 	PoolID    eos.AccountName `json:"pool_id"`
-	MaxSpace  string          `json:"max_space"`
-	SpaceLeft string          `json:"space_left"`
+	MaxSpace  FlexString      `json:"max_space"`
+	SpaceLeft FlexString      `json:"space_left"`
 }
 
 type PayForfeit struct {

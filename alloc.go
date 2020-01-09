@@ -167,7 +167,7 @@ func (s *NodesSelector) refreshPoolWeight(nodeMgr *NodeDaoImpl) error {
 	cur.Close(context.Background())
 	totalSpace := ts.TotalSpace
 
-	errTime := now - int64(spotcheckInterval+punishPhase1)*60
+	errTime := now - int64(spotcheckInterval)*60 - int64(punishPhase1)*punishGapUnit
 	pipeline2 := mongo.Pipeline{
 		{{"$match", bson.D{{"poolOwner", bson.D{{"$ne", ""}}}, {"status", bson.D{{"$lt", 3}}}}}},
 		//{{"$project", bson.D{{"poolOwner", 1}, {"usedSpace", 1}}}},
@@ -196,14 +196,18 @@ func (s *NodesSelector) refreshPoolWeight(nodeMgr *NodeDaoImpl) error {
 				log.Printf("alloc: refreshPoolWeight: error when inserting pool weight %s to database: %s\n", result.ID, err.Error())
 				continue
 			} else {
-				_, err := collectionPW.UpdateOne(context.Background(), bson.M{"_id": result.ID}, bson.M{"$set": bson.M{"poolTotalSpace": result.PoolTotalSpace, "totalSpace": totalSpace, "timestamp": result.Timestamp}})
+				_, err := collectionPW.UpdateOne(context.Background(), bson.M{"_id": result.ID}, bson.M{"$set": bson.M{"poolTotalSpace": result.PoolTotalSpace, "totalSpace": totalSpace, "poolTotalCount": result.PoolTotalCount, "poolErrorCount": result.PoolErrorCount, "timestamp": result.Timestamp}})
 				if err != nil {
 					log.Printf("alloc: refreshPoolWeight: error when updating pool weight %s in database: %s\n", result.ID, err.Error())
 					continue
 				}
 			}
 		}
-
+		threshold := float64(errorNodePercentThreshold) / 100
+		value := float64(result.PoolTotalCount-result.PoolErrorCount) / float64(result.PoolTotalCount)
+		if value < threshold {
+			log.Printf("alloc: refreshPoolWeight: warning: error miners in pool %s have reached %f%%\n", result.ID, (1-value)*100)
+		}
 	}
 
 	//TODO: Get PoolReferralSpace and ReferralSpace from SN
@@ -221,7 +225,7 @@ func (s *NodesSelector) refresh(nodeMgr *NodeDaoImpl) error {
 	nodeIDs := make([]int32, 0)
 	regionMap := make(map[string]*WRegion)
 	collection := nodeMgr.client.Database(YottaDB).Collection(NodeTab)
-	cond := bson.M{"valid": 1, "status": 1, "assignedSpace": bson.M{"$gt": 0}, "quota": bson.M{"$gt": 0}, "cpu": bson.M{"$lt": 98}, "memory": bson.M{"$lt": 95}, "timestamp": bson.M{"$gt": time.Now().Unix() - IntervalTime*avaliableNodeTimeGap}, "weight": bson.M{"$gt": 0}, "version": bson.M{"$gte": minerVersionThreshold}}
+	cond := bson.M{"valid": 1, "status": 1, "assignedSpace": bson.M{"$gt": 0}, "quota": bson.M{"$gt": 0}, "timestamp": bson.M{"$gt": time.Now().Unix() - IntervalTime*avaliableNodeTimeGap}, "weight": bson.M{"$gt": 0}, "version": bson.M{"$gte": minerVersionThreshold}}
 	cur, err := collection.Find(context.Background(), cond)
 	if err != nil {
 		log.Printf("alloc: refresh: error when refreshing NodeSelector: %s\n", err)

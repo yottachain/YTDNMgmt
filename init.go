@@ -74,7 +74,7 @@ func init() {
 	poolWeightRefreshIntervalStr := os.Getenv("NODEMGMT_POOLWEIGHTREFRESHINTERVAL")
 	pwri, err := strconv.Atoi(poolWeightRefreshIntervalStr)
 	if err != nil {
-		poolWeightRefreshInterval = 60
+		poolWeightRefreshInterval = 10
 	} else {
 		poolWeightRefreshInterval = int64(pwri)
 	}

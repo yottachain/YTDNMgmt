@@ -14,15 +14,15 @@ type Server struct {
 }
 
 // SetMaster implemented SetMaster function of YTDNMgmtServer
-func (server *Server) SetMaster(ctx context.Context, req *pb.Int32Msg) *pb.Empty {
+func (server *Server) SetMaster(ctx context.Context, req *pb.Int32Msg) (*pb.Empty, error) {
 	server.NodeService.SetMaster(req.GetValue())
-	return &pb.Empty{}
+	return &pb.Empty{}, nil
 }
 
-// SetMaster implemented SetMaster function of YTDNMgmtServer
-func (server *Server) ChangeEosURL(ctx context.Context, req *pb.StringMsg) *pb.Empty {
+// ChangeEosURL implemented ChangeEosURL function of YTDNMgmtServer
+func (server *Server) ChangeEosURL(ctx context.Context, req *pb.StringMsg) (*pb.Empty, error) {
 	server.NodeService.ChangeEosURL(req.GetValue())
-	return &pb.Empty{}
+	return &pb.Empty{}, nil
 }
 
 // NewNodeID implemented NewNodeID function of YTDNMgmtServer

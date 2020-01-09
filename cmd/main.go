@@ -14,11 +14,9 @@ import (
 	"github.com/mr-tron/base58"
 
 	nodemgmt "github.com/yottachain/YTDNMgmt"
+	"github.com/yottachain/YTDNMgmt/eostx"
 	pb "github.com/yottachain/YTDNMgmt/pb"
 	"go.etcd.io/etcd/clientv3"
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
 	"google.golang.org/grpc"
 )
 
@@ -237,33 +235,33 @@ func main1() {
 }
 
 func main2() {
-	client, err := mongo.Connect(context.Background(), options.Client().ApplyURI("mongodb://127.0.0.1:27017"))
-	if err != nil {
-		panic(err)
-	}
-	collection := client.Database("yotta").Collection("Node")
-	// pipeline := mongo.Pipeline{
-	// 	{{"$project", bson.D{{"maxDataSpace", 1}, {"assignedSpace", 1}, {"productiveSpace", 1}, {"usedSpace", 1}, {"_id", 0}}}},
-	// 	{{"$group", bson.D{{"_id", ""}, {"maxTotal", bson.D{{"$sum", "$maxDataSpace"}}}, {"assignedTotal", bson.D{{"$sum", "$assignedSpace"}}}, {"productiveTotal", bson.D{{"$sum", "$productiveSpace"}}}, {"usedTotal", bson.D{{"$sum", "$usedSpace"}}}}}},
+	// client, err := mongo.Connect(context.Background(), options.Client().ApplyURI("mongodb://127.0.0.1:27017"))
+	// if err != nil {
+	// 	panic(err)
 	// }
-	errTime := time.Now().Unix()
-	pipeline := mongo.Pipeline{
-		{{"$match", bson.D{{"poolOwner", bson.D{{"$ne", ""}}}, {"status", bson.D{{"$lt", 3}}}}}},
-		{{"$project", bson.D{{"poolOwner", 1}, {"usedSpace", 1}, {"err", bson.D{{"$cond", bson.D{{"if", bson.D{{"$or", bson.A{bson.D{{"$eq", bson.A{"$status", 2}}}, bson.D{{"$lt", bson.A{"$timestamp", errTime}}}}}}}, {"then", 1}, {"else", 0}}}}}}}},
-		{{"$group", bson.D{{"_id", "$poolOwner"}, {"poolTotalSpace", bson.D{{"$sum", "$usedSpace"}}}, {"poolTotalCount", bson.D{{"$sum", 1}}}, {"poolErrorCount", bson.D{{"$sum", "$err"}}}}}},
-	}
-	cur, err := collection.Aggregate(context.Background(), pipeline)
-	if err != nil {
-		panic(err)
-	}
-	defer cur.Close(context.Background())
-	for cur.Next(context.Background()) {
-		result := new(nodemgmt.PoolWeight)
-		err := cur.Decode(result)
-		if err != nil {
-			panic(err)
-		}
-	}
+	// collection := client.Database("yotta").Collection("Node")
+	// // pipeline := mongo.Pipeline{
+	// // 	{{"$project", bson.D{{"maxDataSpace", 1}, {"assignedSpace", 1}, {"productiveSpace", 1}, {"usedSpace", 1}, {"_id", 0}}}},
+	// // 	{{"$group", bson.D{{"_id", ""}, {"maxTotal", bson.D{{"$sum", "$maxDataSpace"}}}, {"assignedTotal", bson.D{{"$sum", "$assignedSpace"}}}, {"productiveTotal", bson.D{{"$sum", "$productiveSpace"}}}, {"usedTotal", bson.D{{"$sum", "$usedSpace"}}}}}},
+	// // }
+	// errTime := time.Now().Unix()
+	// pipeline := mongo.Pipeline{
+	// 	{{"$match", bson.D{{"poolOwner", bson.D{{"$ne", ""}}}, {"status", bson.D{{"$lt", 3}}}}}},
+	// 	{{"$project", bson.D{{"poolOwner", 1}, {"usedSpace", 1}, {"err", bson.D{{"$cond", bson.D{{"if", bson.D{{"$or", bson.A{bson.D{{"$eq", bson.A{"$status", 2}}}, bson.D{{"$lt", bson.A{"$timestamp", errTime}}}}}}}, {"then", 1}, {"else", 0}}}}}}}},
+	// 	{{"$group", bson.D{{"_id", "$poolOwner"}, {"poolTotalSpace", bson.D{{"$sum", "$usedSpace"}}}, {"poolTotalCount", bson.D{{"$sum", 1}}}, {"poolErrorCount", bson.D{{"$sum", "$err"}}}}}},
+	// }
+	// cur, err := collection.Aggregate(context.Background(), pipeline)
+	// if err != nil {
+	// 	panic(err)
+	// }
+	// defer cur.Close(context.Background())
+	// for cur.Next(context.Background()) {
+	// 	result := new(nodemgmt.PoolWeight)
+	// 	err := cur.Decode(result)
+	// 	if err != nil {
+	// 		panic(err)
+	// 	}
+	// }
 	// port := 9002
 	// privkey := "5HtM6e3mQNLEu2TkQ1ZrbMNpRQiHGsKxEsLdxd9VsdCmp1um8QH"
 	// opts := []libp2p.Option{
@@ -316,17 +314,17 @@ func main2() {
 	// 	log.Fatalln(err.Error())
 	// }
 
-	// etx, _ := eostx.NewInstance("http://122.152.203.189:8888", "producer3", "5KYpTLUmohnEuQamSuSB3ARHwUY6MyrtDS64StrWdaLBXGfBr9Z", "hddpool12345", "hdddeposit12", "shadow3")
-	// rate, err := etx.GetExchangeRate()
-	// if err != nil {
-	// 	log.Fatalln(err)
-	// }
-	// fmt.Println(rate)
-	// pledgeData, err := etx.GetPledgeData(uint64(1587))
-	// if err != nil {
-	// 	log.Fatalln(err)
-	// }
-	// fmt.Println(pledgeData)
+	etx, _ := eostx.NewInstance("http://127.0.0.1:8888", "producer3", "5KYpTLUmohnEuQamSuSB3ARHwUY6MyrtDS64StrWdaLBXGfBr9Z", "hddpool12345", "hdddeposit12", "shadow3")
+	rate, err := etx.GetExchangeRate()
+	if err != nil {
+		log.Fatalln(err)
+	}
+	fmt.Println(rate)
+	pledgeData, err := etx.GetPledgeData(uint64(20))
+	if err != nil {
+		log.Fatalln(err)
+	}
+	fmt.Println(pledgeData)
 	// asset := eostx.NewYTAAsset(10000)
 	// etx.DeducePledge(uint64(1587), &asset)
 
