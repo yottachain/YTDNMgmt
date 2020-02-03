@@ -287,7 +287,7 @@ func (self *NodeDaoImpl) checkDataNode(spr *SpotCheckRecord) {
 						}
 					}
 				}
-				err = self.eostx.CalculateProfit(n.Owner, uint64(n.ID), false)
+				err = self.eostx.CalculateProfit(n.ProfitAcc, uint64(n.ID), false)
 				if err != nil {
 					log.Printf("spotcheck: checkDataNode: error when stopping profit calculation: %s\n", err.Error())
 				}
