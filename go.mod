@@ -16,12 +16,10 @@ require (
 	github.com/tidwall/sjson v1.0.4 // indirect
 	github.com/xdg/scram v0.0.0-20180814205039-7eeb5667e42c // indirect
 	github.com/xdg/stringprep v1.0.0 // indirect
-	github.com/yottachain/P2PHost v1.0.0
+	github.com/yottachain/P2PHost v1.0.1-0.20200203044301-c94daba63d73
 	github.com/yottachain/YTCrypto v0.0.0-20191111140914-83c018a089b4
 	go.etcd.io/etcd v3.3.18+incompatible
 	go.mongodb.org/mongo-driver v1.1.3
 	google.golang.org/genproto v0.0.0-20191216205247-b31c10ee225f // indirect
 	google.golang.org/grpc v1.26.0
 )
-
-replace github.com/yottachain/P2PHost => ../../GoWorkspaces/src/github.com/aurawing/P2PHost
