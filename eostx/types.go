@@ -97,5 +97,25 @@ type MActive struct {
 	Caller  eos.AccountName `json:"caller"`
 }
 
+type ChangeAdminAcc struct {
+	MinerID     uint64          `json:"minerid"`
+	NewAdminAcc eos.AccountName `json:"new_adminacc"`
+}
+
+type ChangeProfitAcc struct {
+	MinerID      uint64          `json:"minerid"`
+	NewProfitAcc eos.AccountName `json:"new_owneracc"`
+}
+
+type ChangePoolID struct {
+	MinerID   uint64          `json:"minerid"`
+	NewPoolID eos.AccountName `json:"new_poolid"`
+}
+
+type ChangeAssignedSpace struct {
+	MinerID  uint64 `json:"minerid"`
+	MaxSpace uint64 `json:"max_space"`
+}
+
 // YTASymbol represents the standard YTA symbol on the chain.
 var YTASymbol = eos.Symbol{Precision: 4, Symbol: "YTA"}

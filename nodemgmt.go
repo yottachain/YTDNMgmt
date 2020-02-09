@@ -93,176 +93,6 @@ func getCurrentNodeIndex(client *mongo.Client) (int32, error) {
 	return m["seq"], nil
 }
 
-//NewNodeID get newest id of node
-func (self *NodeDaoImpl) NewNodeID() (int32, error) {
-	collection := self.client.Database(YottaDB).Collection(SequenceTab)
-	_, err := collection.InsertOne(context.Background(), bson.M{"_id": NodeIdxType, "seq": index})
-	if err != nil {
-		errstr := err.Error()
-		if !strings.ContainsAny(errstr, "duplicate key error") {
-			log.Printf("nodemgmt: NewNodeID: error when calculating new node ID: %s\n", err.Error())
-			return 0, err
-		}
-	}
-	m := make(map[string]int32)
-	err = collection.FindOne(context.Background(), bson.M{"_id": NodeIdxType}).Decode(&m)
-	if err != nil {
-		log.Printf("nodemgmt: NewNodeID: error when decoding sequence: %d %s\n", NodeIdxType, err.Error())
-		return 0, err
-	}
-	return m["seq"] + int32(incr), nil
-}
-
-//PreRegisterNode register node on chain and pledge YTA for assignable space
-func (self *NodeDaoImpl) PreRegisterNode(trx string) error {
-	rate, err := self.eostx.GetExchangeRate()
-	if err != nil {
-		log.Printf("nodemgmt: PreRegisterNode: error when fetching exchange rate from BP: %s\n", err.Error())
-		return err
-	}
-	signedTrx, regData, err := self.eostx.PreRegisterTrx(trx)
-	if err != nil {
-		log.Printf("nodemgmt: PreRegisterNode: error when sending sign transaction: %s\n", err.Error())
-		return err
-	}
-	pledgeAmount := int64(regData.DepAmount.Amount)
-	adminAccount := string(regData.Owner)
-	profitAccount := string(regData.Owner)
-	minerID := int32(regData.MinerID)
-	pubkey := regData.Extra
-	if adminAccount == "" || profitAccount == "" || minerID == 0 || minerID%int32(incr) != index || pubkey == "" {
-		log.Printf("nodemgmt: PreRegisterNode: error when parsing parameters from raw transaction: %s\n", "please check adminAccount, profitAccount, minerID, public key and owner of currect node")
-		return errors.New("bad parameters in regminer transaction")
-	}
-	nodeid, err := IDFromPublicKey(pubkey)
-	if err != nil {
-		log.Printf("nodemgmt: PreRegisterNode: error when generating ID from public key: %s\n", err.Error())
-		return err
-	}
-	currID, err := self.NewNodeID()
-	if err != nil {
-		log.Printf("nodemgmt: PreRegisterNode: error when calculating new node ID: %s\n", err.Error())
-		return err
-	}
-	if currID != minerID {
-		log.Printf("nodemgmt: PreRegisterNode: error: %s\n", "current ID is not equal to minerID")
-		return errors.New("node ID is invalid, please retry")
-	}
-	err = self.eostx.SendTrx(signedTrx)
-	if err != nil {
-		log.Printf("nodemgmt: PreRegisterNode: error when sending transaction: %s\n", err.Error())
-		return err
-	}
-	collection := self.client.Database(YottaDB).Collection(SequenceTab)
-	_, err = collection.UpdateOne(context.Background(), bson.M{"_id": NodeIdxType}, bson.M{"$set": bson.M{"seq": minerID}})
-	if err != nil {
-		log.Printf("nodemgmt: PreRegisterNode: error when updating sequence of Node: %d %s\n", minerID, err.Error())
-		return err
-	}
-	node := new(Node)
-	node.ID = minerID
-	node.NodeID = nodeid
-	node.PubKey = pubkey
-	node.Owner = adminAccount
-	node.ProfitAcc = profitAccount
-	node.PoolID = ""
-	node.PoolOwner = ""
-	node.Quota = 0
-	node.AssignedSpace = pledgeAmount * 65536 * int64(rate) / 1000000 //TODO: 1YTA=1G 后需调整
-	node.Valid = 0
-	node.Relay = 0
-	node.Status = 0
-	node.Timestamp = time.Now().Unix()
-	node.Version = 0
-	collection = self.client.Database(YottaDB).Collection(NodeTab)
-	_, err = collection.InsertOne(context.Background(), node)
-	if err != nil {
-		log.Printf("nodemgmt: PreRegisterNode: error when inserting node to database: %d %s\n", minerID, err.Error())
-		return err
-	}
-	log.Printf("nodemgmt: PreRegisterNode: new node registered: ID->%d, nodeID->%s, pubkey->%s, owner->%s, proficAcc->%s, assignedSpace->%d\n", node.ID, node.NodeID, node.PubKey, node.Owner, node.ProfitAcc, node.AssignedSpace)
-	return nil
-}
-
-//ChangeMinerPool add miner to a pool
-func (self *NodeDaoImpl) ChangeMinerPool(trx string) error {
-	signedTrx, poolData, err := self.eostx.ChangMinerPoolTrx(trx)
-	if err != nil {
-		log.Printf("nodemgmt: ChangeMinerPool: error when signing raw transaction: %s\n", err.Error())
-		return err
-	}
-	minerID := int32(poolData.MinerID)
-	poolID := string(poolData.PoolID)
-	minerProfit := string(poolData.MinerProfit)
-	quota := poolData.MaxSpace
-	poolInfo, err := self.eostx.GetPoolInfoByPoolID(poolID)
-	if err != nil {
-		log.Printf("nodemgmt: ChangeMinerPool: error when get pool owner: %d %s\n", minerID, err.Error())
-		return err
-	}
-	if minerID%int32(incr) != index {
-		log.Printf("nodemgmt: ChangeMinerPool: minerID %d is not belong to SN%d\n", minerID, index)
-		return errors.New("transaction sends to incorrect super node")
-	}
-	collection := self.client.Database(YottaDB).Collection(NodeTab)
-	node := new(Node)
-	err = collection.FindOne(context.Background(), bson.M{"_id": minerID}).Decode(node)
-	if err != nil {
-		log.Printf("nodemgmt: ChangeMinerPool: error when decoding node: %d %s\n", minerID, err.Error())
-		return err
-	}
-	err = self.eostx.SendTrx(signedTrx)
-	if err != nil {
-		log.Printf("nodemgmt: ChangeMinerPool: error when sending transaction: %s\n", err.Error())
-		return err
-	}
-	var afterReg bool = false
-	if node.Status == 0 && node.ProductiveSpace == 0 {
-		afterReg = true
-	}
-	_, err = collection.UpdateOne(context.Background(), bson.M{"_id": minerID}, bson.M{"$set": bson.M{"poolID": poolID, "poolOwner": poolInfo.Owner, "profitAcc": minerProfit, "quota": quota}})
-	if err != nil {
-		log.Printf("nodemgmt: ChangeMinerPool: error when updating poolID->%s, profitAcc->%s, quota->%d: %s\n", poolID, minerProfit, quota, err.Error())
-		return err
-	}
-	if afterReg {
-		log.Printf("node %d is not added to pool %s for first time\n", minerID, poolID)
-		err = collection.FindOne(context.Background(), bson.M{"_id": minerID}).Decode(node)
-		if err != nil {
-			log.Printf("nodemgmt: ChangeMinerPool: error when decoding node: %d %s\n", minerID, err.Error())
-			return err
-		}
-		assignable := Min(node.AssignedSpace, node.Quota)
-		if assignable <= 0 {
-			log.Printf("nodemgmt: ChangeMinerPool: warning: assignable space is %d\n", assignable)
-			return fmt.Errorf("assignable space is %d", assignable)
-		}
-		if assignable >= prePurphaseAmount {
-			assignable = prePurphaseAmount
-		}
-		err := self.IncrProductiveSpace(node.ID, assignable)
-		if err != nil {
-			log.Printf("nodemgmt: ChangeMinerPool: error when increasing assignable space: %s\n", err.Error())
-			return err
-		}
-		log.Printf("nodemgmt: ChangeMinerPool: increased assignable space %d\n", assignable)
-		err = self.eostx.AddSpace(node.ProfitAcc, uint64(node.ID), uint64(assignable))
-		if err != nil {
-			log.Printf("nodemgmt: ChangeMinerPool: error when adding assignable space on BP: %s\n", err.Error())
-			self.IncrProductiveSpace(node.ID, -1*assignable)
-			return err
-		}
-		log.Printf("nodemgmt: ChangeMinerPool: added assignable space on BP %d\n", assignable)
-	}
-	log.Printf("nodemgmt: ChangeMinerPool: node %d is added to pool %s\n", minerID, poolID)
-	return nil
-}
-
-//RegisterNode create a new data node
-func (self *NodeDaoImpl) RegisterNode(node *Node) (*Node, error) {
-	return nil, errors.New("no use")
-}
-
 //UpdateNode update data info by data node status
 func (self *NodeDaoImpl) UpdateNodeStatus(node *Node) (*Node, error) {
 	if node == nil {
@@ -294,7 +124,41 @@ func (self *NodeDaoImpl) UpdateNodeStatus(node *Node) (*Node, error) {
 	}
 	if n.AssignedSpace == 0 {
 		log.Printf("nodemgmt: UpdateNodeStatus: warning: node %d has not been pledged or punished all deposit\n", n.ID)
+	} else if n.Status == 2 && n.Valid == 1 {
+		errNode := new(SpotCheckRecord)
+		collectionErr := self.client.Database(YottaDB).Collection(ErrorNodeTab)
+		err := collectionErr.FindOne(context.Background(), bson.M{"nid": n.ID}).Decode(errNode)
+		if err != nil {
+			log.Printf("nodemgmt: UpdateNodeStatus: warning: cannot find node %d in error node table\n", n.ID)
+		} else if errNode.Status == 1 || errNode.Status == 2 { //timeout miner and deposit exhausted miner can be recovered
+			_, err := collectionErr.DeleteOne(context.Background(), bson.M{"nid": n.ID})
+			if err != nil {
+				log.Printf("nodemgmt: UpdateNodeStatus: error when deleting error node %d in error node table\n", n.ID)
+			} else {
+				_, err := collection.UpdateOne(context.Background(), bson.M{"_id": n.ID}, bson.M{"$set": bson.M{"status": 1}, "$unset": bson.M{"tasktimestamp": 1}})
+				if err != nil {
+					log.Printf("nodemgmt: UpdateNodeStatus: error when updating status of node %d from 2 to 1: %s\n", n.ID, err.Error())
+					collectionErr.InsertOne(context.Background(), errNode)
+				} else {
+					collectionDNI := self.client.Database(YottaDB).Collection(DNITab)
+					_, err := collectionDNI.DeleteMany(context.Background(), bson.M{"minerID": n.ID, "delete": 1})
+					if err != nil {
+						log.Printf("nodemgmt: UpdateNodeStatus: error when remove deleted shards of node %d: %s\n", n.ID, err.Error())
+					}
+					newUsedSpace, err := collectionDNI.CountDocuments(context.Background(), bson.M{"minerID": n.ID, "delete": 0})
+					if err != nil {
+						log.Printf("nodemgmt: UpdateNodeStatus: error when counting shards of node %d: %s\n", n.ID, err.Error())
+					} else {
+						_, err := collection.UpdateOne(context.Background(), bson.M{"_id": n.ID}, bson.M{"$set": bson.M{"usedSpace": newUsedSpace}})
+						if err != nil {
+							log.Printf("nodemgmt: UpdateNodeStatus: error when updating used space of node %d: %s\n", n.ID, err.Error())
+						}
+					}
+				}
+			}
+		}
 	}
+
 	node.Valid = n.Valid
 	node.Addrs = CheckPublicAddrs(node.Addrs)
 	relayURL, err := self.AddrCheck(n, node)

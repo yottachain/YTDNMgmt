@@ -200,7 +200,15 @@ func (self *NodeDaoImpl) FinishRebuild(id int32) error {
 func (self *NodeDaoImpl) DeleteDNI(minerID int32, shard []byte) error {
 	collectionDNI := self.client.Database(YottaDB).Collection(DNITab)
 	collectionNode := self.client.Database(YottaDB).Collection(NodeTab)
-	_, err := collectionDNI.UpdateOne(context.Background(), bson.M{"minerID": minerID, "delete": 0, "shard": shard}, bson.M{"$set": bson.M{"delete": 1}})
+	node := new(Node)
+	err := collectionNode.FindOne(context.Background(), bson.M{"_id": minerID}).Decode(node)
+	if err != nil {
+		return err
+	}
+	if node.Status != 2 {
+		return fmt.Errorf("can not delete shards of node %d with status %d", node.ID, node.Status)
+	}
+	_, err = collectionDNI.UpdateOne(context.Background(), bson.M{"minerID": minerID, "delete": 0, "shard": shard}, bson.M{"$set": bson.M{"delete": 1}})
 	if err != nil {
 		return err
 	}
