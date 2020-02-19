@@ -70,8 +70,8 @@ github.com/golang/protobuf v1.2.0/go.mod h1:6lQm79b+lXiMfvg/cZm0SGofjICqVBUtrP5y
 github.com/golang/protobuf v1.3.1/go.mod h1:6lQm79b+lXiMfvg/cZm0SGofjICqVBUtrP5yJMmIC1U=
 github.com/golang/protobuf v1.3.2 h1:6nsPYzhq5kReh6QImI3k5qWzO4PEbvbIW2cwSfR/6xs=
 github.com/golang/protobuf v1.3.2/go.mod h1:6lQm79b+lXiMfvg/cZm0SGofjICqVBUtrP5yJMmIC1U=
-github.com/golang/snappy v0.0.0-20180518054509-2e65f85255db h1:woRePGFeVFfLKN/pOkfl+p/TAqKOfFu+7KPlMVpok/w=
-github.com/golang/snappy v0.0.0-20180518054509-2e65f85255db/go.mod h1:/XxbfmMg8lxefKM7IXC3fBNl/7bRcc72aCRzEWrmP2Q=
+github.com/golang/snappy v0.0.1 h1:Qgr9rKW7uDUkrbSmQeiDsGa8SjGyCOGtuasMWwvp2P4=
+github.com/golang/snappy v0.0.1/go.mod h1:/XxbfmMg8lxefKM7IXC3fBNl/7bRcc72aCRzEWrmP2Q=
 github.com/google/btree v1.0.0 h1:0udJVsspx3VBr5FwtLhQQtuAsVc79tTq0ocGIPAU6qo=
 github.com/google/btree v1.0.0/go.mod h1:lNA+9X1NB3Zf8V7Ke586lFgjr2dZNuvo3lPJSGZ5JPQ=
 github.com/google/go-cmp v0.2.0/go.mod h1:oXzfMopK8JAjlY9xF4vHSVASa0yLyX7SntLO5aqRK0M=
@@ -242,12 +242,21 @@ github.com/xdg/stringprep v1.0.0 h1:d9X0esnoa3dFsV0FG35rAT0RIhYFlPq7MiP+DW89La0=
 github.com/xdg/stringprep v1.0.0/go.mod h1:Jhud4/sHMO4oL310DaZAKk9ZaJ08SJfe+sJh0HrGL1Y=
 github.com/xiang90/probing v0.0.0-20190116061207-43a291ad63a2 h1:eY9dn8+vbi4tKz5Qo6v2eYzo7kUS51QINcR5jNpbZS8=
 github.com/xiang90/probing v0.0.0-20190116061207-43a291ad63a2/go.mod h1:UETIi67q53MR2AWcXfiuqkDkRtnGDLqkBTpCHuJHxtU=
+<<<<<<< HEAD
 github.com/yottachain/P2PHost v1.0.1-0.20200216165508-9bb5d2389564 h1:pDIq4tu7XS0WPmvBESJbpvyPuvtm832nZLpyQgYHZhk=
 github.com/yottachain/P2PHost v1.0.1-0.20200216165508-9bb5d2389564/go.mod h1:k6n/gP17yPzOL5Bdk1uylG3PtT8lb4w1M6JiqrhOF6k=
 github.com/yottachain/YTCrypto v0.0.0-20191111140914-83c018a089b4 h1:jFJyNB8ZpUZaOCDX5F6Nxk8ZoM4/Iw1dvQErZz391Mo=
 github.com/yottachain/YTCrypto v0.0.0-20191111140914-83c018a089b4/go.mod h1:2CLNtrMlOhwaHYDzaBhvd0y8CPPlH5cqzgMAYMPHIqw=
 github.com/yottachain/YTHost v0.0.0-20200216165054-b02045aceb36 h1:Z1Xful1LRr1TyvBvIHSDBqEHUg5swQLnjETRZw1gIS4=
 github.com/yottachain/YTHost v0.0.0-20200216165054-b02045aceb36/go.mod h1:EFRPQ+U0pChj7jg8kB3hUvDk6PTxfr5mZGcN0HCqmwE=
+=======
+github.com/yottachain/P2PHost v1.0.1-0.20200209144223-ce61685883ab h1:+G11AjlIsr6AN5JWW6+Kj3ersk1rJGEzIbzpNMzY2rc=
+github.com/yottachain/P2PHost v1.0.1-0.20200209144223-ce61685883ab/go.mod h1:FU8wrkspYk2aeF1F5k7JXmBRdeHoYWdgIHiPj2l52OQ=
+github.com/yottachain/YTCrypto v0.0.0-20191111140914-83c018a089b4 h1:jFJyNB8ZpUZaOCDX5F6Nxk8ZoM4/Iw1dvQErZz391Mo=
+github.com/yottachain/YTCrypto v0.0.0-20191111140914-83c018a089b4/go.mod h1:2CLNtrMlOhwaHYDzaBhvd0y8CPPlH5cqzgMAYMPHIqw=
+github.com/yottachain/YTHost v0.0.0-20200209142654-de260b27bc31 h1:dc1KHGfCEOIng/0CNIW4Ep2VGt1bJ5nVlwNEcDQ45qM=
+github.com/yottachain/YTHost v0.0.0-20200209142654-de260b27bc31/go.mod h1:EFRPQ+U0pChj7jg8kB3hUvDk6PTxfr5mZGcN0HCqmwE=
+>>>>>>> origin/relay
 go.etcd.io/bbolt v1.3.3 h1:MUGmc65QhB3pIlaQ5bB4LwqSj6GIonVJXpZiaKNyaKk=
 go.etcd.io/bbolt v1.3.3/go.mod h1:IbVyRI1SCnLcuJnV2u8VeU0CEYM7e686BmAb1XKL+uU=
 go.etcd.io/etcd v3.3.18+incompatible h1:5aomL5mqoKHxw6NG+oYgsowk8tU8aOalo2IdZxdWHkw=

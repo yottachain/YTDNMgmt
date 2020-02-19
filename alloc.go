@@ -145,6 +145,7 @@ func (s *NodesSelector) refreshPoolWeight(nodeMgr *NodeDaoImpl) error {
 	now := time.Now().Unix()
 	collection := nodeMgr.client.Database(YottaDB).Collection(NodeTab)
 	collectionPW := nodeMgr.client.Database(YottaDB).Collection(PoolWeightTab)
+	collectionSS := nodeMgr.client.Database(YottaDB).Collection(SpaceSumTab)
 	pipeline1 := mongo.Pipeline{
 		{{"$match", bson.D{{"status", bson.D{{"$lt", 3}}}}}},
 		{{"$project", bson.D{{"usedSpace", 1}}}},
@@ -167,50 +168,96 @@ func (s *NodesSelector) refreshPoolWeight(nodeMgr *NodeDaoImpl) error {
 	cur.Close(context.Background())
 	totalSpace := ts.TotalSpace
 
-	errTime := now - int64(spotcheckInterval)*60 - int64(punishPhase1)*punishGapUnit
+	var referralSpace int64 = 0
 	pipeline2 := mongo.Pipeline{
+		{{"$group", bson.D{{"_id", ""}, {"referralSpace", bson.D{{"$sum", "$usedspace"}}}}}},
+	}
+	cur, err = collectionSS.Aggregate(context.Background(), pipeline2)
+	if err != nil {
+		log.Printf("alloc: refreshPoolWeight: error when aggregating referral space: %s\n", err.Error())
+	} else {
+		if cur.Next(context.Background()) {
+			ts := new(PoolWeight)
+			err := cur.Decode(ts)
+			if err != nil {
+				log.Printf("alloc: refreshPoolWeight: error when decoding referral space: %s\n", err.Error())
+				cur.Close(context.Background())
+			} else {
+				referralSpace = ts.ReferralSpace
+			}
+		}
+		cur.Close(context.Background())
+	}
+
+	errTime := now - int64(spotcheckInterval)*60 - int64(punishPhase1)*punishGapUnit
+	pipeline3 := mongo.Pipeline{
 		{{"$match", bson.D{{"poolOwner", bson.D{{"$ne", ""}}}, {"status", bson.D{{"$lt", 3}}}}}},
-		//{{"$project", bson.D{{"poolOwner", 1}, {"usedSpace", 1}}}},
 		{{"$project", bson.D{{"poolOwner", 1}, {"usedSpace", 1}, {"err", bson.D{{"$cond", bson.D{{"if", bson.D{{"$or", bson.A{bson.D{{"$eq", bson.A{"$status", 2}}}, bson.D{{"$lt", bson.A{"$timestamp", errTime}}}}}}}, {"then", 1}, {"else", 0}}}}}}}},
 		{{"$group", bson.D{{"_id", "$poolOwner"}, {"poolTotalSpace", bson.D{{"$sum", "$usedSpace"}}}, {"poolTotalCount", bson.D{{"$sum", 1}}}, {"poolErrorCount", bson.D{{"$sum", "$err"}}}}}},
 	}
-	cur, err = collection.Aggregate(context.Background(), pipeline2)
+	cur, err = collection.Aggregate(context.Background(), pipeline3)
 	if err != nil {
-		log.Printf("alloc: refreshPoolWeight: error when doing aggregate: %s\n", err.Error())
+		log.Printf("alloc: refreshPoolWeight: error when aggregating pool total space: %s\n", err.Error())
 		return err
 	}
-	defer cur.Close(context.Background())
+	pws := make(map[string]*PoolWeight)
 	for cur.Next(context.Background()) {
 		result := new(PoolWeight)
 		err := cur.Decode(result)
 		if err != nil {
-			log.Printf("alloc: refreshPoolWeight: error when decoding PoolWeight: %s\n", err.Error())
+			log.Printf("alloc: refreshPoolWeight: error when decoding pool total space: %s\n", err.Error())
 			continue
 		}
 		result.Timestamp = now
 		result.TotalSpace = totalSpace
-		_, err = collectionPW.InsertOne(context.Background(), result)
+		result.ReferralSpace = referralSpace
+		pws[result.ID] = result
+	}
+	cur.Close(context.Background())
+
+	//TODO: Get PoolReferralSpace and ReferralSpace from SN
+	pipeline4 := mongo.Pipeline{
+		{{"$group", bson.D{{"_id", "$mowner"}, {"poolReferralSpace", bson.D{{"$sum", "$usedspace"}}}}}},
+	}
+	cur, err = collection.Aggregate(context.Background(), pipeline4)
+	if err != nil {
+		log.Printf("alloc: refreshPoolWeight: error when aggregating pool referral space: %s\n", err.Error())
+	} else {
+		for cur.Next(context.Background()) {
+			result := new(PoolWeight)
+			err := cur.Decode(result)
+			if err != nil {
+				log.Printf("alloc: refreshPoolWeight: error when decoding pool referral space: %s\n", err.Error())
+				continue
+			}
+			if pws[result.ID] != nil {
+				pws[result.ID].PoolReferralSpace = result.PoolReferralSpace
+			}
+		}
+		cur.Close(context.Background())
+	}
+
+	for _, p := range pws {
+		_, err = collectionPW.InsertOne(context.Background(), p)
 		if err != nil {
 			errstr := err.Error()
 			if !strings.ContainsAny(errstr, "duplicate key error") {
-				log.Printf("alloc: refreshPoolWeight: error when inserting pool weight %s to database: %s\n", result.ID, err.Error())
+				log.Printf("alloc: refreshPoolWeight: error when inserting pool weight %s to database: %s\n", p.ID, err.Error())
 				continue
 			} else {
-				_, err := collectionPW.UpdateOne(context.Background(), bson.M{"_id": result.ID}, bson.M{"$set": bson.M{"poolTotalSpace": result.PoolTotalSpace, "totalSpace": totalSpace, "poolTotalCount": result.PoolTotalCount, "poolErrorCount": result.PoolErrorCount, "timestamp": result.Timestamp}})
+				_, err := collectionPW.UpdateOne(context.Background(), bson.M{"_id": p.ID}, bson.M{"$set": bson.M{"poolTotalSpace": p.PoolTotalSpace, "totalSpace": totalSpace, "poolTotalCount": p.PoolTotalCount, "poolErrorCount": p.PoolErrorCount, "timestamp": p.Timestamp}})
 				if err != nil {
-					log.Printf("alloc: refreshPoolWeight: error when updating pool weight %s in database: %s\n", result.ID, err.Error())
+					log.Printf("alloc: refreshPoolWeight: error when updating pool weight %s in database: %s\n", p.ID, err.Error())
 					continue
 				}
 			}
 		}
 		threshold := float64(errorNodePercentThreshold) / 100
-		value := float64(result.PoolTotalCount-result.PoolErrorCount) / float64(result.PoolTotalCount)
+		value := float64(p.PoolTotalCount-p.PoolErrorCount) / float64(p.PoolTotalCount)
 		if value < threshold {
-			log.Printf("alloc: refreshPoolWeight: warning: error miners in pool %s have reached %f%%\n", result.ID, (1-value)*100)
+			log.Printf("alloc: refreshPoolWeight: warning: error miners in pool %s have reached %f%%\n", p.ID, (1-value)*100)
 		}
 	}
-
-	//TODO: Get PoolReferralSpace and ReferralSpace from SN
 
 	_, err = collectionPW.DeleteMany(context.Background(), bson.M{"timestamp": bson.M{"$ne": now}})
 	if err != nil {

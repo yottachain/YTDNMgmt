@@ -153,6 +153,7 @@ const (
 	SpotCheckTab  = "SpotCheck"
 	ErrorNodeTab  = "ErrorNode"
 	PoolWeightTab = "PoolWeight"
+	SpaceSumTab   = "SpaceSum"
 )
 
 //index type of node and supernode collection
