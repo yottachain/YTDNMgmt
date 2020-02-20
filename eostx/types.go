@@ -112,6 +112,18 @@ type ChangePoolID struct {
 	NewPoolID eos.AccountName `json:"new_poolid"`
 }
 
+type ChangeDepAcc struct {
+	MinerID   uint64          `json:"minerid"`
+	NewDepAcc eos.AccountName `json:"new_depacc"`
+}
+
+type ChangeDeposit struct {
+	User       eos.AccountName `json:"user"`
+	MinerID    uint64          `json:"minerid"`
+	IsIncrease bool            `json:"is_increase"`
+	Quant      eos.Asset       `json:"quant"`
+}
+
 type ChangeAssignedSpace struct {
 	MinerID  uint64 `json:"minerid"`
 	MaxSpace uint64 `json:"max_space"`

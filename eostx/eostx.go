@@ -436,7 +436,7 @@ func (eostx *EosTX) ChangeProfitAccTrx(trx string) (*eos.SignedTransaction, *Cha
 	return signedTrx, data, nil
 }
 
-//ChangePoolIDTrx extract all neccessary parameters from mchgowneracc transaction
+//ChangePoolIDTrx extract all neccessary parameters from mchgstrpool transaction
 func (eostx *EosTX) ChangePoolIDTrx(trx string) (*eos.SignedTransaction, *ChangePoolID, error) {
 	if trx == "" {
 		return nil, nil, errors.New("input transaction can not be null")
@@ -447,6 +447,9 @@ func (eostx *EosTX) ChangePoolIDTrx(trx string) (*eos.SignedTransaction, *Change
 		return nil, nil, err
 	}
 	signedTrx, err := packedTrx.Unpack()
+	if err != nil {
+		return nil, nil, err
+	}
 	var actionBytes []byte
 	if signedTrx.Actions[0].ActionData.Data != nil {
 		actionBytes, err = hex.DecodeString(string([]byte(signedTrx.Actions[0].ActionData.Data.(string))))
@@ -458,6 +461,70 @@ func (eostx *EosTX) ChangePoolIDTrx(trx string) (*eos.SignedTransaction, *Change
 	}
 	decoder := eos.NewDecoder(actionBytes)
 	data := new(ChangePoolID)
+	err = decoder.Decode(data)
+	if err != nil {
+		return nil, nil, err
+	}
+	return signedTrx, data, nil
+}
+
+//ChangeDepAccTrx extract all neccessary parameters from mchgdepacc transaction
+func (eostx *EosTX) ChangeDepAccTrx(trx string) (*eos.SignedTransaction, *ChangeDepAcc, error) {
+	if trx == "" {
+		return nil, nil, errors.New("input transaction can not be null")
+	}
+	var packedTrx *eos.PackedTransaction
+	err := json.Unmarshal([]byte(trx), &packedTrx)
+	if err != nil {
+		return nil, nil, err
+	}
+	signedTrx, err := packedTrx.Unpack()
+	if err != nil {
+		return nil, nil, err
+	}
+	var actionBytes []byte
+	if signedTrx.Actions[0].ActionData.Data != nil {
+		actionBytes, err = hex.DecodeString(string([]byte(signedTrx.Actions[0].ActionData.Data.(string))))
+		if err != nil {
+			return nil, nil, err
+		}
+	} else {
+		actionBytes = []byte(signedTrx.Actions[0].ActionData.HexData)
+	}
+	decoder := eos.NewDecoder(actionBytes)
+	data := new(ChangeDepAcc)
+	err = decoder.Decode(data)
+	if err != nil {
+		return nil, nil, err
+	}
+	return signedTrx, data, nil
+}
+
+//ChangeDepositTrx change deposit of miner
+func (eostx *EosTX) ChangeDepositTrx(trx string) (*eos.SignedTransaction, *ChangeDeposit, error) {
+	if trx == "" {
+		return nil, nil, errors.New("input transaction can not be null")
+	}
+	var packedTrx *eos.PackedTransaction
+	err := json.Unmarshal([]byte(trx), &packedTrx)
+	if err != nil {
+		return nil, nil, err
+	}
+	signedTrx, err := packedTrx.Unpack()
+	if err != nil {
+		return nil, nil, err
+	}
+	var actionBytes []byte
+	if signedTrx.Actions[0].ActionData.Data != nil {
+		actionBytes, err = hex.DecodeString(string([]byte(signedTrx.Actions[0].ActionData.Data.(string))))
+		if err != nil {
+			return nil, nil, err
+		}
+	} else {
+		actionBytes = []byte(signedTrx.Actions[0].ActionData.HexData)
+	}
+	decoder := eos.NewDecoder(actionBytes)
+	data := new(ChangeDeposit)
 	err = decoder.Decode(data)
 	if err != nil {
 		return nil, nil, err

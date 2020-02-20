@@ -107,7 +107,7 @@ func (self *NodeDaoImpl) GetRebuildItem(minerID int32, index, total int64) (*Nod
 func (self *NodeDaoImpl) GetRebuildNode(count int64) (*Node, error) {
 	// collection := self.client.Database(YottaDB).Collection(NodeTab)
 	// for range [10]byte{} {
-	// 	total, err := collection.CountDocuments(context.Background(), bson.M{"valid": 1, "status": 1, "timestamp": bson.M{"$gt": time.Now().Unix() - IntervalTime*avaliableNodeTimeGap}, "version": bson.M{"$gte": minerVersionThreshold}})
+	// 	total, err := collection.CountDocuments(context.Background(), bson.M{"valid": 1, "status": 1, "assignedSpace": bson.M{"$gt": 0}, "quota": bson.M{"$gt": 0}, "timestamp": bson.M{"$gt": time.Now().Unix() - IntervalTime*avaliableNodeTimeGap}, "weight": bson.M{"$gt": 0}, "version": bson.M{"$gte": minerVersionThreshold}})
 	// 	if err != nil {
 	// 		log.Printf("rebuild: GetRebuildNode: error when calculating total count of rebuildable nodes: %s\n", err.Error())
 	// 		continue
@@ -123,7 +123,7 @@ func (self *NodeDaoImpl) GetRebuildNode(count int64) (*Node, error) {
 	// 	options.Limit = &limit
 	// 	options.Skip = &skip
 	// 	//options.Sort = bson.D{{"timestamp", -1}}
-	// 	cur, err := collection.Find(context.Background(), bson.M{"valid": 1, "status": 1, "timestamp": bson.M{"$gt": time.Now().Unix() - IntervalTime*avaliableNodeTimeGap}, "version": bson.M{"$gte": minerVersionThreshold}}, &options)
+	// 	cur, err := collection.Find(context.Background(), bson.M{"valid": 1, "status": 1, "assignedSpace": bson.M{"$gt": 0}, "quota": bson.M{"$gt": 0}, "timestamp": bson.M{"$gt": time.Now().Unix() - IntervalTime*avaliableNodeTimeGap}, "weight": bson.M{"$gt": 0}, "version": bson.M{"$gte": minerVersionThreshold}}, &options)
 	// 	if err != nil {
 	// 		log.Printf("rebuild: GetRebuildNode: error when creating cursor: %s\n", err.Error())
 	// 		continue
@@ -161,20 +161,33 @@ func (self *NodeDaoImpl) GetRebuildNode(count int64) (*Node, error) {
 	// 	}
 	// }
 	// return nil, fmt.Errorf("no nodes can be allocated")
-	nodes, err := self.ns.Alloc(1, []int32{})
+	// nodes, err := self.ns.Alloc(1, []int32{})
+	// if err != nil {
+	// 	log.Printf("rebuild: GetRebuildNode: error when allocating rebuildable node: %s\n", err.Error())
+	// 	return nil, err
+	// }
+	// if nodes == nil || len(nodes) == 0 {
+	// 	log.Printf("rebuild: GetRebuildNode: no rebuildable nodes can be allocated\n")
+	// 	return nil, fmt.Errorf("no rebuildable nodes can be allocated")
+	// }
+	// for _, n := range nodes {
+	// 	self.setRebuildFlag(n.ID)
+	// 	n.Rebuilding = 1
+	// }
+	// return nodes[0], nil
+	id, err := self.ns.RandomNodeID()
 	if err != nil {
 		log.Printf("rebuild: GetRebuildNode: error when allocating rebuildable node: %s\n", err.Error())
 		return nil, err
 	}
-	if nodes == nil || len(nodes) == 0 {
-		log.Printf("rebuild: GetRebuildNode: no rebuildable nodes can be allocated\n")
-		return nil, fmt.Errorf("no rebuildable nodes can be allocated")
+	collection := self.client.Database(YottaDB).Collection(NodeTab)
+	result := new(Node)
+	err = collection.FindOne(context.Background(), bson.M{"_id": id}).Decode(result)
+	if err != nil {
+		log.Printf("rebuild: GetRebuildNode: error when decoding node: %s\n", err.Error())
+		return nil, err
 	}
-	for _, n := range nodes {
-		self.setRebuildFlag(n.ID)
-		n.Rebuilding = 1
-	}
-	return nodes[0], nil
+	return result, nil
 }
 
 func (self *NodeDaoImpl) setRebuildFlag(id int32) error {

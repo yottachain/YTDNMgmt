@@ -50,6 +50,10 @@ func (self *NodeDaoImpl) CallAPI(trx string, apiName string) error {
 		err = self.ChangePoolID(trx)
 	case "ChangeAssignedSpace":
 		err = self.ChangeAssignedSpace(trx)
+	case "ChangeDepAcc":
+		err = self.ChangeDepAcc(trx)
+	case "ChangeDeposit":
+		err = self.ChangeDeposit(trx)
 	}
 	if err != nil {
 		return err
@@ -287,6 +291,38 @@ func (self *NodeDaoImpl) ChangePoolID(trx string) error {
 		return err
 	}
 	log.Printf("nodemgmt: ChangePoolID: node %d has changed pool ID: %s\n", minerID, newPoolID)
+	return nil
+}
+
+//ChangeDepAcc change dep account of miner
+func (self *NodeDaoImpl) ChangeDepAcc(trx string) error {
+	signedTrx, newDepAcc, err := self.eostx.ChangeDepAccTrx(trx)
+	if err != nil {
+		log.Printf("nodemgmt: ChangeDepAcc: error when sending sign transaction: %s\n", err.Error())
+		return err
+	}
+	err = self.eostx.SendTrx(signedTrx)
+	if err != nil {
+		log.Printf("nodemgmt: ChangeDepAcc: error when sending transaction: %s\n", err.Error())
+		return err
+	}
+	log.Printf("nodemgmt: ChangeDepAcc: node %d has changed dep account: %s\n", newDepAcc.MinerID, newDepAcc.NewDepAcc)
+	return nil
+}
+
+//ChangeDeposit change dep account of miner
+func (self *NodeDaoImpl) ChangeDeposit(trx string) error {
+	signedTrx, newDeposit, err := self.eostx.ChangeDepositTrx(trx)
+	if err != nil {
+		log.Printf("nodemgmt: ChangeDeposit: error when sending sign transaction: %s\n", err.Error())
+		return err
+	}
+	err = self.eostx.SendTrx(signedTrx)
+	if err != nil {
+		log.Printf("nodemgmt: ChangeDeposit: error when sending transaction: %s\n", err.Error())
+		return err
+	}
+	log.Printf("nodemgmt: ChangeDeposit: node %d has changed deposit: %d\n", newDeposit.MinerID, int64(newDeposit.Quant.Amount))
 	return nil
 }
 
