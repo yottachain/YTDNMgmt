@@ -24,7 +24,8 @@ import (
 type NodeDaoImpl struct {
 	client *mongo.Client
 	eostx  *eostx.EosTX
-	host   *Host
+	host1  *Host
+	host2  *Host
 	ns     *NodesSelector
 	bpID   int32
 	master int32
@@ -47,13 +48,19 @@ func NewInstance(mongoURL, eosURL, bpAccount, bpPrivkey, contractOwnerM, contrac
 		return nil, err
 	}
 	log.Printf("nodemgmt: NewInstance: create eos client: %s\n", eosURL)
-	host, err := NewHost()
+	host1, err := NewHost()
 	if err != nil {
-		log.Printf("nodemgmt: NewInstance: error when creating host failed: %s\n", err.Error())
+		log.Printf("nodemgmt: NewInstance: error when creating host1 failed: %s\n", err.Error())
 		return nil, err
 	}
-	log.Println("nodemgmt: NewInstance: create host")
-	dao := &NodeDaoImpl{client: client, eostx: etx, host: host, ns: &NodesSelector{}, bpID: bpID, master: isMaster}
+	log.Println("nodemgmt: NewInstance: create host1")
+	host2, err := NewHost()
+	if err != nil {
+		log.Printf("nodemgmt: NewInstance: error when creating host2 failed: %s\n", err.Error())
+		return nil, err
+	}
+	log.Println("nodemgmt: NewInstance: create host2")
+	dao := &NodeDaoImpl{client: client, eostx: etx, host1: host1, host2: host2, ns: &NodesSelector{}, bpID: bpID, master: isMaster}
 	dao.StartRecheck()
 	dao.ns.Start(context.Background(), dao)
 	if incr == 0 {
@@ -78,6 +85,7 @@ func (self *NodeDaoImpl) SetMaster(master int32) {
 	atomic.StoreInt32(&(self.master), master)
 }
 
+//ChangeEosURL change EOS URL
 func (self *NodeDaoImpl) ChangeEosURL(eosURL string) {
 	self.eostx.ChangeEosURL(eosURL)
 }
@@ -214,9 +222,9 @@ func (self *NodeDaoImpl) UpdateNodeStatus(node *Node) (*Node, error) {
 	opts = opts.SetReturnDocument(options.After)
 	timestamp := time.Now().Unix()
 	update := bson.M{"$set": bson.M{"poolOwner": node.PoolOwner, "cpu": node.CPU, "memory": node.Memory, "bandwidth": node.Bandwidth, "maxDataSpace": node.MaxDataSpace, "addrs": node.Addrs, "weight": weight, "valid": node.Valid, "relay": node.Relay, "status": status, "timestamp": timestamp, "version": node.Version, "rebuilding": node.Rebuilding}}
-	// if node.UsedSpace != 0 {
-	// 	update = bson.M{"$set": bson.M{"cpu": node.CPU, "memory": node.Memory, "bandwidth": node.Bandwidth, "maxDataSpace": node.MaxDataSpace, "realSpace": node.UsedSpace, "addrs": node.Addrs, "weight": weight, "valid": node.Valid, "relay": node.Relay, "status": status, "timestamp": timestamp, "version": node.Version}}
-	// }
+	if node.UsedSpace != 0 {
+		update = bson.M{"$set": bson.M{"poolOwner": node.PoolOwner, "cpu": node.CPU, "memory": node.Memory, "bandwidth": node.Bandwidth, "maxDataSpace": node.MaxDataSpace, "realSpace": node.UsedSpace, "addrs": node.Addrs, "weight": weight, "valid": node.Valid, "relay": node.Relay, "status": status, "timestamp": timestamp, "version": node.Version, "rebuilding": node.Rebuilding}}
+	}
 	result := collection.FindOneAndUpdate(context.Background(), bson.M{"_id": node.ID}, update, opts)
 	err = result.Decode(n)
 	if err != nil {
@@ -310,6 +318,7 @@ func (self *NodeDaoImpl) SyncNode(node *Node) error {
 	if node.ID%int32(incr) == index {
 		return nil
 	}
+	node.Addrs = CheckPublicAddrs(node.Addrs)
 	collection := self.client.Database(YottaDB).Collection(NodeTab)
 	_, err := collection.InsertOne(context.Background(), node)
 	if err != nil {
