@@ -138,7 +138,7 @@ func (self *NodeDaoImpl) UpdateNodeStatus(node *Node) (*Node, error) {
 		err := collectionErr.FindOne(context.Background(), bson.M{"nid": n.ID}).Decode(errNode)
 		if err != nil {
 			log.Printf("nodemgmt: UpdateNodeStatus: warning: cannot find node %d in error node table\n", n.ID)
-		} else if errNode.Status == 1 || errNode.Status == 2 { //timeout miner and deposit exhausted miner can be recovered
+		} else if errNode.Status == 1 { //timeout miner and deposit exhausted miner can be recovered
 			_, err := collectionErr.DeleteOne(context.Background(), bson.M{"nid": n.ID})
 			if err != nil {
 				log.Printf("nodemgmt: UpdateNodeStatus: error when deleting error node %d in error node table\n", n.ID)
