@@ -322,10 +322,12 @@ func (self *NodeDaoImpl) checkDataNode(spr *SpotCheckRecord) {
 			spr.ErrCount = errCount
 			spr.Status = 2
 			log.Printf("spotcheck: checkDataNode: finished 100 VNIs check, %d verify errors in %d checks\n", errCount, i)
-			_, err := collectionErr.InsertOne(context.Background(), spr)
-			if err != nil {
-				log.Printf("spotcheck: checkDataNode: error when insert verify error task to error node collection: %d -> %s -> %s\n", spr.NID, spr.TaskID, err.Error())
-				return
+			if errCount == 100 {
+				_, err := collectionErr.InsertOne(context.Background(), spr)
+				if err != nil {
+					log.Printf("spotcheck: checkDataNode: error when insert verify error task to error node collection: %d -> %s -> %s\n", spr.NID, spr.TaskID, err.Error())
+					return
+				}
 			}
 			_, err = collectionSpotCheck.DeleteOne(context.Background(), bson.M{"_id": spr.TaskID})
 			if err != nil {
@@ -367,6 +369,12 @@ func (self *NodeDaoImpl) checkDataNode(spr *SpotCheckRecord) {
 							log.Printf("spotcheck: checkDataNode: error happens when punishing 1%% deposit: %s\n", err.Error())
 						} else if left == 0 {
 							log.Printf("spotcheck: checkDataNode: no deposit can be punished: %d\n", spr.NID)
+							spr.Status = 3
+							_, err := collectionErr.InsertOne(context.Background(), spr)
+							if err != nil {
+								log.Printf("spotcheck: checkDataNode: error when inserting deposit exhausted task to error node collection: %d -> %s -> %s\n", spr.NID, spr.TaskID, err.Error())
+								return
+							}
 							// err = self.eostx.CalculateProfit(n.ProfitAcc, uint64(n.ID), false)
 							// if err != nil {
 							// 	log.Printf("spotcheck: checkDataNode: error when stopping profit calculation: %s\n", err.Error())
