@@ -68,6 +68,10 @@ func (self *NodeDaoImpl) doRecheck() {
 			err = collectionNode.FindOne(context.Background(), bson.M{"_id": spr.NID}).Decode(n)
 			if err != nil {
 				log.Printf("spotcheck: doRecheck: error when decoding node: %s\n", err.Error())
+				_, err = collection.DeleteOne(context.Background(), bson.M{"_id": spr.TaskID})
+				if err != nil {
+					log.Printf("spotcheck: doRecheck: error when deleting task related a non-exist node: %d -> %s -> %s\n", spr.NID, spr.TaskID, err.Error())
+				}
 				continue
 			}
 			if n.Status > 1 {
@@ -87,24 +91,48 @@ func (self *NodeDaoImpl) doRecheck() {
 						break
 					}
 					spr.ErrCount = int64(i + 1)
-					if i+1 == int(rebuildPhase) {
-						_, err = collectionNode.UpdateOne(context.Background(), bson.M{"_id": n.ID}, bson.M{"$set": bson.M{"status": 2, "tasktimestamp": int64(0)}})
-						if err != nil {
-							log.Printf("spotcheck: doRecheck: error when updating rebuild status: %s\n", err.Error())
-						}
-						err = self.eostx.CalculateProfit(n.Owner, uint64(n.ID), false)
-						if err != nil {
-							log.Printf("spotcheck: doRecheck: error when stopping profit calculation: %s\n", err.Error())
-						}
-					}
+					// if i+1 == int(rebuildPhase) {
+					// 	_, err = collectionNode.UpdateOne(context.Background(), bson.M{"_id": n.ID}, bson.M{"$set": bson.M{"status": 2, "tasktimestamp": int64(0)}})
+					// 	if err != nil {
+					// 		log.Printf("spotcheck: doRecheck: error when updating rebuild status: %s\n", err.Error())
+					// 	}
+					// 	err = self.eostx.CalculateProfit(n.Owner, uint64(n.ID), false)
+					// 	if err != nil {
+					// 		log.Printf("spotcheck: doRecheck: error when stopping profit calculation: %s\n", err.Error())
+					// 	}
+					// 	flag = false
+					// }
 
 					if i+1 == int(punishPhase1) {
 						log.Printf("spotcheck: doRecheck: miner %d has been offline for %d seconds, do phase1 punishment\n", spr.NID, punishGapUnit*int64(i+1))
 						if punishPhase1Percent > 0 {
 							if self.ifNeedPunish(n.PoolOwner) {
-								err := self.Punish(n, int64(punishPhase1Percent), false)
+								left, err := self.Punish(n, int64(punishPhase1Percent))
 								if err != nil {
 									log.Printf("spotcheck: doRecheck: error when punishing %d%%: %s\n", punishPhase1Percent, err.Error())
+								} else if flag && left == 0 {
+									log.Printf("spotcheck: doRecheck: no deposit can be punished: %d\n", n.ID)
+									spr.Status = 3
+									_, err := collectionErr.InsertOne(context.Background(), spr)
+									if err != nil {
+										log.Printf("spotcheck: doRecheck: error when inserting deposit exhausted task to error node collection: %d -> %s -> %s\n", spr.NID, spr.TaskID, err.Error())
+										break
+									}
+									_, err = collection.DeleteOne(context.Background(), bson.M{"_id": spr.TaskID})
+									if err != nil {
+										log.Printf("spotcheck: doRecheck: error when deleting deposit exhausted task: %d -> %s -> %s\n", spr.NID, spr.TaskID, err.Error())
+										collectionErr.DeleteOne(context.Background(), bson.M{"_id": spr.TaskID})
+										break
+									}
+									_, err = collectionNode.UpdateOne(context.Background(), bson.M{"_id": n.ID}, bson.M{"$set": bson.M{"status": 2, "tasktimestamp": int64(0)}})
+									if err != nil {
+										log.Printf("spotcheck: doRecheck: error when updating rebuild status: %s\n", err.Error())
+									}
+									// err = self.eostx.CalculateProfit(n.Owner, uint64(n.ID), false)
+									// if err != nil {
+									// 	log.Printf("spotcheck: doRecheck: error when stopping profit calculation: %s\n", err.Error())
+									// }
+									flag = false
 								}
 							}
 						}
@@ -114,9 +142,32 @@ func (self *NodeDaoImpl) doRecheck() {
 						log.Printf("spotcheck: doRecheck: miner %d has been offline for %d seconds, do phase2 punishment\n", spr.NID, punishGapUnit*int64(i+1))
 						if punishPhase2Percent > 0 {
 							if self.ifNeedPunish(n.PoolOwner) {
-								err := self.Punish(n, int64(punishPhase2Percent), false)
+								left, err := self.Punish(n, int64(punishPhase2Percent))
 								if err != nil {
 									log.Printf("spotcheck: doRecheck: error when punishing %d%%: %s\n", punishPhase2Percent, err.Error())
+								} else if flag && left == 0 {
+									log.Printf("spotcheck: doRecheck: no deposit can be punished: %d\n", n.ID)
+									spr.Status = 3
+									_, err := collectionErr.InsertOne(context.Background(), spr)
+									if err != nil {
+										log.Printf("spotcheck: doRecheck: error when inserting deposit exhausted task to error node collection: %d -> %s -> %s\n", spr.NID, spr.TaskID, err.Error())
+										break
+									}
+									_, err = collection.DeleteOne(context.Background(), bson.M{"_id": spr.TaskID})
+									if err != nil {
+										log.Printf("spotcheck: doRecheck: error when deleting deposit exhausted task: %d -> %s -> %s\n", spr.NID, spr.TaskID, err.Error())
+										collectionErr.DeleteOne(context.Background(), bson.M{"_id": spr.TaskID})
+										break
+									}
+									_, err = collectionNode.UpdateOne(context.Background(), bson.M{"_id": n.ID}, bson.M{"$set": bson.M{"status": 2, "tasktimestamp": int64(0)}})
+									if err != nil {
+										log.Printf("spotcheck: doRecheck: error when updating exhausted Node %d: %s\n", n.ID, err.Error())
+									}
+									// err = self.eostx.CalculateProfit(n.Owner, uint64(n.ID), false)
+									// if err != nil {
+									// 	log.Printf("spotcheck: doRecheck: error when stopping profit calculation: %s\n", err.Error())
+									// }
+									flag = false
 								}
 							}
 						}
@@ -124,6 +175,7 @@ func (self *NodeDaoImpl) doRecheck() {
 					}
 					if i+1 == int(punishPhase3) {
 						log.Printf("spotcheck: doRecheck: miner %d has been offline for %d seconds, do phase3 punishment\n", spr.NID, punishGapUnit*int64(i+1))
+						spr.Status = 1
 						_, err := collectionErr.InsertOne(context.Background(), spr)
 						if err != nil {
 							log.Printf("spotcheck: doRecheck: error when inserting timeout task to error node collection: %d -> %s -> %s\n", spr.NID, spr.TaskID, err.Error())
@@ -135,9 +187,17 @@ func (self *NodeDaoImpl) doRecheck() {
 							collectionErr.DeleteOne(context.Background(), bson.M{"_id": spr.TaskID})
 							break
 						}
+						_, err = collectionNode.UpdateOne(context.Background(), bson.M{"_id": n.ID}, bson.M{"$set": bson.M{"status": 2, "tasktimestamp": int64(0)}})
+						if err != nil {
+							log.Printf("spotcheck: doRecheck: error when updating rebuild status: %s\n", err.Error())
+						}
+						// err = self.eostx.CalculateProfit(n.Owner, uint64(n.ID), false)
+						// if err != nil {
+						// 	log.Printf("spotcheck: doRecheck: error when stopping profit calculation: %s\n", err.Error())
+						// }
 						if punishPhase3Percent > 0 {
 							if self.ifNeedPunish(n.PoolOwner) {
-								err = self.Punish(n, int64(punishPhase3Percent), false)
+								_, err = self.Punish(n, int64(punishPhase3Percent))
 								if err != nil {
 									log.Printf("spotcheck: doRecheck: error when doing phase3 punishment: %s\n", err.Error())
 								}
@@ -214,11 +274,10 @@ func (self *NodeDaoImpl) checkDataNode(spr *SpotCheckRecord) {
 	}
 	b, err := self.CheckVNI(n, spr)
 	if err != nil {
+		log.Printf("spotcheck: checkDataNode: vni check error: %d -> %s -> %s: %s\n", spr.NID, spr.TaskID, spr.VNI, err.Error())
 		_, err := collectionSpotCheck.UpdateOne(context.Background(), bson.M{"_id": spr.TaskID}, bson.M{"$set": bson.M{"status": 1}})
 		if err != nil {
 			log.Printf("spotcheck: checkDataNode: error happens when update task %s status to 1: %s\n", spr.TaskID, err.Error())
-		} else {
-			log.Printf("spotcheck: checkDataNode: vni check error: %d -> %s -> %s\n", spr.NID, spr.TaskID, spr.VNI)
 		}
 	} else {
 		if b {
@@ -229,28 +288,30 @@ func (self *NodeDaoImpl) checkDataNode(spr *SpotCheckRecord) {
 				log.Printf("spotcheck: checkDataNode: vni check success: %d -> %s -> %s\n", spr.NID, spr.TaskID, spr.VNI)
 			}
 		} else {
-			log.Printf("spotcheck: checkDataNode: vni check failed, checking 100 more VNIs: %d -> %s -> %s\n", spr.NID, spr.TaskID, spr.VNI)
+			errstr := ""
+			if err != nil {
+				errstr = err.Error()
+			}
+			log.Printf("spotcheck: checkDataNode: vni check failed, checking 100 more VNIs: %d -> %s -> %s: %s\n", spr.NID, spr.TaskID, spr.VNI, errstr)
 			i := 0
 			var errCount int64 = 0
 			for range [100]byte{} {
 				i++
 				spr.VNI, err = self.GetRandomVNI(n.ID, rand.Int63n(n.UsedSpace))
 				if err != nil {
+					log.Printf("spotcheck: checkDataNode: get random vni%d error: %d -> %s -> %s: %s\n", i, spr.NID, spr.TaskID, spr.VNI, err.Error())
 					_, err := collectionSpotCheck.UpdateOne(context.Background(), bson.M{"_id": spr.TaskID}, bson.M{"$set": bson.M{"status": 1}})
 					if err != nil {
 						log.Printf("spotcheck: checkDataNode: error happens when update task %s status to 1: %s\n", spr.TaskID, err.Error())
-					} else {
-						log.Printf("spotcheck: checkDataNode: get random vni%d error: %d -> %s -> %s\n", i, spr.NID, spr.TaskID, spr.VNI)
 					}
 					return
 				}
 				b, err := self.CheckVNI(n, spr)
 				if err != nil {
+					log.Printf("spotcheck: checkDataNode: vni%d check error: %d -> %s -> %s: %s\n", i, spr.NID, spr.TaskID, spr.VNI, err.Error())
 					_, err := collectionSpotCheck.UpdateOne(context.Background(), bson.M{"_id": spr.TaskID}, bson.M{"$set": bson.M{"status": 1}})
 					if err != nil {
 						log.Printf("spotcheck: checkDataNode: error happens when update task %s status to 1: %s\n", spr.TaskID, err.Error())
-					} else {
-						log.Printf("spotcheck: checkDataNode: vni%d check error: %d -> %s -> %s\n", i, spr.NID, spr.TaskID, spr.VNI)
 					}
 					return
 				}
@@ -259,11 +320,14 @@ func (self *NodeDaoImpl) checkDataNode(spr *SpotCheckRecord) {
 				}
 			}
 			spr.ErrCount = errCount
+			spr.Status = 2
 			log.Printf("spotcheck: checkDataNode: finished 100 VNIs check, %d verify errors in %d checks\n", errCount, i)
-			_, err := collectionErr.InsertOne(context.Background(), spr)
-			if err != nil {
-				log.Printf("spotcheck: checkDataNode: error when insert verify error task to error node collection: %d -> %s -> %s\n", spr.NID, spr.TaskID, err.Error())
-				return
+			if errCount == 100 {
+				_, err := collectionErr.InsertOne(context.Background(), spr)
+				if err != nil {
+					log.Printf("spotcheck: checkDataNode: error when insert verify error task to error node collection: %d -> %s -> %s\n", spr.NID, spr.TaskID, err.Error())
+					return
+				}
 			}
 			_, err = collectionSpotCheck.DeleteOne(context.Background(), bson.M{"_id": spr.TaskID})
 			if err != nil {
@@ -272,25 +336,26 @@ func (self *NodeDaoImpl) checkDataNode(spr *SpotCheckRecord) {
 				if err != nil {
 					log.Printf("spotcheck: checkDataNode: error happens when delete task %s: %s\n", spr.TaskID, err.Error())
 				}
-				_, err = collection.UpdateOne(context.Background(), bson.M{"_id": spr.TaskID}, bson.M{"$set": bson.M{"status": 1}})
+				_, err = collectionSpotCheck.UpdateOne(context.Background(), bson.M{"_id": spr.TaskID}, bson.M{"$set": bson.M{"status": 1}})
 				if err != nil {
 					log.Printf("spotcheck: checkDataNode: error happens when update task %s status to 1: %s\n", spr.TaskID, err.Error())
 				}
+				return
 			}
 			if errCount == 100 {
 				log.Printf("spotcheck: checkDataNode: 100/100 random VNI checking of miner %d has failed, punish %d%% deposit\n", spr.NID, punishPhase3Percent)
 				if punishPhase3Percent > 0 {
 					if self.ifNeedPunish(n.PoolOwner) {
-						err := self.Punish(n, int64(punishPhase3Percent), false)
+						_, err := self.Punish(n, int64(punishPhase3Percent))
 						if err != nil {
 							log.Printf("spotcheck: checkDataNode: error happens when punishing 50%% deposit: %s\n", err.Error())
 						}
 					}
 				}
-				err = self.eostx.CalculateProfit(n.ProfitAcc, uint64(n.ID), false)
-				if err != nil {
-					log.Printf("spotcheck: checkDataNode: error when stopping profit calculation: %s\n", err.Error())
-				}
+				// err = self.eostx.CalculateProfit(n.ProfitAcc, uint64(n.ID), false)
+				// if err != nil {
+				// 	log.Printf("spotcheck: checkDataNode: error when stopping profit calculation: %s\n", err.Error())
+				// }
 				_, err = collection.UpdateOne(context.Background(), bson.M{"_id": n.ID}, bson.M{"$set": bson.M{"status": 2, "tasktimestamp": int64(0)}})
 				if err != nil {
 					log.Printf("spotcheck: checkDataNode: error when updating rebuild status: %s\n", err.Error())
@@ -299,9 +364,29 @@ func (self *NodeDaoImpl) checkDataNode(spr *SpotCheckRecord) {
 				log.Printf("spotcheck: checkDataNode: %d/100 random VNI checking of miner %d has failed, punish %d%% deposit\n", errCount, spr.NID, punishPhase1Percent)
 				if punishPhase1Percent > 0 {
 					if self.ifNeedPunish(n.PoolOwner) {
-						err := self.Punish(n, int64(punishPhase1Percent), false)
+						left, err := self.Punish(n, int64(punishPhase1Percent))
 						if err != nil {
 							log.Printf("spotcheck: checkDataNode: error happens when punishing 1%% deposit: %s\n", err.Error())
+						} else if left == 0 {
+							log.Printf("spotcheck: checkDataNode: no deposit can be punished: %d\n", spr.NID)
+							spr.Status = 3
+							_, err := collectionErr.InsertOne(context.Background(), spr)
+							if err != nil {
+								log.Printf("spotcheck: checkDataNode: error when inserting deposit exhausted task to error node collection: %d -> %s -> %s\n", spr.NID, spr.TaskID, err.Error())
+								return
+							}
+							// err = self.eostx.CalculateProfit(n.ProfitAcc, uint64(n.ID), false)
+							// if err != nil {
+							// 	log.Printf("spotcheck: checkDataNode: error when stopping profit calculation: %s\n", err.Error())
+							// }
+							_, err = collection.UpdateOne(context.Background(), bson.M{"_id": n.ID}, bson.M{"$set": bson.M{"status": 2, "tasktimestamp": int64(0)}})
+							if err != nil {
+								log.Printf("spotcheck: checkDataNode: error when updating rebuild status: %s\n", err.Error())
+							}
+							_, err = collectionSpotCheck.UpdateOne(context.Background(), bson.M{"_id": spr.TaskID}, bson.M{"$set": bson.M{"status": 3}})
+							if err != nil {
+								log.Printf("spotcheck: checkDataNode: error when updating error node status to %d: %s\n", 3, err.Error())
+							}
 						}
 					}
 				}
@@ -338,11 +423,11 @@ func (self *NodeDaoImpl) CheckVNI(node *Node, spr *SpotCheckRecord) (bool, error
 	// 	return false, err
 	// }
 	req := &pbh.ConnectReq{Id: node.NodeID, Addrs: node.Addrs}
-	_, err := self.host.lhost.Connect(ctx, req)
+	_, err := self.host2.lhost.Connect(ctx, req)
 	if err != nil {
 		return false, err
 	}
-	defer self.host.lhost.DisConnect(context.Background(), &pbh.StringMsg{Value: node.NodeID})
+	defer self.host2.lhost.DisConnect(context.Background(), &pbh.StringMsg{Value: node.NodeID})
 
 	rawvni, err := base64.StdEncoding.DecodeString(spr.VNI)
 	if err != nil {
@@ -356,7 +441,7 @@ func (self *NodeDaoImpl) CheckVNI(node *Node, spr *SpotCheckRecord) (bool, error
 		log.Printf("spotcheck: error when marshalling protobuf message: downloadrequest: %d -> %s -> %s\n", node.ID, spr.VNI, err.Error())
 		return false, err
 	}
-	shardData, err := self.host.SendMsg(node.NodeID, append(pb.MsgIDDownloadShardRequest.Bytes(), checkData...))
+	shardData, err := self.host2.SendMsg(node.NodeID, append(pb.MsgIDDownloadShardRequest.Bytes(), checkData...))
 	if err != nil {
 		log.Printf("spotcheck: SN send recheck command failed: %d -> %s -> %s\n", node.ID, spr.VNI, err.Error())
 		return false, err
@@ -508,45 +593,48 @@ func (self *NodeDaoImpl) GetSpotCheckList() ([]*SpotCheckList, error) {
 	return nil, errors.New("no nodes can be spotchecked")
 }
 
-func (self *NodeDaoImpl) Punish(node *Node, percent int64, mark bool) error {
-	rate, err := self.eostx.GetExchangeRate()
-	if err != nil {
-		return err
-	}
+func (self *NodeDaoImpl) Punish(node *Node, percent int64) (int64, error) {
+	// rate, err := self.eostx.GetExchangeRate()
+	// if err != nil {
+	// 	return 0, err
+	// }
 	pledgeData, err := self.eostx.GetPledgeData(uint64(node.ID))
 	if err != nil {
-		return err
+		return 0, err
 	}
 	totalAsset := pledgeData.Total
 	leftAsset := pledgeData.Deposit
 	punishAsset := pledgeData.Deposit
 
+	var retLeft int64 = 0
 	punishFee := int64(totalAsset.Amount) * percent / 100
 	if punishFee < int64(punishAsset.Amount) {
 		punishAsset.Amount = eos.Int64(punishFee)
+		retLeft = int64(leftAsset.Amount - punishAsset.Amount)
 	}
 	err = self.eostx.DeducePledge(uint64(node.ID), &punishAsset)
 	if err != nil {
-		return err
+		return 0, err
 	}
-	//newAssignedSpace := node.AssignedSpace - int64(punishAsset.Amount)*65536*int64(rate)/1000000
-	newAssignedSpace := int64(leftAsset.Amount-punishAsset.Amount) * 65536 * int64(rate) / 1000000
-	if newAssignedSpace < 0 {
-		newAssignedSpace = 0
-	}
-	collection := self.client.Database(YottaDB).Collection(NodeTab)
-	// invalid over 24 hours begin data rebuilding
-	if mark {
-		_, err = collection.UpdateOne(context.Background(), bson.M{"_id": node.ID}, bson.M{"$set": bson.M{"status": 2, "tasktimestamp": int64(0)}})
-		if err != nil {
-			return err
-		}
-	}
-	_, err = collection.UpdateOne(context.Background(), bson.M{"_id": node.ID}, bson.M{"$set": bson.M{"assignedSpace": newAssignedSpace}})
-	if err != nil {
-		return err
-	}
-	return nil
+	log.Printf("spotcheck: Punish: punish %d%% deposit of node %d: %d\n", percent, node.ID, punishFee)
+	// //newAssignedSpace := node.AssignedSpace - int64(punishAsset.Amount)*65536*int64(rate)/1000000
+	// newAssignedSpace := int64(leftAsset.Amount-punishAsset.Amount) * 65536 * int64(rate) / 1000000
+	// if newAssignedSpace < 0 {
+	// 	newAssignedSpace = 0
+	// }
+	// collection := self.client.Database(YottaDB).Collection(NodeTab)
+	// // invalid over 24 hours begin data rebuilding
+	// // if mark {
+	// // 	_, err = collection.UpdateOne(context.Background(), bson.M{"_id": node.ID}, bson.M{"$set": bson.M{"status": 2, "tasktimestamp": int64(0)}})
+	// // 	if err != nil {
+	// // 		return err
+	// // 	}
+	// // }
+	// _, err = collection.UpdateOne(context.Background(), bson.M{"_id": node.ID}, bson.M{"$set": bson.M{"assignedSpace": newAssignedSpace}})
+	// if err != nil {
+	// 	return 0, err
+	// }
+	return retLeft, nil
 }
 
 // GetSTNode find a random miner to perform spotcheck

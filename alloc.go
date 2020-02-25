@@ -3,6 +3,7 @@ package YTDNMgmt
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log"
 	"math/rand"
 	"sort"
@@ -321,6 +322,16 @@ func (s *NodesSelector) refresh(nodeMgr *NodeDaoImpl) error {
 	s.nodeIDs = nodeIDs
 	log.Printf("alloc: refresh: refreshing finished, %d nodes can be allocated\n", nodeCount)
 	return nil
+}
+
+//RandomNode select a random node ID
+func (s *NodesSelector) RandomNodeID() (int32, error) {
+	nodeIDs := s.nodeIDs
+	if len(nodeIDs) == 0 {
+		return 0, fmt.Errorf("no node can be allocated")
+	}
+	index := rand.Int31n(int32(len(nodeIDs)))
+	return index, nil
 }
 
 // Alloc nodes for client

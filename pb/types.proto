@@ -12,9 +12,7 @@ service YTDNMgmt {
   rpc SetMaster(Int32Msg) returns (Empty) {}
   rpc ChangeEosURL(StringMsg) returns (Empty) {}
   rpc NewNodeID (Empty) returns (Int32Msg) {}
-  rpc PreRegisterNode(StringMsg) returns (Empty) {}
-  rpc ChangeMinerPool(StringMsg) returns (Empty) {}
-  rpc RegisterNode(NodeMsg) returns (NodeMsg) {}
+  rpc CallAPI(String2Msg) returns (Empty) {}
   rpc UpdateNodeStatus(NodeMsg) returns (NodeMsg) {}
   rpc IncrUsedSpace(IncrUsedSpaceReq) returns (Empty) {}
   rpc AllocNodes(AllocNodesReq) returns (NodesResp) {}
@@ -46,6 +44,12 @@ message Empty {
 // message that only contains a value of string
 message StringMsg {
   string value = 1;
+}
+
+// message that only contains a value of string
+message String2Msg {
+  string param1 = 1;
+  string param2 = 2;
 }
 
 // message that only contains a value of int32

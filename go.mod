@@ -15,8 +15,8 @@ require (
 	github.com/tidwall/sjson v1.0.4 // indirect
 	github.com/xdg/scram v0.0.0-20180814205039-7eeb5667e42c // indirect
 	github.com/xdg/stringprep v1.0.0 // indirect
-	github.com/yottachain/P2PHost v1.0.1-0.20200225115151-1c17486c0d2d
-	github.com/yottachain/YTCrypto v0.0.0-20191111140914-83c018a089b4
+	github.com/yottachain/P2PHost v1.0.1-0.20200204134916-c7dfa08883e8
+	github.com/yottachain/YTCrypto v0.0.0-20200122165219-0ea35dc29812
 	go.etcd.io/etcd v3.3.18+incompatible
 	go.mongodb.org/mongo-driver v1.1.3
 	google.golang.org/genproto v0.0.0-20191216205247-b31c10ee225f // indirect

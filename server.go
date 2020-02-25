@@ -34,33 +34,13 @@ func (server *Server) NewNodeID(ctx context.Context, req *pb.Empty) (*pb.Int32Ms
 	return &pb.Int32Msg{Value: id}, nil
 }
 
-// PreRegisterNode implemented PreRegisterNode function of YTDNMgmtServer
-func (server *Server) PreRegisterNode(ctx context.Context, req *pb.StringMsg) (*pb.Empty, error) {
-	err := server.NodeService.PreRegisterNode(req.GetValue())
+// CallAPI implemented CallAPI function of YTDNMgmtServer
+func (server *Server) CallAPI(ctx context.Context, req *pb.String2Msg) (*pb.Empty, error) {
+	err := server.NodeService.CallAPI(req.GetParam1(), req.GetParam2())
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, err.Error())
 	}
 	return &pb.Empty{}, nil
-}
-
-// ChangeMinerPool implemented ChangeMinerPool function of YTDNMgmtServer
-func (server *Server) ChangeMinerPool(ctx context.Context, req *pb.StringMsg) (*pb.Empty, error) {
-	err := server.NodeService.ChangeMinerPool(req.GetValue())
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, err.Error())
-	}
-	return &pb.Empty{}, nil
-}
-
-// RegisterNode implemented RegisterNode function of YTDNMgmtServer
-func (server *Server) RegisterNode(ctx context.Context, req *pb.NodeMsg) (*pb.NodeMsg, error) {
-	node := new(Node)
-	node.Fillby(req)
-	nodeRet, err := server.NodeService.RegisterNode(node)
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, err.Error())
-	}
-	return nodeRet.Convert(), nil
 }
 
 // UpdateNodeStatus implemented UpdateNodeStatus function of YTDNMgmtServer

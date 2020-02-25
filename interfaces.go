@@ -7,9 +7,7 @@ type NodeDao interface {
 	SetMaster(master int32)
 	ChangeEosURL(eosURL string)
 	NewNodeID() (int32, error)
-	PreRegisterNode(trx string) error
-	ChangeMinerPool(trx string) error
-	RegisterNode(node *Node) (*Node, error)
+	CallAPI(trx string, apiName string) error
 	UpdateNodeStatus(node *Node) (*Node, error)
 	IncrUsedSpace(id int32, incr int64) error
 	AllocNodes(shardCount int32, errIDs []int32) ([]*Node, error)

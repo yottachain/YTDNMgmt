@@ -325,44 +325,16 @@ func NewNodeID() *C.intwitherror {
 	return createIntwitherror(id, err)
 }
 
-//export PreRegisterNode
-func PreRegisterNode(trx *C.char) *C.char {
+//export CallAPI
+func CallAPI(trx *C.char, apiName *C.char) *C.char  {
 	if nodeDao == nil {
 		return C.CString("Node management module has not started")
 	}
-	err := nodeDao.PreRegisterNode(C.GoString(trx))
+	err := nodeDao.CallAPI(C.GoString(trx), C.GoString(apiName))
 	if err != nil {
 		return C.CString(err.Error())
 	}
 	return nil
-}
-
-//export ChangeMinerPool
-func ChangeMinerPool(trx *C.char) *C.char {
-	if nodeDao == nil {
-		return C.CString("Node management module has not started")
-	}
-	err := nodeDao.ChangeMinerPool(C.GoString(trx))
-	if err != nil {
-		return C.CString(err.Error())
-	}
-	return nil
-}
-
-//export RegisterNode
-func RegisterNode(node *C.node) *C.node {
-	if nodeDao == nil {
-		return createNodeStruct(nil, errors.New("Node management module has not started"))
-	}
-	length := int(node.addrsize)
-	tmpslice := (*[1 << 30]*C.char)(unsafe.Pointer(node.addrs))[:length:length]
-	addrs := make([]string, length)
-	for i, s := range tmpslice {
-		addrs[i] = C.GoString(s)
-	}
-	gnode := nodemgmt.NewNode(int32(node.id), C.GoString(node.nodeid), C.GoString(node.pubkey), C.GoString(node.owner), C.GoString(node.profitAcc), C.GoString(node.poolID), C.GoString(node.poolOwner), int64(node.quota), addrs, int32(node.cpu), int32(node.memory), int32(node.bandwidth), int64(node.maxDataSpace), int64(node.assignedSpace), int64(node.productiveSpace), int64(node.usedSpace), float64(node.weight), int32(node.valid), int32(node.relay), int32(node.status), int64(node.timestamp), int32(node.version), int32(node.rebuilding))
-	gnode, err := nodeDao.RegisterNode(gnode)
-	return createNodeStruct(gnode, err)
 }
 
 //export UpdateNodeStatus
