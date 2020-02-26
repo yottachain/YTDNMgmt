@@ -80,7 +80,7 @@ func (self *NodeDaoImpl) PreRegisterNode(trx string) error {
 	pubkey := regData.Extra
 	if adminAccount == "" || profitAccount == "" || minerID == 0 || minerID%int32(incr) != index || pubkey == "" {
 		log.Printf("nodemgmt: PreRegisterNode: error when parsing parameters from raw transaction: %s\n", "please check adminAccount, profitAccount, minerID, public key and owner of currect node")
-		return errors.New("bad parameters in regminer transaction")
+		return errors.New("bad parameters in PreRegisterNode transaction")
 	}
 	nodeid, err := IDFromPublicKey(pubkey)
 	if err != nil {
@@ -217,7 +217,7 @@ func (self *NodeDaoImpl) ChangeAdminAcc(trx string) error {
 	newAdmin := string(adminData.NewAdminAcc)
 	if minerID == 0 || minerID%incr != int64(index) || newAdmin == "" {
 		log.Printf("nodemgmt: ChangeAdmin: error when parsing parameters from raw transaction: %s\n", "please check minerID and new admin account name of currect node")
-		return errors.New("bad parameters in regminer transaction")
+		return errors.New("bad parameters in ChangeAdminAcc transaction")
 	}
 	err = self.eostx.SendTrx(signedTrx)
 	if err != nil {
@@ -245,7 +245,7 @@ func (self *NodeDaoImpl) ChangeProfitAcc(trx string) error {
 	newProfit := string(profitData.NewProfitAcc)
 	if minerID == 0 || minerID%incr != int64(index) || newProfit == "" {
 		log.Printf("nodemgmt: ChangeProfitAcc: error when parsing parameters from raw transaction: %s\n", "please check minerID and new profit account name of currect node")
-		return errors.New("bad parameters in regminer transaction")
+		return errors.New("bad parameters in ChangeProfitAcc transaction")
 	}
 	err = self.eostx.SendTrx(signedTrx)
 	if err != nil {
@@ -273,7 +273,7 @@ func (self *NodeDaoImpl) ChangePoolID(trx string) error {
 	newPoolID := string(poolData.NewPoolID)
 	if minerID == 0 || minerID%incr != int64(index) || newPoolID == "" {
 		log.Printf("nodemgmt: ChangePoolID: error when parsing parameters from raw transaction: %s\n", "please check minerID and new pool ID of currect node")
-		return errors.New("bad parameters in regminer transaction")
+		return errors.New("bad parameters in ChangePoolID transaction")
 	}
 	err = self.eostx.SendTrx(signedTrx)
 	if err != nil {
@@ -337,7 +337,7 @@ func (self *NodeDaoImpl) ChangeAssignedSpace(trx string) error {
 	newAssignedSpace := int64(newSpaceData.MaxSpace)
 	if minerID == 0 || minerID%incr != int64(index) || newAssignedSpace == 0 {
 		log.Printf("nodemgmt: ChangeAssignedSpace: error when parsing parameters from raw transaction: %s\n", "please check minerID and new assigned space of currect node")
-		return errors.New("bad parameters in regminer transaction")
+		return errors.New("bad parameters in ChangeAssignedSpace transaction")
 	}
 	err = self.eostx.SendTrx(signedTrx)
 	if err != nil {
