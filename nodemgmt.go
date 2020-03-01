@@ -168,6 +168,7 @@ func (self *NodeDaoImpl) UpdateNodeStatus(node *Node) (*Node, error) {
 	}
 
 	node.Valid = n.Valid
+	log.Println("nodemgmt check adds -----------------------------------------------")
 	adds := ""
 	for _, v := range node.Addrs {
 		adds = adds + v + "\n"
