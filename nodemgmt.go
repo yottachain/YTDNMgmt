@@ -168,7 +168,18 @@ func (self *NodeDaoImpl) UpdateNodeStatus(node *Node) (*Node, error) {
 	}
 
 	node.Valid = n.Valid
+	adds := ""
+	for _, v := range node.Addrs {
+		adds = adds + v + "\n"
+	}
+	log.Printf("nodemgmt: before check adds nodeid:%s  all adds\n %s", n.NodeID, adds)
 	node.Addrs = CheckPublicAddrs(node.Addrs)
+	adds = ""
+	for _, v := range node.Addrs {
+		adds = adds + v + "\n"
+	}
+	log.Printf("nodemgmt: after check adds nodeid:%s  all adds\n %s", n.NodeID, adds)
+
 	relayURL, err := self.AddrCheck(n, node)
 	if err != nil {
 		log.Printf("nodemgmt: UpdateNodeStatus: error when checking public address of node %d: %s\n", n.ID, err.Error())
