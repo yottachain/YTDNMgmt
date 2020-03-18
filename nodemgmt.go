@@ -36,6 +36,9 @@ var index int32 = -1
 
 //NewInstance create a new instance of NodeDaoImpl
 func NewInstance(mongoURL, eosURL, bpAccount, bpPrivkey, contractOwnerM, contractOwnerD, shadowAccount string, bpID int32, isMaster int32) (*NodeDaoImpl, error) {
+	if enableTest {
+		YottaDB = fmt.Sprintf("%s%d", YottaDB, bpID)
+	}
 	client, err := mongo.Connect(context.Background(), options.Client().ApplyURI(mongoURL))
 	if err != nil {
 		log.Printf("nodemgmt: NewInstance: error when creating mongodb client: %s %s\n", mongoURL, err.Error())
@@ -210,7 +213,7 @@ func (self *NodeDaoImpl) UpdateNodeStatus(node *Node) (*Node, error) {
 	w3 := float64(n.AssignedSpace) / 67108864
 	// calculate w4
 	w4 := 1.0
-	if node.Rebuilding == 1 {
+	if node.Rebuilding > 0 {
 		w4 = 0.1
 	}
 	weight := int64(float64(n.AssignedSpace) * w1 * w2 * w3 * w4)

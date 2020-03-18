@@ -187,12 +187,23 @@ func (self *NodeDaoImpl) GetRebuildNode(count int64) (*Node, error) {
 		log.Printf("rebuild: GetRebuildNode: error when decoding node: %s\n", err.Error())
 		return nil, err
 	}
+	self.setRebuildFlag(id)
 	return result, nil
 }
 
 func (self *NodeDaoImpl) setRebuildFlag(id int32) error {
 	collection := self.client.Database(YottaDB).Collection(NodeTab)
-	_, err := collection.UpdateOne(context.Background(), bson.M{"_id": id}, bson.M{"$set": bson.M{"rebuilding": 1}})
+	result := new(Node)
+	err := collection.FindOne(context.Background(), bson.M{"_id": id}).Decode(result)
+	if err != nil {
+		log.Printf("rebuild: setRebuildFlag: error when decoding node: %s\n", err.Error())
+		return err
+	}
+	var rebuilding int32 = 1
+	if result.Rebuilding > 0 {
+		rebuilding = result.Rebuilding
+	}
+	_, err = collection.UpdateOne(context.Background(), bson.M{"_id": id}, bson.M{"$set": bson.M{"rebuilding": rebuilding}})
 	if err != nil {
 		log.Printf("rebuild: setRebuildFlag: error when change rebuild flag to 1: %s\n", err.Error())
 		return err

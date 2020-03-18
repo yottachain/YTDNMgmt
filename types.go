@@ -144,7 +144,7 @@ type PoolWeight struct {
 }
 
 //relative DB and collection name
-const (
+var (
 	YottaDB       = "yotta"
 	NodeTab       = "Node"
 	SuperNodeTab  = "SuperNode"
