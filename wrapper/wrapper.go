@@ -34,6 +34,9 @@ typedef struct node {
 	int64_t timestamp;
 	int32_t version;
 	int32_t rebuilding;
+	int64_t realSpace;
+	int64_t tx;
+	int64_t rx;
 	char *error;
 } node;
 
@@ -299,7 +302,7 @@ func NewInstance(mongodbURL, eosURL, bpAccount, bpPrivkey, contractOwnerM, contr
 }
 
 //export SetMaster
-func SetMaster(master C.int32_t) *C.char{
+func SetMaster(master C.int32_t) *C.char {
 	if nodeDao == nil {
 		return C.CString("Node management module has not started")
 	}
@@ -308,7 +311,7 @@ func SetMaster(master C.int32_t) *C.char{
 }
 
 //export ChangeEosURL
-func ChangeEosURL(eosURL *C.char) *C.char{
+func ChangeEosURL(eosURL *C.char) *C.char {
 	if nodeDao == nil {
 		return C.CString("Node management module has not started")
 	}
@@ -326,7 +329,7 @@ func NewNodeID() *C.intwitherror {
 }
 
 //export CallAPI
-func CallAPI(trx *C.char, apiName *C.char) *C.char  {
+func CallAPI(trx *C.char, apiName *C.char) *C.char {
 	if nodeDao == nil {
 		return C.CString("Node management module has not started")
 	}
@@ -350,7 +353,7 @@ func UpdateNodeStatus(node *C.node) *C.node {
 			addrs[i] = C.GoString(s)
 		}
 	}
-	gnode := nodemgmt.NewNode(int32(node.id), C.GoString(node.nodeid), C.GoString(node.pubkey), C.GoString(node.owner), C.GoString(node.profitAcc), C.GoString(node.poolID), C.GoString(node.poolOwner), int64(node.quota), addrs, int32(node.cpu), int32(node.memory), int32(node.bandwidth), int64(node.maxDataSpace), int64(node.assignedSpace), int64(node.productiveSpace), int64(node.usedSpace), float64(node.weight), int32(node.valid), int32(node.relay), int32(node.status), int64(node.timestamp), int32(node.version), int32(node.rebuilding))
+	gnode := nodemgmt.NewNode(int32(node.id), C.GoString(node.nodeid), C.GoString(node.pubkey), C.GoString(node.owner), C.GoString(node.profitAcc), C.GoString(node.poolID), C.GoString(node.poolOwner), int64(node.quota), addrs, int32(node.cpu), int32(node.memory), int32(node.bandwidth), int64(node.maxDataSpace), int64(node.assignedSpace), int64(node.productiveSpace), int64(node.usedSpace), float64(node.weight), int32(node.valid), int32(node.relay), int32(node.status), int64(node.timestamp), int32(node.version), int32(node.rebuilding), int64(node.realSpace), int64(node.tx), int64(node.rx))
 	gnode, err := nodeDao.UpdateNodeStatus(gnode)
 	return createNodeStruct(gnode, err)
 }
@@ -373,7 +376,7 @@ func AllocNodes(shardCount C.int, errIDs *C.int, size C.int) *C.allocnoderet {
 		return createAllocnoderet(nil, errors.New("Node management module has not started"))
 	}
 	var gErrIDs []int32
-	if errIDs!=nil && size > 0 {
+	if errIDs != nil && size > 0 {
 		length := int(size)
 		tmpslice := (*[1 << 30]C.int)(unsafe.Pointer(errIDs))[:length:length]
 		gErrIDs = make([]int32, length)
@@ -398,7 +401,7 @@ func SyncNode(node *C.node) *C.char {
 			addrs[i] = C.GoString(s)
 		}
 	}
-	gnode := nodemgmt.NewNode(int32(node.id), C.GoString(node.nodeid), C.GoString(node.pubkey), C.GoString(node.owner), C.GoString(node.profitAcc), C.GoString(node.poolID), C.GoString(node.poolOwner), int64(node.quota), addrs, int32(node.cpu), int32(node.memory), int32(node.bandwidth), int64(node.maxDataSpace), int64(node.assignedSpace), int64(node.productiveSpace), int64(node.usedSpace), float64(node.weight), int32(node.valid), int32(node.relay), int32(node.status), int64(node.timestamp), int32(node.version), int32(node.rebuilding))
+	gnode := nodemgmt.NewNode(int32(node.id), C.GoString(node.nodeid), C.GoString(node.pubkey), C.GoString(node.owner), C.GoString(node.profitAcc), C.GoString(node.poolID), C.GoString(node.poolOwner), int64(node.quota), addrs, int32(node.cpu), int32(node.memory), int32(node.bandwidth), int64(node.maxDataSpace), int64(node.assignedSpace), int64(node.productiveSpace), int64(node.usedSpace), float64(node.weight), int32(node.valid), int32(node.relay), int32(node.status), int64(node.timestamp), int32(node.version), int32(node.rebuilding), int64(node.realSpace), int64(node.tx), int64(node.rx))
 	err := nodeDao.SyncNode(gnode)
 	if err != nil {
 		return C.CString(err.Error())
@@ -725,6 +728,9 @@ func createNodeStruct(node *nodemgmt.Node, err error) *C.node {
 	(*ptr).timestamp = C.int64_t(node.Timestamp)
 	(*ptr).version = C.int32_t(node.Version)
 	(*ptr).rebuilding = C.int32_t(node.Rebuilding)
+	(*ptr).realSpace = C.int64_t(node.RealSpace)
+	(*ptr).tx = C.int64_t(node.Tx)
+	(*ptr).rx = C.int64_t(node.Rx)
 	return ptr
 }
 
@@ -770,6 +776,9 @@ func FreeNode(ptr *C.node) {
 		(*ptr).timestamp = 0
 		(*ptr).version = 0
 		(*ptr).rebuilding = 0
+		(*ptr).realSpace = 0
+		(*ptr).tx = 0
+		(*ptr).rx = 0
 		if (*ptr).error != nil {
 			C.free(unsafe.Pointer((*ptr).error))
 			(*ptr).error = nil

@@ -87,6 +87,9 @@ message NodeMsg {
 	int64 timestamp = 21;          //timestamp of status updating operation
   int32 version = 22;            //version number of miner
   int32 rebuilding = 23;         //if node is under rebuilding
+  int64 realSpace = 24;          //real space of miner
+  int64 tx = 25;                 //tx
+  int64 rx = 26;                 //rx
 }
 
 // SuperNode message
