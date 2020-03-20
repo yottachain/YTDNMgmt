@@ -53,11 +53,17 @@ type Node struct {
 	Version int32 `bson:"version"`
 	//Rebuilding if node is under rebuilding
 	Rebuilding int32 `bson:"rebuilding"`
+	//RealSpace real space of miner
+	RealSpace int64 `bson:"realSpace"`
+	//Tx
+	Tx int64 `bson:"tx"`
+	//Rx
+	Rx int64 `bson:"rx"`
 }
 
 //NewNode create a node struct
-func NewNode(id int32, nodeid string, pubkey string, owner string, profitAcc string, poolID string, poolOwner string, quota int64, addrs []string, cpu int32, memory int32, bandwidth int32, maxDataSpace int64, assignedSpace int64, productiveSpace int64, usedSpace int64, weight float64, valid int32, relay int32, status int32, timestamp int64, version int32, rebuilding int32) *Node {
-	return &Node{ID: id, NodeID: nodeid, PubKey: pubkey, Owner: owner, ProfitAcc: profitAcc, PoolID: poolID, PoolOwner: poolOwner, Quota: quota, Addrs: addrs, CPU: cpu, Memory: memory, Bandwidth: bandwidth, MaxDataSpace: maxDataSpace, AssignedSpace: assignedSpace, ProductiveSpace: productiveSpace, UsedSpace: usedSpace, Weight: weight, Valid: valid, Relay: relay, Status: status, Timestamp: timestamp, Version: version, Rebuilding: rebuilding}
+func NewNode(id int32, nodeid string, pubkey string, owner string, profitAcc string, poolID string, poolOwner string, quota int64, addrs []string, cpu int32, memory int32, bandwidth int32, maxDataSpace int64, assignedSpace int64, productiveSpace int64, usedSpace int64, weight float64, valid int32, relay int32, status int32, timestamp int64, version int32, rebuilding int32, realSpace int64, tx int64, rx int64) *Node {
+	return &Node{ID: id, NodeID: nodeid, PubKey: pubkey, Owner: owner, ProfitAcc: profitAcc, PoolID: poolID, PoolOwner: poolOwner, Quota: quota, Addrs: addrs, CPU: cpu, Memory: memory, Bandwidth: bandwidth, MaxDataSpace: maxDataSpace, AssignedSpace: assignedSpace, ProductiveSpace: productiveSpace, UsedSpace: usedSpace, Weight: weight, Valid: valid, Relay: relay, Status: status, Timestamp: timestamp, Version: version, Rebuilding: rebuilding, RealSpace: realSpace, Tx: tx, Rx: rx}
 }
 
 //SuperNode instance
@@ -144,7 +150,7 @@ type PoolWeight struct {
 }
 
 //relative DB and collection name
-const (
+var (
 	YottaDB       = "yotta"
 	NodeTab       = "Node"
 	SuperNodeTab  = "SuperNode"
@@ -191,6 +197,9 @@ func (node *Node) Convert() *pb.NodeMsg {
 		Timestamp:       node.Timestamp,
 		Version:         node.Version,
 		Rebuilding:      node.Rebuilding,
+		RealSpace:       node.RealSpace,
+		Tx:              node.Tx,
+		Rx:              node.Rx,
 	}
 }
 
@@ -219,6 +228,9 @@ func (node *Node) Fillby(msg *pb.NodeMsg) {
 	node.Timestamp = msg.Timestamp
 	node.Version = msg.Version
 	node.Rebuilding = msg.Rebuilding
+	node.RealSpace = msg.RealSpace
+	node.Tx = msg.Tx
+	node.Rx = msg.Rx
 }
 
 // ConvertNodesToNodesMsg convert list of Node to list of NodeMsg

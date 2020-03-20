@@ -143,8 +143,8 @@ func CheckPublicAddrs(addrs []string) []string {
 			strings.HasPrefix(addr, "/ip4/172.30.") ||
 			strings.HasPrefix(addr, "/ip4/172.31.") ||
 			strings.HasPrefix(addr, "/ip6/") ||
-			strings.HasPrefix(addr, "/p2p-circuit/") ||
-			strings.Index(addr, "/p2p/") != -1 {
+			strings.HasPrefix(addr, "/p2p-circuit/") {
+			//strings.Index(addr, "/p2p/") != -1 {
 			if excludeAddrPrefix != "" && strings.HasPrefix(addr, excludeAddrPrefix) {
 				filteredAddrs = append(filteredAddrs, addr)
 			}

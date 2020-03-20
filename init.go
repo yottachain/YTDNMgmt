@@ -34,6 +34,8 @@ var punishPhase2Percent int32       //punish percent of second phase
 var punishPhase3Percent int32       //punish percent of third phase
 var rebuildPhase int32              //phase period of node rebuild
 var errorNodePercentThreshold int32 //percent threshold of error miner of one pool,
+var enableTest bool                 //whether in test mode
+var skipBP bool                     //wheter skip BP operation
 
 var ipDBPath string //path of IPDB
 
@@ -213,6 +215,20 @@ func init() {
 		errorNodePercentThreshold = 95
 	} else {
 		errorNodePercentThreshold = int32(enpt)
+	}
+
+	enableTestStr := os.Getenv("IPFS_DBNAME_SNID")
+	if enableTestStr == "yes" {
+		enableTest = true
+	} else {
+		enableTest = false
+	}
+
+	skipBPStr := os.Getenv("IPFS_BP_ENABLE")
+	if skipBPStr == "no" {
+		skipBP = true
+	} else {
+		skipBP = false
 	}
 
 	ipDBPath = os.Getenv("NODEMGMT_IPDBPATH")
