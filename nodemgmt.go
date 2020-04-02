@@ -207,6 +207,9 @@ func (self *NodeDaoImpl) UpdateNodeStatus(node *Node) (*Node, error) {
 		w14 = math.Atan(math.Pow(1.01, math.Pow(1.01, 30*float64(100-n.Bandwidth))-1)-1) * 1.6 / math.Pi
 	}
 	w1 := math.Sqrt(math.Sqrt(w11*w12*w13*w14)) + 0.6
+	if leftSpace <= 0 {
+		w1 = 0
+	}
 	// calculate w2
 	w2 := self.calculateW2(n.PoolOwner)
 	// calculate w3
@@ -216,7 +219,18 @@ func (self *NodeDaoImpl) UpdateNodeStatus(node *Node) (*Node, error) {
 	if node.Rebuilding > 0 {
 		w4 = 0.1
 	}
-	weight := int64(float64(n.AssignedSpace) * w1 * w2 * w3 * w4)
+	w5 := 1.0
+	w6 := 1.0
+	collectionPW := self.client.Database(YottaDB).Collection(PoolWeightTab)
+	pw := new(PoolWeight)
+	err = collectionPW.FindOne(context.Background(), bson.M{"_id": n.PoolOwner}).Decode(pw)
+	if err != nil {
+		log.Printf("nodemgmt: UpdateNodeStatus: warning when decoding pool weight of node %d: %s\n", n.ID, err.Error())
+	} else {
+		w5 = float64(pw.ManualWeight) / 100.0
+		w6 = float64(pw.PoolTotalCount-pw.PoolErrorCount) / float64(pw.PoolTotalCount)
+	}
+	weight := int64(float64(n.AssignedSpace) * w1 * w2 * w3 * w4 * w5 * w6)
 	// weight := n.AssignedSpace
 	if weight < 0 {
 		weight = 0

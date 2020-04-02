@@ -147,6 +147,7 @@ type PoolWeight struct {
 	PoolTotalCount    int64  `bson:"poolTotalCount"`
 	PoolErrorCount    int64  `bson:"poolErrorCount"`
 	Timestamp         int64  `bson:"timestamp"`
+	ManualWeight      int64  `bson:"manualWeight"`
 }
 
 //relative DB and collection name

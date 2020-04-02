@@ -25,18 +25,20 @@ func init() {
 }
 
 func (self *NodeDaoImpl) StartRecheck() {
-	log.Printf("spotcheck: StartRecheck: starting recheck executor...\n")
-	log.Printf("spotcheck: StartRecheck: clear spotcheck tasks...\n")
-	collection := self.client.Database(YottaDB).Collection(SpotCheckTab)
-	_, err := collection.DeleteMany(context.Background(), bson.M{"status": 0})
-	if err != nil {
-		log.Printf("spotcheck: StartRecheck: error happens when deleting spotcheck tasks with status 0: %s\n", err.Error())
+	if enableSpotCheck {
+		log.Printf("spotcheck: StartRecheck: starting recheck executor...\n")
+		log.Printf("spotcheck: StartRecheck: clear spotcheck tasks...\n")
+		collection := self.client.Database(YottaDB).Collection(SpotCheckTab)
+		_, err := collection.DeleteMany(context.Background(), bson.M{"status": 0})
+		if err != nil {
+			log.Printf("spotcheck: StartRecheck: error happens when deleting spotcheck tasks with status 0: %s\n", err.Error())
+		}
+		_, err = collection.UpdateMany(context.Background(), bson.M{"status": 2}, bson.M{"$set": bson.M{"status": 1}})
+		if err != nil {
+			log.Printf("spotcheck: StartRecheck: error happens when update spotcheck tasks with status 2 to 1: %s\n", err.Error())
+		}
+		go self.doRecheck()
 	}
-	_, err = collection.UpdateMany(context.Background(), bson.M{"status": 2}, bson.M{"$set": bson.M{"status": 1}})
-	if err != nil {
-		log.Printf("spotcheck: StartRecheck: error happens when update spotcheck tasks with status 2 to 1: %s\n", err.Error())
-	}
-	go self.doRecheck()
 }
 
 func (self *NodeDaoImpl) doRecheck() {
@@ -660,7 +662,7 @@ func (self *NodeDaoImpl) GetSTNode() (*Node, error) {
 		d = d * 100
 	}
 	n := rand.Int63n(d * int64(spotcheckInterval))
-	if n < c {
+	if n < c && enableSpotCheck {
 		return NewNode(1, "", "", "", "", "", "", 0, nil, 0, 0, 0, 0, int64(spotcheckInterval), c, d, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0), nil
 	}
 	return NewNode(0, "", "", "", "", "", "", 0, nil, 0, 0, 0, 0, int64(spotcheckInterval), c, d, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0), nil

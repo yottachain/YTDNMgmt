@@ -239,6 +239,7 @@ func (s *NodesSelector) refreshPoolWeight(nodeMgr *NodeDaoImpl) error {
 	}
 
 	for _, p := range pws {
+		p.ManualWeight = 100
 		_, err = collectionPW.InsertOne(context.Background(), p)
 		if err != nil {
 			errstr := err.Error()
