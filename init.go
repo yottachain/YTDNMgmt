@@ -36,6 +36,7 @@ var rebuildPhase int32              //phase period of node rebuild
 var errorNodePercentThreshold int32 //percent threshold of error miner of one pool,
 var enableTest bool                 //whether in test mode
 var skipBP bool                     //wheter skip BP operation
+var enableSpotCheck bool
 
 var ipDBPath string //path of IPDB
 
@@ -229,6 +230,13 @@ func init() {
 		skipBP = true
 	} else {
 		skipBP = false
+	}
+
+	enableSpotCheckStr := os.Getenv("NODEMGMT_ENABLESPOTCHECK")
+	if enableSpotCheckStr == "no" {
+		enableSpotCheck = false
+	} else {
+		enableSpotCheck = true
 	}
 
 	ipDBPath = os.Getenv("NODEMGMT_IPDBPATH")
