@@ -533,9 +533,11 @@ func (self *NodeDaoImpl) GetRandomVNI(id int32) (string, error) {
 		return "", fmt.Errorf("cannot find last DNI")
 	}
 	endTime := lastDNI.ID.Timestamp().Unix()
+	if startTime > endTime {
+		return "", fmt.Errorf("no valid VNIs can be spotchecked")
+	}
 	delta := rand.Int63n(endTime - startTime)
 	selectedTime := startTime + delta
-	fmt.Println(selectedTime)
 	selectedID := primitive.NewObjectIDFromTimestamp(time.Unix(selectedTime, 0))
 	selectedDNI := new(DNI)
 	cur2, err := collection.Find(context.Background(), bson.M{"minerID": id, "delete": 0, "_id": bson.M{"$gte": selectedID}}, &opt)
