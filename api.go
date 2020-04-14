@@ -317,9 +317,24 @@ func (self *NodeDaoImpl) ChangeDeposit(trx string) error {
 		log.Printf("nodemgmt: ChangeDeposit: error when sending sign transaction: %s\n", err.Error())
 		return err
 	}
+	rate, err := self.eostx.GetExchangeRate()
+	if err != nil {
+		log.Printf("nodemgmt: ChangeDeposit: error when fetching exchange rate from BP: %s\n", err.Error())
+		return err
+	}
+	delta := int64(newDeposit.Quant.Amount) * 65536 * int64(rate) / 1000000
 	err = self.eostx.SendTrx(signedTrx)
 	if err != nil {
 		log.Printf("nodemgmt: ChangeDeposit: error when sending transaction: %s\n", err.Error())
+		return err
+	}
+	collection := self.client.Database(YottaDB).Collection(NodeTab)
+	if !newDeposit.IsIncrease {
+		delta = delta * (-1)
+	}
+	_, err = collection.UpdateOne(context.Background(), bson.M{"_id": newDeposit.MinerID}, bson.M{"$inc": bson.M{"assignedSpace": delta}})
+	if err != nil {
+		log.Printf("nodemgmt: ChangeDeposit: error when updating assignedSpace of Node: %d %s\n", newDeposit.MinerID, err.Error())
 		return err
 	}
 	log.Printf("nodemgmt: ChangeDeposit: node %d has changed deposit: %d\n", newDeposit.MinerID, int64(newDeposit.Quant.Amount))
@@ -345,7 +360,7 @@ func (self *NodeDaoImpl) ChangeAssignedSpace(trx string) error {
 		return err
 	}
 	collection := self.client.Database(YottaDB).Collection(NodeTab)
-	_, err = collection.UpdateOne(context.Background(), bson.M{"_id": minerID}, bson.M{"$set": bson.M{"assignedSpace": newAssignedSpace}})
+	_, err = collection.UpdateOne(context.Background(), bson.M{"_id": minerID}, bson.M{"$set": bson.M{"quota": newAssignedSpace}})
 	if err != nil {
 		log.Printf("nodemgmt: ChangeAssignedSpace: error when updating assigned space of Node: %d %s\n", minerID, err.Error())
 		return err

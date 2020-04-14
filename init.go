@@ -37,6 +37,7 @@ var errorNodePercentThreshold int32 //percent threshold of error miner of one po
 var enableTest bool                 //whether in test mode
 var skipBP bool                     //wheter skip BP operation
 var enableSpotCheck bool
+var spotCheckSkipTime int64 //time before which will not be spotchecked
 
 var ipDBPath string //path of IPDB
 
@@ -237,6 +238,16 @@ func init() {
 		enableSpotCheck = false
 	} else {
 		enableSpotCheck = true
+	}
+
+	spotCheckSkipTimeStr := os.Getenv("NODEMGMT_SPOTCHECKSKIPTIME")
+	if spotCheckSkipTimeStr == "" {
+		spotCheckSkipTime = 1586620800
+	} else {
+		spotCheckSkipTime, err = strconv.ParseInt(spotCheckSkipTimeStr, 10, 64)
+		if err != nil {
+			spotCheckSkipTime = 1586620800
+		}
 	}
 
 	ipDBPath = os.Getenv("NODEMGMT_IPDBPATH")
