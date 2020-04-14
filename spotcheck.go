@@ -299,7 +299,7 @@ func (self *NodeDaoImpl) checkDataNode(spr *SpotCheckRecord) {
 			var errCount int64 = 0
 			for range [100]byte{} {
 				i++
-				spr.VNI, err = self.GetRandomVNI(n.ID, rand.Int63n(n.UsedSpace))
+				spr.VNI, err = self.GetRandomVNI(n.ID)
 				if err != nil {
 					log.Printf("spotcheck: checkDataNode: get random vni%d error: %d -> %s -> %s: %s\n", i, spr.NID, spr.TaskID, spr.VNI, err.Error())
 					_, err := collectionSpotCheck.UpdateOne(context.Background(), bson.M{"_id": spr.TaskID}, bson.M{"$set": bson.M{"status": 1}})
@@ -493,16 +493,147 @@ func (self *NodeDaoImpl) UpdateTaskStatus(taskid string, invalidNodeList []int32
 }
 
 // GetRandomVNI find one VNI by miner ID and index of DNI table
-func (self *NodeDaoImpl) GetRandomVNI(id int32, index int64) (string, error) {
+func (self *NodeDaoImpl) GetRandomVNI(id int32) (string, error) {
 	collection := self.client.Database(YottaDB).Collection(DNITab)
-	options := options.FindOneOptions{}
-	options.Skip = &index
-	dni := new(DNI)
-	err := collection.FindOne(context.Background(), bson.M{"minerID": id}, &options).Decode(dni)
-	if err != nil {
-		return "", err
+	startTime := spotCheckSkipTime
+	var limit int64 = 1
+	opt := options.FindOptions{}
+	opt.Limit = &limit
+	if startTime == 0 {
+		opt.Sort = bson.M{"_id": 1}
+		firstDNI := new(DNI)
+		cur0, err := collection.Find(context.Background(), bson.M{"minerID": id, "delete": 0}, &opt)
+		if err != nil {
+			return "", fmt.Errorf("find first VNI failed: %s", err.Error())
+		}
+		defer cur0.Close(context.Background())
+		if cur0.Next(context.Background()) {
+			err := cur0.Decode(firstDNI)
+			if err != nil {
+				return "", fmt.Errorf("error when decoding first DNI: %s", err.Error())
+			}
+		} else {
+			return "", fmt.Errorf("cannot find first DNI")
+		}
+		startTime = firstDNI.ID.Timestamp().Unix()
 	}
-	return base64.StdEncoding.EncodeToString(dni.Shard.Data), nil
+	opt.Sort = bson.M{"_id": -1}
+	lastDNI := new(DNI)
+	cur1, err := collection.Find(context.Background(), bson.M{"minerID": id, "delete": 0}, &opt)
+	if err != nil {
+		return "", fmt.Errorf("find last VNI failed: %s", err.Error())
+	}
+	defer cur1.Close(context.Background())
+	if cur1.Next(context.Background()) {
+		err := cur1.Decode(lastDNI)
+		if err != nil {
+			return "", fmt.Errorf("error when decoding last DNI: %s", err.Error())
+		}
+	} else {
+		return "", fmt.Errorf("cannot find last DNI")
+	}
+	endTime := lastDNI.ID.Timestamp().Unix()
+	delta := rand.Int63n(endTime - startTime)
+	selectedTime := startTime + delta
+	fmt.Println(selectedTime)
+	selectedID := primitive.NewObjectIDFromTimestamp(time.Unix(selectedTime, 0))
+	selectedDNI := new(DNI)
+	cur2, err := collection.Find(context.Background(), bson.M{"minerID": id, "delete": 0, "_id": bson.M{"$gte": selectedID}}, &opt)
+	if err != nil {
+		return "", fmt.Errorf("find random VNI failed: %s", err.Error())
+	}
+	defer cur2.Close(context.Background())
+	if cur2.Next(context.Background()) {
+		err := cur2.Decode(selectedDNI)
+		if err != nil {
+			return "", fmt.Errorf("error when decoding random DNI: %s", err.Error())
+		}
+	} else {
+		return "", fmt.Errorf("cannot find random DNI")
+	}
+
+	// startTime := primitive.NewObjectIDFromTimestamp(time.Unix(spotCheckSkipTime, 0))
+	// t := strings.Join([]string{startTime.Hex()[:8], "0000000000000000"}, "")
+	// startTime, err := primitive.ObjectIDFromHex(string(t))
+	// if err != nil {
+	// 	return "", fmt.Errorf("parse skipt time object ID failed: %s", err.Error())
+	// }
+	// collection := self.client.Database(YottaDB).Collection(DNITab)
+	// pipeline := mongo.Pipeline{
+	// 	{{"$match", bson.D{{"minerID", id}, {"delete", 0}, {"_id", bson.D{{"$gte", startTime}}}}}},
+	// 	{{"$sample", bson.D{{"size", 1}}}},
+	// }
+	// cur, err := collection.Aggregate(context.Background(), pipeline)
+	// if err != nil {
+	// 	return "", fmt.Errorf("error when finding random VNI: %s", err.Error())
+	// }
+	// defer cur.Close(context.Background())
+	// selectedDNI := new(DNI)
+	// if cur.Next(context.Background()) {
+	// 	err := cur.Decode(selectedDNI)
+	// 	if err != nil {
+	// 		return "", fmt.Errorf("error when decoding random DNI: %s", err.Error())
+	// 	}
+	// } else {
+	// 	return "", fmt.Errorf("cannot find random DNI")
+	// }
+
+	// var limit int64 = 1
+	// opt := options.FindOptions{}
+	// opt.Sort = bson.M{"shard": 1}
+	// opt.Limit = &limit
+	// beginDNI := new(DNI)
+	// cur1, err := collection.Find(context.Background(), bson.M{"minerID": id, "delete": 0, "_id": bson.M{"$gt": startTime}}, &opt)
+	// if err != nil {
+	// 	return "", fmt.Errorf("find begin VNI failed: %s", err.Error())
+	// }
+	// defer cur1.Close(context.Background())
+	// if cur1.Next(context.Background()) {
+	// 	err := cur1.Decode(beginDNI)
+	// 	if err != nil {
+	// 		return "", fmt.Errorf("error when decoding begin DNI: %s", err.Error())
+	// 	}
+	// 	fmt.Printf("begin DNI: %s\n", base64.StdEncoding.EncodeToString(beginDNI.Shard.Data))
+	// } else {
+	// 	return "", fmt.Errorf("cannot find begin DNI")
+	// }
+	// opt.Sort = bson.M{"shard": -1}
+	// endDNI := new(DNI)
+	// cur2, err := collection.Find(context.Background(), bson.M{"minerID": id, "delete": 0, "_id": bson.M{"$gt": startTime}}, &opt)
+	// if err != nil {
+	// 	return "", fmt.Errorf("find end VNI failed: %s", err.Error())
+	// }
+	// defer cur2.Close(context.Background())
+	// if cur2.Next(context.Background()) {
+	// 	err := cur2.Decode(endDNI)
+	// 	if err != nil {
+	// 		return "", fmt.Errorf("error when decoding end DNI: %s", err.Error())
+	// 	}
+	// 	fmt.Printf("end DNI: %s\n", base64.StdEncoding.EncodeToString(endDNI.Shard.Data))
+	// } else {
+	// 	return "", fmt.Errorf("cannot find end DNI")
+	// }
+	// begin := new(big.Int)
+	// begin.SetBytes(beginDNI.Shard.Data)
+	// fmt.Printf("begin index: %d\n", begin)
+	// end := new(big.Int)
+	// end.SetBytes(endDNI.Shard.Data)
+	// fmt.Printf("end index: %d\n", end)
+	// delta := end.Sub(end, begin)
+	// fmt.Printf("delta: %d\n", delta)
+	// deltaRand, err := brand.Int(brand.Reader, delta)
+	// if err != nil {
+	// 	return "", fmt.Errorf("generate random VNI failed: %s", err.Error())
+	// }
+	// fmt.Printf("delta rand: %d\n", deltaRand)
+	// randDNIBig := deltaRand.Add(deltaRand, begin)
+	// fmt.Printf("rand: %d\n", randDNIBig)
+	// selectedDNI := new(DNI)
+	// err = collection.FindOne(context.Background(), bson.M{"minerID": id, "_id": bson.M{"$gt": startTime}, "delete": 0, "shard": bson.M{"$gte": randDNIBig.Bytes()}}).Decode(selectedDNI)
+	// if err != nil {
+	// 	return "", fmt.Errorf("find random VNI failed: %s", err.Error())
+	// }
+	return base64.StdEncoding.EncodeToString(selectedDNI.Shard.Data), nil
 }
 
 // GetSpotCheckList creates a spotcheck task
@@ -549,7 +680,7 @@ func (self *NodeDaoImpl) GetSpotCheckList() ([]*SpotCheckList, error) {
 			} else {
 				spotCheckTask.Addr = CheckPublicAddr(node.Addrs)
 			}
-			spotCheckTask.VNI, err = self.GetRandomVNI(node.ID, rand.Int63n(node.UsedSpace))
+			spotCheckTask.VNI, err = self.GetRandomVNI(node.ID)
 			if err != nil {
 				log.Printf("spotcheck: GetSpotCheckList: error when selecting random vni: %d %s\n", node.ID, err.Error())
 				cur.Close(context.Background())
