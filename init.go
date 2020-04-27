@@ -38,6 +38,7 @@ var enableTest bool                 //whether in test mode
 var skipBP bool                     //wheter skip BP operation
 var enableSpotCheck bool
 var spotCheckSkipTime int64 //time before which will not be spotchecked
+var bpSyncInterval int64    //interval time of BP data syncing
 
 var ipDBPath string //path of IPDB
 
@@ -242,11 +243,21 @@ func init() {
 
 	spotCheckSkipTimeStr := os.Getenv("NODEMGMT_SPOTCHECKSKIPTIME")
 	if spotCheckSkipTimeStr == "" {
-		spotCheckSkipTime = 1586620800
+		spotCheckSkipTime = 0
 	} else {
 		spotCheckSkipTime, err = strconv.ParseInt(spotCheckSkipTimeStr, 10, 64)
 		if err != nil {
-			spotCheckSkipTime = 1586620800
+			spotCheckSkipTime = 0
+		}
+	}
+
+	bpSyncIntervalStr := os.Getenv("NODEMGMT_BPSYNCINTERVAL")
+	if bpSyncIntervalStr == "" {
+		bpSyncInterval = 10
+	} else {
+		bpSyncInterval, err = strconv.ParseInt(bpSyncIntervalStr, 10, 64)
+		if err != nil {
+			bpSyncInterval = 10
 		}
 	}
 

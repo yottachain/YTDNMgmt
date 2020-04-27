@@ -70,6 +70,14 @@ type PledgeData struct {
 	Total       eos.Asset `json:"dep_total"`
 }
 
+type MinerInfo struct {
+	Owner     eos.AccountName `json:"owner"`
+	Admin     eos.AccountName `json:"admin"`
+	PoolID    eos.AccountName `json:"pool_id"`
+	MaxSpace  FlexString      `json:"max_space"`
+	SpaceLeft FlexString      `json:"space_left"`
+}
+
 type PoolInfo struct {
 	Owner     eos.AccountName `json:"pool_owner"`
 	PoolID    eos.AccountName `json:"pool_id"`

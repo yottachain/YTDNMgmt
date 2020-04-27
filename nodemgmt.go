@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"log"
 	"math"
+	"math/rand"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -64,7 +66,7 @@ func NewInstance(mongoURL, eosURL, bpAccount, bpPrivkey, contractOwnerM, contrac
 	}
 	log.Println("nodemgmt: NewInstance: create host2")
 	dao := &NodeDaoImpl{client: client, eostx: etx, host1: host1, host2: host2, ns: &NodesSelector{}, bpID: bpID, master: isMaster}
-	dao.StartRecheck()
+	//dao.StartRecheck()
 	dao.ns.Start(context.Background(), dao)
 	if incr == 0 {
 		collection := client.Database(YottaDB).Collection(SuperNodeTab)
@@ -170,6 +172,41 @@ func (self *NodeDaoImpl) UpdateNodeStatus(node *Node) (*Node, error) {
 		}
 	}
 
+	var assignedSpaceBP int64 = -1
+	var productiveSpaceBP int64 = -1
+	if rand.Int63n(bpSyncInterval*10) < 10 {
+		rate, err := self.eostx.GetExchangeRate()
+		if err != nil {
+			log.Printf("nodemgmt: UpdateNodeStatus: error when fetching exchange rate of miner %d from BP: %s\n", node.ID, err.Error())
+		} else {
+			pledgeData, err := self.eostx.GetPledgeData(uint64(node.ID))
+			if err != nil {
+				log.Printf("nodemgmt: UpdateNodeStatus: error when fetching pledge data of miner %d from BP: %s\n", node.ID, err.Error())
+			} else {
+				assignedSpaceBP = int64(pledgeData.Deposit.Amount) * 65536 * int64(rate) / 1000000
+				log.Printf("nodemgmt: UpdateNodeStatus: sync assigned space of miner %d from BP: %d -> %d\n", node.ID, n.AssignedSpace, assignedSpaceBP)
+				n.AssignedSpace = assignedSpaceBP
+			}
+		}
+		minerInfo, err := self.eostx.GetMinerInfo(uint64(node.ID))
+		if err != nil {
+			log.Printf("nodemgmt: UpdateNodeStatus: error when fetching miner info of miner %d from BP: %s\n", node.ID, err.Error())
+		}
+		maxspace, err := strconv.ParseInt(string(minerInfo.MaxSpace), 10, 64)
+		if err != nil {
+			log.Printf("nodemgmt: UpdateNodeStatus: error when parsing max space(%s) of miner %d from BP: %s\n", string(minerInfo.MaxSpace), node.ID, err.Error())
+		} else {
+			spaceleft, err := strconv.ParseInt(string(minerInfo.SpaceLeft), 10, 64)
+			if err != nil {
+				log.Printf("nodemgmt: UpdateNodeStatus: error when parsing space left(%s) of miner %d from BP: %s\n", string(minerInfo.SpaceLeft), node.ID, err.Error())
+			} else {
+				productiveSpaceBP = maxspace - spaceleft
+				log.Printf("nodemgmt: UpdateNodeStatus: sync productive space of miner %d from BP: %d -> %d\n", node.ID, n.ProductiveSpace, productiveSpaceBP)
+				n.ProductiveSpace = productiveSpaceBP
+			}
+		}
+	}
+
 	node.Valid = n.Valid
 	node.Addrs = CheckPublicAddrs(node.Addrs)
 	relayURL, err := self.AddrCheck(n, node)
@@ -239,6 +276,23 @@ func (self *NodeDaoImpl) UpdateNodeStatus(node *Node) (*Node, error) {
 	opts = opts.SetReturnDocument(options.After)
 	timestamp := time.Now().Unix()
 	update := bson.M{"$set": bson.M{"poolOwner": node.PoolOwner, "cpu": node.CPU, "memory": node.Memory, "bandwidth": node.Bandwidth, "maxDataSpace": node.MaxDataSpace, "addrs": node.Addrs, "weight": weight, "valid": node.Valid, "relay": node.Relay, "status": status, "timestamp": timestamp, "version": node.Version, "rebuilding": node.Rebuilding, "realSpace": node.RealSpace, "tx": node.Tx, "rx": node.Rx}}
+	if assignedSpaceBP != -1 {
+		s, ok := update["$set"].(bson.M)
+		if ok {
+			s["assignedSpace"] = assignedSpaceBP
+		} else {
+			log.Printf("nodemgmt: UpdateNodeStatus: warning when set assigned space update condition of node %d\n", n.ID)
+		}
+	}
+	if productiveSpaceBP != -1 {
+		s, ok := update["$set"].(bson.M)
+		if ok {
+			s["productiveSpace"] = productiveSpaceBP
+		} else {
+			log.Printf("nodemgmt: UpdateNodeStatus: warning when set productive space update condition of node %d\n", n.ID)
+		}
+	}
+	log.Printf("nodemgmt: UpdateNodeStatus: update condition of node %d: %v\n", n.ID, update)
 	// if node.UsedSpace != 0 {
 	// 	update = bson.M{"$set": bson.M{"poolOwner": node.PoolOwner, "cpu": node.CPU, "memory": node.Memory, "bandwidth": node.Bandwidth, "maxDataSpace": node.MaxDataSpace, "realSpace": node.UsedSpace, "addrs": node.Addrs, "weight": weight, "valid": node.Valid, "relay": node.Relay, "status": status, "timestamp": timestamp, "version": node.Version, "rebuilding": node.Rebuilding, "realSpace": node.RealSpace, "tx": node.Tx, "rx": node.Rx}}
 	// }
