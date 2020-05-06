@@ -784,7 +784,7 @@ func (self *NodeDaoImpl) GetSTNode() (*Node, error) {
 		return nil, errors.New("spotcheck: error when get count of spotcheck-executing nodes")
 	}
 	if c == 0 || d == 0 {
-		return NewNode(0, "", "", "", "", "", "", 0, nil, 0, 0, 0, 0, int64(spotcheckInterval), c, d, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0), nil
+		return NewNode(0, "", "", "", "", "", "", 0, nil, 0, 0, 0, 0, int64(spotcheckInterval), c, d, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, ""), nil
 	}
 	if float32(c)/float32(d) > 2 {
 		c = 2000
@@ -796,9 +796,9 @@ func (self *NodeDaoImpl) GetSTNode() (*Node, error) {
 	}
 	n := rand.Int63n(d * int64(spotcheckInterval))
 	if n < c && enableSpotCheck {
-		return NewNode(1, "", "", "", "", "", "", 0, nil, 0, 0, 0, 0, int64(spotcheckInterval), c, d, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0), nil
+		return NewNode(1, "", "", "", "", "", "", 0, nil, 0, 0, 0, 0, int64(spotcheckInterval), c, d, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, ""), nil
 	}
-	return NewNode(0, "", "", "", "", "", "", 0, nil, 0, 0, 0, 0, int64(spotcheckInterval), c, d, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0), nil
+	return NewNode(0, "", "", "", "", "", "", 0, nil, 0, 0, 0, 0, int64(spotcheckInterval), c, d, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, ""), nil
 }
 
 //GetSTNodes get spotcheck nodes by count
