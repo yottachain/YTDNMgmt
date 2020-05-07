@@ -231,6 +231,7 @@ func (self *NodeDaoImpl) UpdateNodeStatus(node *Node) (*Node, error) {
 		w6 = float64(pw.PoolTotalCount-pw.PoolErrorCount) / float64(pw.PoolTotalCount)
 	}
 	weight := int64(float64(n.AssignedSpace) * w1 * w2 * w3 * w4 * w5 * w6)
+	log.Printf("nodemgmt: UpdateNodeStatus: weight of miner %d is %d\n", n.ID, weight)
 	// weight := n.AssignedSpace
 	if weight < 0 {
 		weight = 0
