@@ -37,6 +37,7 @@ typedef struct node {
 	int64_t realSpace;
 	int64_t tx;
 	int64_t rx;
+	char* ext;
 	char *error;
 } node;
 
@@ -353,7 +354,7 @@ func UpdateNodeStatus(node *C.node) *C.node {
 			addrs[i] = C.GoString(s)
 		}
 	}
-	gnode := nodemgmt.NewNode(int32(node.id), C.GoString(node.nodeid), C.GoString(node.pubkey), C.GoString(node.owner), C.GoString(node.profitAcc), C.GoString(node.poolID), C.GoString(node.poolOwner), int64(node.quota), addrs, int32(node.cpu), int32(node.memory), int32(node.bandwidth), int64(node.maxDataSpace), int64(node.assignedSpace), int64(node.productiveSpace), int64(node.usedSpace), float64(node.weight), int32(node.valid), int32(node.relay), int32(node.status), int64(node.timestamp), int32(node.version), int32(node.rebuilding), int64(node.realSpace), int64(node.tx), int64(node.rx))
+	gnode := nodemgmt.NewNode(int32(node.id), C.GoString(node.nodeid), C.GoString(node.pubkey), C.GoString(node.owner), C.GoString(node.profitAcc), C.GoString(node.poolID), C.GoString(node.poolOwner), int64(node.quota), addrs, int32(node.cpu), int32(node.memory), int32(node.bandwidth), int64(node.maxDataSpace), int64(node.assignedSpace), int64(node.productiveSpace), int64(node.usedSpace), float64(node.weight), int32(node.valid), int32(node.relay), int32(node.status), int64(node.timestamp), int32(node.version), int32(node.rebuilding), int64(node.realSpace), int64(node.tx), int64(node.rx), C.GoString(node.ext))
 	gnode, err := nodeDao.UpdateNodeStatus(gnode)
 	return createNodeStruct(gnode, err)
 }
@@ -401,7 +402,7 @@ func SyncNode(node *C.node) *C.char {
 			addrs[i] = C.GoString(s)
 		}
 	}
-	gnode := nodemgmt.NewNode(int32(node.id), C.GoString(node.nodeid), C.GoString(node.pubkey), C.GoString(node.owner), C.GoString(node.profitAcc), C.GoString(node.poolID), C.GoString(node.poolOwner), int64(node.quota), addrs, int32(node.cpu), int32(node.memory), int32(node.bandwidth), int64(node.maxDataSpace), int64(node.assignedSpace), int64(node.productiveSpace), int64(node.usedSpace), float64(node.weight), int32(node.valid), int32(node.relay), int32(node.status), int64(node.timestamp), int32(node.version), int32(node.rebuilding), int64(node.realSpace), int64(node.tx), int64(node.rx))
+	gnode := nodemgmt.NewNode(int32(node.id), C.GoString(node.nodeid), C.GoString(node.pubkey), C.GoString(node.owner), C.GoString(node.profitAcc), C.GoString(node.poolID), C.GoString(node.poolOwner), int64(node.quota), addrs, int32(node.cpu), int32(node.memory), int32(node.bandwidth), int64(node.maxDataSpace), int64(node.assignedSpace), int64(node.productiveSpace), int64(node.usedSpace), float64(node.weight), int32(node.valid), int32(node.relay), int32(node.status), int64(node.timestamp), int32(node.version), int32(node.rebuilding), int64(node.realSpace), int64(node.tx), int64(node.rx), C.GoString(node.ext))
 	err := nodeDao.SyncNode(gnode)
 	if err != nil {
 		return C.CString(err.Error())
@@ -731,6 +732,9 @@ func createNodeStruct(node *nodemgmt.Node, err error) *C.node {
 	(*ptr).realSpace = C.int64_t(node.RealSpace)
 	(*ptr).tx = C.int64_t(node.Tx)
 	(*ptr).rx = C.int64_t(node.Rx)
+	if node.Ext != "" {
+		(*ptr).ext = C.CString(node.Ext)
+	}
 	return ptr
 }
 
@@ -779,6 +783,9 @@ func FreeNode(ptr *C.node) {
 		(*ptr).realSpace = 0
 		(*ptr).tx = 0
 		(*ptr).rx = 0
+		if (*ptr).ext != nil {
+			C.free(unsafe.Pointer((*ptr).ext))
+		}
 		if (*ptr).error != nil {
 			C.free(unsafe.Pointer((*ptr).error))
 			(*ptr).error = nil

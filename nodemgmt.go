@@ -275,7 +275,19 @@ func (self *NodeDaoImpl) UpdateNodeStatus(node *Node) (*Node, error) {
 	opts := new(options.FindOneAndUpdateOptions)
 	opts = opts.SetReturnDocument(options.After)
 	timestamp := time.Now().Unix()
-	update := bson.M{"$set": bson.M{"poolOwner": node.PoolOwner, "cpu": node.CPU, "memory": node.Memory, "bandwidth": node.Bandwidth, "maxDataSpace": node.MaxDataSpace, "addrs": node.Addrs, "weight": weight, "valid": node.Valid, "relay": node.Relay, "status": status, "timestamp": timestamp, "version": node.Version, "rebuilding": node.Rebuilding, "realSpace": node.RealSpace, "tx": node.Tx, "rx": node.Rx}}
+
+	otherDoc := bson.A{}
+	if node.Ext != "" && node.Ext[0] == '[' && node.Ext[len(node.Ext)-1] == ']' {
+		var bdoc interface{}
+		err = bson.UnmarshalExtJSON([]byte(node.Ext), true, &bdoc)
+		if err != nil {
+			log.Printf("nodemgmt: UpdateNodeStatus: warning when parse ext document %s\n", err.Error())
+		} else {
+			otherDoc, _ = bdoc.(bson.A)
+		}
+	}
+
+	update := bson.M{"$set": bson.M{"poolOwner": node.PoolOwner, "cpu": node.CPU, "memory": node.Memory, "bandwidth": node.Bandwidth, "maxDataSpace": node.MaxDataSpace, "addrs": node.Addrs, "weight": weight, "valid": node.Valid, "relay": node.Relay, "status": status, "timestamp": timestamp, "version": node.Version, "rebuilding": node.Rebuilding, "realSpace": node.RealSpace, "tx": node.Tx, "rx": node.Rx, "other": otherDoc}}
 	if assignedSpaceBP != -1 {
 		s, ok := update["$set"].(bson.M)
 		if ok {
@@ -302,6 +314,7 @@ func (self *NodeDaoImpl) UpdateNodeStatus(node *Node) (*Node, error) {
 		log.Printf("nodemgmt: UpdateNodeStatus: error when decoding node %d: %s\n", n.ID, err.Error())
 		return nil, err
 	}
+	n.Ext = node.Ext
 	if relayURL != "" {
 		log.Printf("nodemgmt: UpdateNodeStatus: allocated relay URL for node %d: %s\n", n.ID, relayURL)
 		n.Addrs = []string{relayURL}
@@ -391,14 +404,24 @@ func (self *NodeDaoImpl) SyncNode(node *Node) error {
 	}
 	node.Addrs = CheckPublicAddrs(node.Addrs)
 	collection := self.client.Database(YottaDB).Collection(NodeTab)
-	_, err := collection.InsertOne(context.Background(), node)
+	otherDoc := bson.A{}
+	if node.Ext != "" && node.Ext[0] == '[' && node.Ext[len(node.Ext)-1] == ']' {
+		var bdoc interface{}
+		err := bson.UnmarshalExtJSON([]byte(node.Ext), true, &bdoc)
+		if err != nil {
+			log.Printf("nodemgmt: SyncNode: warning when parse ext document %s\n", err.Error())
+		} else {
+			otherDoc, _ = bdoc.(bson.A)
+		}
+	}
+	_, err := collection.InsertOne(context.Background(), bson.M{"_id": node.ID, "nodeid": node.NodeID, "pubkey": node.PubKey, "owner": node.Owner, "profitAcc": node.ProfitAcc, "poolID": node.PoolID, "poolOwner": node.PoolOwner, "quota": node.Quota, "addrs": node.Addrs, "cpu": node.CPU, "memory": node.Memory, "bandwidth": node.Bandwidth, "maxDataSpace": node.MaxDataSpace, "assignedSpace": node.AssignedSpace, "productiveSpace": node.ProductiveSpace, "usedSpace": node.UsedSpace, "weight": node.Weight, "valid": node.Valid, "relay": node.Relay, "status": node.Status, "timestamp": node.Timestamp, "version": node.Version, "rebuilding": node.Rebuilding, "realSpace": node.RealSpace, "tx": node.Tx, "rx": node.Rx, "other": otherDoc})
 	if err != nil {
 		errstr := err.Error()
 		if !strings.ContainsAny(errstr, "duplicate key error") {
 			log.Printf("nodemgmt: SyncNode: error when inserting node %d to database: %s\n", node.ID, err.Error())
 			return err
 		} else {
-			_, err := collection.UpdateOne(context.Background(), bson.M{"_id": node.ID}, bson.M{"$set": bson.M{"nodeid": node.NodeID, "pubkey": node.PubKey, "owner": node.Owner, "profitAcc": node.ProfitAcc, "poolID": node.PoolID, "poolOwner": node.PoolOwner, "quota": node.Quota, "addrs": node.Addrs, "cpu": node.CPU, "memory": node.Memory, "bandwidth": node.Bandwidth, "maxDataSpace": node.MaxDataSpace, "assignedSpace": node.AssignedSpace, "productiveSpace": node.ProductiveSpace, "usedSpace": node.UsedSpace, "weight": node.Weight, "valid": node.Valid, "relay": node.Relay, "status": node.Status, "timestamp": node.Timestamp, "version": node.Version, "rebuilding": node.Rebuilding, "realSpace": node.RealSpace, "tx": node.Tx, "rx": node.Rx}})
+			_, err := collection.UpdateOne(context.Background(), bson.M{"_id": node.ID}, bson.M{"$set": bson.M{"nodeid": node.NodeID, "pubkey": node.PubKey, "owner": node.Owner, "profitAcc": node.ProfitAcc, "poolID": node.PoolID, "poolOwner": node.PoolOwner, "quota": node.Quota, "addrs": node.Addrs, "cpu": node.CPU, "memory": node.Memory, "bandwidth": node.Bandwidth, "maxDataSpace": node.MaxDataSpace, "assignedSpace": node.AssignedSpace, "productiveSpace": node.ProductiveSpace, "usedSpace": node.UsedSpace, "weight": node.Weight, "valid": node.Valid, "relay": node.Relay, "status": node.Status, "timestamp": node.Timestamp, "version": node.Version, "rebuilding": node.Rebuilding, "realSpace": node.RealSpace, "tx": node.Tx, "rx": node.Rx, "other": otherDoc}})
 			if err != nil {
 				log.Printf("nodemgmt: SyncNode: error when updating record of node %d in database: %s\n", node.ID, err.Error())
 				return err

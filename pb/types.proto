@@ -90,6 +90,7 @@ message NodeMsg {
   int64 realSpace = 24;          //real space of miner
   int64 tx = 25;                 //tx
   int64 rx = 26;                 //rx
+  string ext = 27;             //other
 }
 
 // SuperNode message
