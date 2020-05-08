@@ -229,7 +229,7 @@ func (self *NodeDaoImpl) UpdateNodeStatus(node *Node) (*Node, error) {
 		status = n.Status
 	}
 	// calculate w1
-	leftSpace := float64(Min(n.AssignedSpace, n.Quota, node.MaxDataSpace) - n.UsedSpace)
+	leftSpace := float64(Min(n.AssignedSpace, n.Quota, node.MaxDataSpace) - n.RealSpace)
 	w11 := math.Atan(leftSpace/10000) * 1.6 / math.Pi
 	w12 := 0.8
 	if n.CPU >= 90 {
@@ -244,7 +244,7 @@ func (self *NodeDaoImpl) UpdateNodeStatus(node *Node) (*Node, error) {
 		w14 = math.Atan(math.Pow(1.01, math.Pow(1.01, 30*float64(100-n.Bandwidth))-1)-1) * 1.6 / math.Pi
 	}
 	w1 := math.Sqrt(math.Sqrt(w11*w12*w13*w14)) + 0.6
-	if leftSpace <= 0 {
+	if leftSpace <= 655360 {
 		w1 = 0
 	}
 	// calculate w2
@@ -268,6 +268,7 @@ func (self *NodeDaoImpl) UpdateNodeStatus(node *Node) (*Node, error) {
 		w6 = float64(pw.PoolTotalCount-pw.PoolErrorCount) / float64(pw.PoolTotalCount)
 	}
 	weight := int64(float64(n.AssignedSpace) * w1 * w2 * w3 * w4 * w5 * w6)
+	log.Printf("nodemgmt: UpdateNodeStatus: weight of miner %d is %d\n", n.ID, weight)
 	// weight := n.AssignedSpace
 	if weight < 0 {
 		weight = 0
