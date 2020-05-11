@@ -632,6 +632,10 @@ func (self *NodeDaoImpl) Statistics() (*NodeStat, error) {
 
 //MinerQuit quit miner
 func (self *NodeDaoImpl) MinerQuit(id int32) (string, error) {
+	if id%int32(incr) != index {
+		log.Printf("nodemgmt: MinerQuit: warning: node %d do not belong to current SN\n", id)
+		return "", errors.New("miner do not belong to this SN")
+	}
 	rate, err := self.eostx.GetExchangeRate()
 	if err != nil {
 		log.Printf("nodemgmt: MinerQuit: error when fetching exchange rate from BP: %s\n", err.Error())
