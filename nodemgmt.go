@@ -4,14 +4,17 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"math"
 	"math/rand"
+	"net/http"
 	"strconv"
 	"strings"
 	"sync/atomic"
 	"time"
 
+	"github.com/eoscanada/eos-go"
 	"github.com/mr-tron/base58"
 
 	"go.mongodb.org/mongo-driver/bson"
@@ -82,6 +85,28 @@ func NewInstance(mongoURL, eosURL, bpAccount, bpPrivkey, contractOwnerM, contrac
 		index = bpID
 		log.Printf("nodemgmt: NewInstance: index of SN: %d\n", index)
 	}
+	go func() {
+		http.HandleFunc("/quit", func(w http.ResponseWriter, r *http.Request) {
+			r.ParseForm()
+			mineridstr := r.Form.Get("minerid")
+			if mineridstr == "" {
+				io.WriteString(w, "矿机ID不存在！\n")
+				return
+			}
+			minerid, err := strconv.Atoi(mineridstr)
+			if err != nil {
+				io.WriteString(w, fmt.Sprintf("解析矿机ID失败：%s\n", err.Error()))
+				return
+			}
+			s, err := dao.MinerQuit(int32(minerid))
+			if err != nil {
+				io.WriteString(w, fmt.Sprintf("扣抵押失败：%s\n", err.Error()))
+				return
+			}
+			io.WriteString(w, fmt.Sprintf("扣抵押成功：%s\n", s))
+		})
+		http.ListenAndServe("127.0.0.1:12345", nil)
+	}()
 	return dao, nil
 }
 
@@ -658,4 +683,53 @@ func (self *NodeDaoImpl) Statistics() (*NodeStat, error) {
 	result.ActiveMiners = active
 	result.TotalMiners = total
 	return result, nil
+}
+
+//MinerQuit quit miner
+func (self *NodeDaoImpl) MinerQuit(id int32) (string, error) {
+	if id%int32(incr) != index {
+		log.Printf("nodemgmt: MinerQuit: warning: node %d do not belong to current SN\n", id)
+		return "", errors.New("miner do not belong to this SN")
+	}
+	rate, err := self.eostx.GetExchangeRate()
+	if err != nil {
+		log.Printf("nodemgmt: MinerQuit: error when fetching exchange rate from BP: %s\n", err.Error())
+		return "", err
+	}
+	pledgeData, err := self.eostx.GetPledgeData(uint64(id))
+	if err != nil {
+		return "", err
+	}
+	totalAsset := pledgeData.Total
+	punishAsset := pledgeData.Deposit
+	log.Printf("nodemgmt: MinerQuit: deposit of miner %d is %dYTA, total %dYTA\n", id, punishAsset.Amount/10000, totalAsset.Amount/10000)
+	collection := self.client.Database(YottaDB).Collection(NodeTab)
+	node := new(Node)
+	err = collection.FindOne(context.Background(), bson.M{"_id": id}).Decode(node)
+	if err != nil {
+		log.Printf("nodemgmt: MinerQuit: error when decoding information of miner %d: %s\n", id, err.Error())
+		return "", err
+	}
+	if node.UsedSpace == 0 {
+		return fmt.Sprintf("UsedSpace of miner %d is 0\n", node.ID), nil
+	}
+	punishAmount := node.UsedSpace * 1000000 / int64(rate) / 65536
+	if punishAmount < int64(punishAsset.Amount) {
+		punishAsset.Amount = eos.Int64(punishAmount)
+	}
+	err = self.eostx.DeducePledge(uint64(node.ID), &punishAsset)
+	if err != nil {
+		return "", err
+	}
+	assignedSpace := node.AssignedSpace - node.UsedSpace
+	if assignedSpace < 0 {
+		assignedSpace = node.AssignedSpace
+	}
+	_, err = collection.UpdateOne(context.Background(), bson.M{"_id": id}, bson.M{"$set": bson.M{"assignedSpace": assignedSpace}})
+	if err != nil {
+		log.Printf("spotcheck: MinerQuit: warning when punishing %dYTA deposit of node %d: %s\n", punishAsset.Amount/10000, node.ID, err.Error())
+	}
+	resp := fmt.Sprintf("punish %dYTA deposit of node %d\n", punishAsset.Amount/10000, node.ID)
+	log.Printf("spotcheck: MinerQuit: %s", resp)
+	return resp, nil
 }
