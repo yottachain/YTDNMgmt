@@ -13,7 +13,9 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/aurawing/auramq/msg"
 	"github.com/eoscanada/eos-go"
+	proto "github.com/golang/protobuf/proto"
 	"github.com/mr-tron/base58"
 
 	"go.mongodb.org/mongo-driver/bson"
@@ -22,25 +24,29 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 
 	"github.com/yottachain/YTDNMgmt/eostx"
+	pb "github.com/yottachain/YTDNMgmt/pb"
+	nodesync "github.com/yottachain/YTDNMgmt/sync"
 )
 
 //NodeDaoImpl node manipulator implemention
 type NodeDaoImpl struct {
-	client *mongo.Client
-	eostx  *eostx.EosTX
-	host1  *Host
-	host2  *Host
-	ns     *NodesSelector
-	bpID   int32
-	master int32
+	client      *mongo.Client
+	eostx       *eostx.EosTX
+	host1       *Host
+	host2       *Host
+	ns          *NodesSelector
+	bpID        int32
+	master      int32
+	syncService *nodesync.Service
+	Config      *Config
 }
 
 var incr int64 = 0
 var index int32 = -1
 
 //NewInstance create a new instance of NodeDaoImpl
-func NewInstance(mongoURL, eosURL, bpAccount, bpPrivkey, contractOwnerM, contractOwnerD, shadowAccount string, bpID int32, isMaster int32) (*NodeDaoImpl, error) {
-	if enableTest {
+func NewInstance(mongoURL, eosURL, bpAccount, bpPrivkey, contractOwnerM, contractOwnerD, shadowAccount string, bpID int32, isMaster int32, config *Config) (*NodeDaoImpl, error) {
+	if config.Misc.EnableTest {
 		YottaDB = fmt.Sprintf("%s%d", YottaDB, bpID)
 	}
 	client, err := mongo.Connect(context.Background(), options.Client().ApplyURI(mongoURL))
@@ -55,19 +61,19 @@ func NewInstance(mongoURL, eosURL, bpAccount, bpPrivkey, contractOwnerM, contrac
 		return nil, err
 	}
 	log.Printf("nodemgmt: NewInstance: create eos client: %s\n", eosURL)
-	host1, err := NewHost()
+	host1, err := NewHost(config.Misc)
 	if err != nil {
 		log.Printf("nodemgmt: NewInstance: error when creating host1 failed: %s\n", err.Error())
 		return nil, err
 	}
 	log.Println("nodemgmt: NewInstance: create host1")
-	host2, err := NewHost()
+	host2, err := NewHost(config.Misc)
 	if err != nil {
 		log.Printf("nodemgmt: NewInstance: error when creating host2 failed: %s\n", err.Error())
 		return nil, err
 	}
 	log.Println("nodemgmt: NewInstance: create host2")
-	dao := &NodeDaoImpl{client: client, eostx: etx, host1: host1, host2: host2, ns: &NodesSelector{}, bpID: bpID, master: isMaster}
+	dao := &NodeDaoImpl{client: client, eostx: etx, host1: host1, host2: host2, ns: &NodesSelector{Config: config.Misc}, bpID: bpID, master: isMaster}
 	//dao.StartRecheck()
 	dao.ns.Start(context.Background(), dao)
 	if incr == 0 {
@@ -79,6 +85,7 @@ func NewInstance(mongoURL, eosURL, bpAccount, bpPrivkey, contractOwnerM, contrac
 		}
 		log.Printf("nodemgmt: NewInstance: count of supernode: %d\n", c)
 		incr = c
+		config.SNCount = c
 	}
 	if index == -1 {
 		index = bpID
@@ -106,6 +113,25 @@ func NewInstance(mongoURL, eosURL, bpAccount, bpPrivkey, contractOwnerM, contrac
 		})
 		http.ListenAndServe("127.0.0.1:12345", nil)
 	}()
+
+	callback := func(msg *msg.Message) {
+		nodemsg := new(pb.NodeMsg)
+		err := proto.Unmarshal(msg.Content, nodemsg)
+		if err != nil {
+			log.Println("nodemgmt: synccallback: decoding nodeMsg failed:", err)
+		}
+		log.Printf("nodemgmt: synccallback: received information of node %d from %s to %s\n", nodemsg.ID, msg.Sender, msg.Destination)
+		node := new(Node)
+		node.Fillby(nodemsg)
+		dao.SyncNode(node)
+	}
+	syncService, err := nodesync.StartSync(config.AuraMQ.BindAddr, config.AuraMQ.RouterBufferSize, config.AuraMQ.SubscriberBufferSize, config.AuraMQ.ReadBufferSize, config.AuraMQ.WriteBufferSize, config.AuraMQ.PingWait, config.AuraMQ.ReadWait, config.AuraMQ.WriteWait, config.AuraMQ.MinerSyncTopic, int(config.SNID), config.AuraMQ.AllSNURLs, callback)
+	if err != nil {
+		log.Fatalln("nodemgmt: NewInstance: fatal error when creating sync service:", err)
+	}
+	dao.syncService = syncService
+	dao.Config = config
+	log.Printf("nodemgmt: NewInstance: config is: %v\n", config)
 	return dao, nil
 }
 
@@ -232,7 +258,7 @@ func (self *NodeDaoImpl) UpdateNodeStatus(node *Node) (*Node, error) {
 	// }
 
 	node.Valid = n.Valid
-	node.Addrs = CheckPublicAddrs(node.Addrs)
+	node.Addrs = CheckPublicAddrs(node.Addrs, self.Config.Misc.ExcludeAddrPrefix)
 	relayURL, err := self.AddrCheck(n, node)
 	if err != nil {
 		log.Printf("nodemgmt: UpdateNodeStatus: error when checking public address of node %d: %s\n", n.ID, err.Error())
@@ -336,6 +362,7 @@ func (self *NodeDaoImpl) UpdateNodeStatus(node *Node) (*Node, error) {
 		return nil, err
 	}
 	n.Ext = node.Ext
+	filteredAddrs := n.Addrs
 	if relayURL != "" {
 		log.Printf("nodemgmt: UpdateNodeStatus: allocated relay URL for node %d: %s\n", n.ID, relayURL)
 		n.Addrs = []string{relayURL}
@@ -343,13 +370,13 @@ func (self *NodeDaoImpl) UpdateNodeStatus(node *Node) (*Node, error) {
 		n.Addrs = nil
 	}
 
-	if n.UsedSpace+prePurphaseThreshold > n.ProductiveSpace {
+	if n.UsedSpace+self.Config.Misc.PrePurchaseThreshold > n.ProductiveSpace {
 		assignable := Min(n.AssignedSpace, n.Quota, n.MaxDataSpace) - n.ProductiveSpace
 		if assignable <= 0 {
 			log.Printf("nodemgmt: UpdateNodeStatus: warning: node %d has no left space for allocating\n", n.ID)
 		} else {
-			if assignable >= prePurphaseAmount {
-				assignable = prePurphaseAmount
+			if assignable >= self.Config.Misc.PrePurchaseAmount {
+				assignable = self.Config.Misc.PrePurchaseAmount
 			}
 			err = self.IncrProductiveSpace(n.ID, assignable)
 			if err != nil {
@@ -365,6 +392,13 @@ func (self *NodeDaoImpl) UpdateNodeStatus(node *Node) (*Node, error) {
 			n.ProductiveSpace += assignable
 			log.Printf("nodemgmt: UpdateNodeStatus: pre-purchase productive space of node %d: %d\n", n.ID, assignable)
 		}
+	}
+	n.Addrs = filteredAddrs
+	if b, err := proto.Marshal(n.Convert()); err != nil {
+		log.Printf("nodemgmt: UpdateNodeStatus: marshal node %d failed: %s\n", n.ID, err)
+	} else {
+		log.Println("nodemgmt: UpdateNodeStatus: publish information of node", n.ID)
+		self.syncService.Publish("sync", b)
 	}
 	return n, nil
 }
@@ -423,7 +457,7 @@ func (self *NodeDaoImpl) SyncNode(node *Node) error {
 	if node.ID%int32(incr) == index {
 		return nil
 	}
-	node.Addrs = CheckPublicAddrs(node.Addrs)
+	node.Addrs = CheckPublicAddrs(node.Addrs, self.Config.Misc.ExcludeAddrPrefix)
 	collection := self.client.Database(YottaDB).Collection(NodeTab)
 	otherDoc := bson.A{}
 	if node.Ext != "" && node.Ext[0] == '[' && node.Ext[len(node.Ext)-1] == ']' {
@@ -625,7 +659,7 @@ func (self *NodeDaoImpl) AddDNI(id int32, shard []byte) error {
 func (self *NodeDaoImpl) ActiveNodesList() ([]*Node, error) {
 	nodes := make([]*Node, 0)
 	collection := self.client.Database(YottaDB).Collection(NodeTab)
-	cur, err := collection.Find(context.Background(), bson.M{"valid": 1, "status": 1, "assignedSpace": bson.M{"$gt": 0}, "quota": bson.M{"$gt": 0}, "timestamp": bson.M{"$gt": time.Now().Unix() - IntervalTime*avaliableNodeTimeGap}, "weight": bson.M{"$gt": 0}, "version": bson.M{"$gte": minerVersionThreshold}})
+	cur, err := collection.Find(context.Background(), bson.M{"valid": 1, "status": 1, "assignedSpace": bson.M{"$gt": 0}, "quota": bson.M{"$gt": 0}, "timestamp": bson.M{"$gt": time.Now().Unix() - IntervalTime*self.Config.Misc.AvaliableMinerTimeGap}, "weight": bson.M{"$gt": 0}, "version": bson.M{"$gte": self.Config.Misc.MinerVersionThreshold}})
 	if err != nil {
 		log.Printf("nodemgmt: ActiveNodesList: error when finding active nodes list: %s\n", err.Error())
 		return nil, err
@@ -638,7 +672,7 @@ func (self *NodeDaoImpl) ActiveNodesList() ([]*Node, error) {
 			log.Printf("nodemgmt: ActiveNodesList: error when decoding nodes: %s\n", err.Error())
 			return nil, err
 		}
-		result.Addrs = []string{CheckPublicAddr(result.Addrs)}
+		result.Addrs = []string{CheckPublicAddr(result.Addrs, self.Config.Misc.ExcludeAddrPrefix)}
 		nodes = append(nodes, result)
 	}
 	return nodes, nil
@@ -647,7 +681,7 @@ func (self *NodeDaoImpl) ActiveNodesList() ([]*Node, error) {
 //Statistics of data nodes
 func (self *NodeDaoImpl) Statistics() (*NodeStat, error) {
 	collection := self.client.Database(YottaDB).Collection(NodeTab)
-	active, err := collection.CountDocuments(context.Background(), bson.M{"valid": 1, "status": 1, "assignedSpace": bson.M{"$gt": 0}, "quota": bson.M{"$gt": 0}, "timestamp": bson.M{"$gt": time.Now().Unix() - IntervalTime*avaliableNodeTimeGap}, "weight": bson.M{"$gt": 0}, "version": bson.M{"$gte": minerVersionThreshold}})
+	active, err := collection.CountDocuments(context.Background(), bson.M{"valid": 1, "status": 1, "assignedSpace": bson.M{"$gt": 0}, "quota": bson.M{"$gt": 0}, "timestamp": bson.M{"$gt": time.Now().Unix() - IntervalTime*self.Config.Misc.AvaliableMinerTimeGap}, "weight": bson.M{"$gt": 0}, "version": bson.M{"$gte": self.Config.Misc.MinerVersionThreshold}})
 	if err != nil {
 		log.Printf("nodemgmt: Statistics: error when counting active nodes: %s\n", err.Error())
 		return nil, err

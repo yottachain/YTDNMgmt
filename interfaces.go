@@ -1,7 +1,5 @@
 package YTDNMgmt
 
-import "go.mongodb.org/mongo-driver/bson/primitive"
-
 //All operations of node management
 type NodeDao interface {
 	SetMaster(master int32)
@@ -21,14 +19,4 @@ type NodeDao interface {
 	AddDNI(id int32, shard []byte) error
 	ActiveNodesList() ([]*Node, error)
 	Statistics() (*NodeStat, error)
-	GetSpotCheckList() ([]*SpotCheckList, error)
-	GetSTNode() (*Node, error)
-	GetSTNodes(count int64) ([]*Node, error)
-	UpdateTaskStatus(id string, invalidNodeList []int32) error
-
-	GetInvalidNodes() ([]*ShardCount, error)
-	GetRebuildItem(minerID int32, index, total int64) (*Node, []primitive.Binary, error)
-	GetRebuildNode(count int64) (*Node, error)
-	DeleteDNI(minerID int32, shard []byte) error
-	FinishRebuild(id int32) error
 }

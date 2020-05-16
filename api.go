@@ -185,8 +185,8 @@ func (self *NodeDaoImpl) ChangeMinerPool(trx string) error {
 			log.Printf("nodemgmt: ChangeMinerPool: warning: assignable space is %d\n", assignable)
 			return fmt.Errorf("assignable space is %d", assignable)
 		}
-		if assignable >= prePurphaseAmount {
-			assignable = prePurphaseAmount
+		if assignable >= self.Config.Misc.PrePurchaseAmount {
+			assignable = self.Config.Misc.PrePurchaseAmount
 		}
 		err := self.IncrProductiveSpace(node.ID, assignable)
 		if err != nil {

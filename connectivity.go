@@ -14,18 +14,19 @@ import (
 //Host p2p host
 type Host struct {
 	//lhost host.Host
-	lhost *server.Server
+	lhost  *server.Server
+	config *MiscConfig
 }
 
 //NewHost create a new host
-func NewHost() (*Host, error) {
+func NewHost(config *MiscConfig) (*Host, error) {
 	//host, err := libp2p.New(context.Background())
 	sk, _ := ytcrypto.CreateKey()
 	host, err := server.NewServer("0", sk)
 	if err != nil {
 		return nil, err
 	}
-	return &Host{lhost: host}, nil
+	return &Host{lhost: host, config: config}, nil
 }
 
 //SendMsg send a message to client
@@ -36,7 +37,7 @@ func (host *Host) SendMsg(id string, msg []byte) ([]byte, error) {
 	// if err != nil {
 	// 	return nil, err
 	// }
-	ctx, cancle := context.WithTimeout(context.Background(), time.Second*time.Duration(connectTimeout))
+	ctx, cancle := context.WithTimeout(context.Background(), time.Second*time.Duration(host.config.ConnectivityConnectTimeout))
 	defer cancle()
 	sendMsgResp, err := host.lhost.SendMsg(ctx, sendMsgReq)
 	// stm, err := host.lhost.NewStream(ctx, peerID, pid)
@@ -83,7 +84,7 @@ func (host *Host) testNetwork(nodeID string, addrs []string) error {
 	// 	pid,
 	// 	maddrs,
 	// }
-	ctx, cancle := context.WithTimeout(context.Background(), time.Second*time.Duration(connectTimeout))
+	ctx, cancle := context.WithTimeout(context.Background(), time.Second*time.Duration(host.config.ConnectivityConnectTimeout))
 	defer cancle()
 	req := &pb.ConnectReq{Id: nodeID, Addrs: addrs}
 	_, err := host.lhost.Connect(ctx, req)

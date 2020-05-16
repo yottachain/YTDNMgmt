@@ -270,11 +270,16 @@ static void freeVNIArray(vni **vnis, int size) {
 import "C"
 import (
 	"errors"
+	"log"
+	"net"
+	"net/http"
 	"sync"
 	"unsafe"
 
 	nodemgmt "github.com/yottachain/YTDNMgmt"
+	"github.com/yottachain/YTDNMgmt/pb"
 	"go.mongodb.org/mongo-driver/bson/primitive"
+	"google.golang.org/grpc"
 )
 
 var nodeDao nodemgmt.NodeDao
@@ -294,11 +299,36 @@ func NewInstance(mongodbURL, eosURL, bpAccount, bpPrivkey, contractOwnerM, contr
 	ctrcOwnerM := C.GoString(contractOwnerM)
 	ctrcOwnerD := C.GoString(contractOwnerD)
 	shadowAcc := C.GoString(shadowAccount)
+	config := nodemgmt.InitConfig(eurl, bpAcc, bpPriv, ctrcOwnerM, ctrcOwnerD, shadowAcc, int32(bpid))
+	if config.PProf.Enable {
+		go func() {
+			err := http.ListenAndServe(config.PProf.BindAddr, nil)
+			if err != nil {
+				log.Printf("error when starting pprof server on address %s: %s\n", config.PProf.BindAddr, err)
+			} else {
+				log.Println("enable pprof server:", config.PProf.BindAddr)
+			}
+		}()
+	}
 	var err error
-	nodeDao, err = nodemgmt.NewInstance(murl, eurl, bpAcc, bpPriv, ctrcOwnerM, ctrcOwnerD, shadowAcc, int32(bpid), int32(master))
+	nodeDao, err = nodemgmt.NewInstance(murl, eurl, bpAcc, bpPriv, ctrcOwnerM, ctrcOwnerD, shadowAcc, int32(bpid), int32(master), config)
 	if err != nil {
 		return C.CString(err.Error())
 	}
+	log.Printf("create nodemgmt instance successful\n")
+	server := &nodemgmt.Server{NodeService: nodeDao.(*nodemgmt.NodeDaoImpl)}
+	lis, err := net.Listen("tcp", config.GrpcBindAddr)
+	if err != nil {
+		log.Printf("failed to listen address %s: %s\n", config.GrpcBindAddr, err)
+		return C.CString(err.Error())
+	}
+	log.Printf("GRPC address: %s\n", config.GrpcBindAddr)
+	grpcServer := grpc.NewServer()
+	pb.RegisterYTDNMgmtServer(grpcServer, server)
+	go func() {
+		grpcServer.Serve(lis)
+		log.Printf("GRPC server started\n")
+	}()
 	return nil
 }
 
@@ -501,102 +531,6 @@ func Statistics() *C.nodestatret {
 	}
 	stat, err := nodeDao.Statistics()
 	return createNodestatret(stat, err)
-}
-
-//--------------------- SpotCheck ------------------------------
-
-//export GetSpotCheckList
-func GetSpotCheckList() *C.spotchecklists {
-	if nodeDao == nil {
-		return createSpotchecklists(nil, errors.New("Node management module has not started"))
-	}
-	list, err := nodeDao.GetSpotCheckList()
-	return createSpotchecklists(list, err)
-}
-
-//export GetSTNode
-func GetSTNode() *C.node {
-	if nodeDao == nil {
-		return createNodeStruct(nil, errors.New("Node management module has not started"))
-	}
-	gnode, err := nodeDao.GetSTNode()
-	return createNodeStruct(gnode, err)
-}
-
-//export GetSTNodes
-func GetSTNodes(count C.int64_t) *C.allocnoderet {
-	if nodeDao == nil {
-		return createAllocnoderet(nil, errors.New("Node management module has not started"))
-	}
-	nodes, err := nodeDao.GetSTNodes(int64(count))
-	return createAllocnoderet(nodes, err)
-}
-
-//export UpdateTaskStatus
-func UpdateTaskStatus(id *C.char, invalidNodeList *C.int32_t, size C.int32_t) *C.char {
-	if nodeDao == nil {
-		return C.CString("Node management module has not started")
-	}
-	length := int(size)
-	var gnodeIDs []int32
-	if invalidNodeList != nil {
-		tmpslice := (*[1 << 30]C.int32_t)(unsafe.Pointer(invalidNodeList))[:length:length]
-		gnodeIDs = make([]int32, length)
-		for i, s := range tmpslice {
-			gnodeIDs[i] = int32(s)
-		}
-	}
-	err := nodeDao.UpdateTaskStatus(C.GoString(id), gnodeIDs)
-	if err != nil {
-		return C.CString(err.Error())
-	} else {
-		return nil
-	}
-}
-
-//--------------------- Rebuild ------------------------------
-
-//export GetInvalidNodes
-func GetInvalidNodes() *C.shardcountlist {
-	if nodeDao == nil {
-		return createShardcountlist(nil, errors.New("Node management module has not started"))
-	}
-	list, err := nodeDao.GetInvalidNodes()
-	return createShardcountlist(list, err)
-}
-
-//export GetRebuildItem
-func GetRebuildItem(minerID C.int32_t, index, total C.int64_t) *C.rebuilditem {
-	if nodeDao == nil {
-		return createRebuilditem(nil, nil, errors.New("Node management module has not started"))
-	}
-	node, list, err := nodeDao.GetRebuildItem(int32(minerID), int64(index), int64(total))
-	return createRebuilditem(node, list, err)
-}
-
-//export DeleteDNI
-func DeleteDNI(id C.int32_t, shard *C.char, size C.longlong) *C.char {
-	if nodeDao == nil {
-		return C.CString("Node management module has not started")
-	}
-	shardSlice := (*[1 << 30]byte)(unsafe.Pointer(shard))[:int64(size):int64(size)]
-	err := nodeDao.DeleteDNI(int32(id), shardSlice)
-	if err != nil {
-		return C.CString(err.Error())
-	}
-	return nil
-}
-
-//export FinishRebuild
-func FinishRebuild(id C.int32_t) *C.char {
-	if nodeDao == nil {
-		return C.CString("Node management module has not started")
-	}
-	err := nodeDao.FinishRebuild(int32(id))
-	if err != nil {
-		return C.CString(err.Error())
-	}
-	return nil
 }
 
 //--------------------- Free functions ------------------------------

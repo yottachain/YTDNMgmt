@@ -26,7 +26,7 @@ func (self *NodeDaoImpl) AddrCheck(oldNode, newNode *Node) (relayUrl string, err
 	if RelayUrlCheck(newNode.Addrs) {
 		newNode.Relay = 0
 	}
-	n := rand.Intn(200 * int(connectivityTestInterval))
+	n := rand.Intn(200 * int(self.Config.Misc.ConnectivityTestInterval))
 	if n > 200 && EqualSorted(oldNode.Addrs, newNode.Addrs) {
 		return "", nil
 	}
@@ -49,9 +49,9 @@ func (self *NodeDaoImpl) AddrCheck(oldNode, newNode *Node) (relayUrl string, err
 			if err != nil {
 				return "", err
 			}
-			return fmt.Sprintf("%s/p2p/%s/p2p-circuit", CheckPublicAddr(supernode.Addrs), supernode.NodeID), nil
+			return fmt.Sprintf("%s/p2p/%s/p2p-circuit", CheckPublicAddr(supernode.Addrs, self.Config.Misc.ExcludeAddrPrefix), supernode.NodeID), nil
 		} else {
-			return fmt.Sprintf("%s/p2p/%s/p2p-circuit", CheckPublicAddr(rnode.Addrs), rnode.NodeID), nil
+			return fmt.Sprintf("%s/p2p/%s/p2p-circuit", CheckPublicAddr(rnode.Addrs, self.Config.Misc.ExcludeAddrPrefix), rnode.NodeID), nil
 		}
 
 	}
@@ -83,7 +83,7 @@ func (self *NodeDaoImpl) ConnectivityCheck(nodeID string, addrs []string) bool {
 	return true
 }
 
-func CheckPublicAddr(addrs []string) string {
+func CheckPublicAddr(addrs []string, excludeAddrPrefix string) string {
 	for _, addr := range addrs {
 		if strings.HasPrefix(addr, "/ip4/127.") ||
 			strings.HasPrefix(addr, "/ip4/192.168.") ||
@@ -119,7 +119,7 @@ func CheckPublicAddr(addrs []string) string {
 	return ""
 }
 
-func CheckPublicAddrs(addrs []string) []string {
+func CheckPublicAddrs(addrs []string, excludeAddrPrefix string) []string {
 	filteredAddrs := []string{}
 	for _, addr := range addrs {
 		if strings.HasPrefix(addr, "/ip4/127.") ||
@@ -161,7 +161,7 @@ func (self *NodeDaoImpl) AllocRelayNode() *Node {
 	node := new(Node)
 	options := options.FindOneOptions{}
 	options.Sort = bson.D{{"timestamp", -1}}
-	err := collection.FindOne(context.Background(), bson.M{"valid": 1, "status": 1, "relay": 1, "timestamp": bson.M{"$gt": time.Now().Unix() - IntervalTime*avaliableNodeTimeGap}}, &options).Decode(node)
+	err := collection.FindOne(context.Background(), bson.M{"valid": 1, "status": 1, "relay": 1, "timestamp": bson.M{"$gt": time.Now().Unix() - IntervalTime*self.Config.Misc.AvaliableMinerTimeGap}}, &options).Decode(node)
 	if err != nil {
 		return nil
 	}

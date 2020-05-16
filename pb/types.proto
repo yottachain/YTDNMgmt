@@ -26,15 +26,6 @@ service YTDNMgmt {
   rpc AddDNI(DNIReq) returns (Empty) {}
   rpc ActiveNodesList(Empty) returns (NodesResp) {}
   rpc Statistics(Empty) returns (NodeStatMsg) {}
-  rpc GetSpotCheckList(Empty) returns (GetSpotCheckListResp) {}
-  rpc GetSTNode(Empty) returns (NodeMsg) {}
-  rpc GetSTNodes(Int64Msg) returns (NodesResp) {}
-  rpc UpdateTaskStatus(UpdateTaskStatusReq) returns (Empty) {}
-  rpc GetInvalidNodes(Empty) returns (GetInvalidNodesResp) {}
-  rpc GetRebuildItem(GetRebuildItemReq) returns(GetRebuildItemResp) {}
-  rpc GetRebuildNode(Int64Msg) returns (NodeMsg) {}
-  rpc DeleteDNI(DNIReq) returns (Empty) {}
-  rpc FinishRebuild(Int32Msg) returns (Empty) {}
 }
 
 // empty message

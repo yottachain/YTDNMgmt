@@ -1,33 +1,41 @@
 # YTDNMgmt
 
-Data node management module.
-
-## Prerequisities
-1. Install protobuf compiler
 ```
- $ mkdir -p /usr/local/protoc
- $ cd /usr/local/protoc
- $ wget https://github.com/protocolbuffers/protobuf/releases/download/v3.9.1/protoc-3.9.1-linux-x86_64.zip
- $ unzip protoc-3.9.1-linux-x86_64.zip
- $ ln -s bin/protoc /usr/local/bin/protoc
-```
-2. Verify
-```
-$ protoc --version
-```
-
-3. Install plugins of Go protobuf
-```
-$ go get -u github.com/golang/protobuf/proto
-$ go get -u github.com/golang/protobuf/protoc-gen-go
-```
-4. Install grpc-go
-```
-$ go get -u google.golang.org/grpc
-```
-
-5. Generate code
-Entering into project folder and execute:
-```
-$ protoc -I pb pb/types.proto --go_out=plugins=grpc:pb
+grpc-bind-addr: ":11001"
+pprof:
+  enable: true
+  bind-addr: ":6161"
+auramq:
+  bind-addr: ":8787"
+  router-buffer-size: 1024
+  subscriber-buffer-size: 1024
+  read-buffer-size: 4096
+  write-buffer-size: 4096
+  ping-wait: 30
+  read-wait: 60
+  write-wait: 10
+  miner-sync-topic: "sync"
+  all-sn-urls:
+  - "ws://172.17.0.2:8787/ws"
+  - "ws://172.17.0.3:8787/ws"
+  - "ws://172.17.0.4:8787/ws"
+  allowed-accounts:
+  - shadow1
+  - shadow2
+  - shadow3
+misc:
+  exclude-addr-prefix: "/ip4/172.17"
+  pre-purchase-threshold: 32768
+  pre-purchase-amount: 65536
+  avaliable-miner-time-gap: 3
+  miner-alloc-refresh-interval: 10
+  pool-weight-refresh-interval: 10
+  miner-version-threshold: 1
+  connectivity-connect-timeout: 10
+  connectivity-read-timeout: 10
+  pool-error-miner-time-threshold: 14400
+  pool-error-miner-percentage-threshold: 95
+  connectivity-test-interval: 60
+  enable-test: true
+  ipdb-path: "/app/ytsn/yotta.ipdb"
 ```

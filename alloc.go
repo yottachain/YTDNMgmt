@@ -26,6 +26,7 @@ type NodesSelector struct {
 	// Sum     int64
 	Root    *WRoot
 	nodeIDs []int32
+	Config  *MiscConfig
 }
 
 // WRoot root weight of regions
@@ -44,12 +45,14 @@ type WRegion struct {
 	Sum    int64
 }
 
+//Int32Slice int slice
 type Int32Slice []int32
 
 func (s Int32Slice) Len() int           { return len(s) }
 func (s Int32Slice) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
 func (s Int32Slice) Less(i, j int) bool { return s[i] < s[j] }
 
+//Int64Slice int64 slice
 type Int64Slice []int64
 
 func (s Int64Slice) Len() int           { return len(s) }
@@ -62,7 +65,7 @@ func init() {
 
 // GetRegionInfo get region infomation from a IP address
 func (s *NodesSelector) GetRegionInfo(node *Node) string {
-	maddrPub := CheckPublicAddr(node.Addrs)
+	maddrPub := CheckPublicAddr(node.Addrs, s.Config.ExcludeAddrPrefix)
 	if maddrPub == "" {
 		return ""
 	}
@@ -81,6 +84,9 @@ func (s *NodesSelector) GetRegionInfo(node *Node) string {
 
 // Start NodeSelector
 func (s *NodesSelector) Start(ctx context.Context, nodeMgr *NodeDaoImpl) {
+	ipDBPath := s.Config.IPDBPath
+	nodeAllocRefreshInterval := s.Config.MinerAllocRefreshInterval
+	poolWeightRefreshInterval := s.Config.PoolWeightRefreshInterval
 	log.Printf("alloc: Start: NodeSelector is starting...\n")
 	s.nodeIDs = make([]int32, 0)
 	db, err := ipdb.NewCity(ipDBPath)
@@ -190,7 +196,7 @@ func (s *NodesSelector) refreshPoolWeight(nodeMgr *NodeDaoImpl) error {
 		cur.Close(context.Background())
 	}
 
-	errTime := now - int64(spotcheckInterval)*60 - int64(punishPhase1)*punishGapUnit
+	errTime := now - s.Config.PoolErrorMinerTimeThreshold //int64(spotcheckInterval)*60 - int64(punishPhase1)*punishGapUnit
 	pipeline3 := mongo.Pipeline{
 		{{"$match", bson.D{{"poolOwner", bson.D{{"$ne", ""}}}, {"status", bson.D{{"$lt", 3}}}}}},
 		{{"$project", bson.D{{"poolOwner", 1}, {"usedSpace", 1}, {"err", bson.D{{"$cond", bson.D{{"if", bson.D{{"$or", bson.A{bson.D{{"$eq", bson.A{"$status", 2}}}, bson.D{{"$lt", bson.A{"$timestamp", errTime}}}}}}}, {"then", 1}, {"else", 0}}}}}}}},
@@ -254,7 +260,7 @@ func (s *NodesSelector) refreshPoolWeight(nodeMgr *NodeDaoImpl) error {
 				}
 			}
 		}
-		threshold := float64(errorNodePercentThreshold) / 100
+		threshold := float64(s.Config.PoolErrorMinerPercentageThreshold) / 100
 		value := float64(p.PoolTotalCount-p.PoolErrorCount) / float64(p.PoolTotalCount)
 		if value < threshold {
 			log.Printf("alloc: refreshPoolWeight: warning: error miners in pool %s have reached %f%%\n", p.ID, (1-value)*100)
@@ -274,7 +280,7 @@ func (s *NodesSelector) refresh(nodeMgr *NodeDaoImpl) error {
 	nodeIDs := make([]int32, 0)
 	regionMap := make(map[string]*WRegion)
 	collection := nodeMgr.client.Database(YottaDB).Collection(NodeTab)
-	cond := bson.M{"valid": 1, "status": 1, "assignedSpace": bson.M{"$gt": 0}, "quota": bson.M{"$gt": 0}, "timestamp": bson.M{"$gt": time.Now().Unix() - IntervalTime*avaliableNodeTimeGap}, "weight": bson.M{"$gt": 0}, "version": bson.M{"$gte": minerVersionThreshold}}
+	cond := bson.M{"valid": 1, "status": 1, "assignedSpace": bson.M{"$gt": 0}, "quota": bson.M{"$gt": 0}, "timestamp": bson.M{"$gt": time.Now().Unix() - IntervalTime*s.Config.AvaliableMinerTimeGap}, "weight": bson.M{"$gt": 0}, "version": bson.M{"$gte": s.Config.MinerVersionThreshold}}
 	cur, err := collection.Find(context.Background(), cond)
 	if err != nil {
 		log.Printf("alloc: refresh: error when refreshing NodeSelector: %s\n", err)
@@ -325,7 +331,7 @@ func (s *NodesSelector) refresh(nodeMgr *NodeDaoImpl) error {
 	return nil
 }
 
-//RandomNode select a random node ID
+//RandomNodeID select a random node ID
 func (s *NodesSelector) RandomNodeID() (int32, error) {
 	nodeIDs := s.nodeIDs
 	if len(nodeIDs) == 0 {
