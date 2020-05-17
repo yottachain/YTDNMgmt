@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"strings"
 
-	eos "github.com/eoscanada/eos-go"
+	eos "github.com/aurawing/eos-go"
 )
 
 func NewYTAAssetFromString(amount string) (out eos.Asset, err error) {

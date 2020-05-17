@@ -193,3 +193,9 @@ message DownloadShardRequest {
 message DownloadShardResponse{
   bytes data=1;
 }
+
+message SignMessage {
+  string accountName = 1;
+  bytes data = 2;
+  string signature = 3;
+}

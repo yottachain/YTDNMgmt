@@ -6,10 +6,10 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/eoscanada/eos-go"
-	"github.com/eoscanada/eos-go/ecc"
-	_ "github.com/eoscanada/eos-go/system"
-	_ "github.com/eoscanada/eos-go/token"
+	"github.com/aurawing/eos-go"
+	"github.com/aurawing/eos-go/ecc"
+	_ "github.com/aurawing/eos-go/system"
+	_ "github.com/aurawing/eos-go/token"
 	ytcrypto "github.com/yottachain/YTCrypto"
 )
 
@@ -24,10 +24,24 @@ func NewInstance(url, bpAccount, privateKey, contractOwnerM, contractOwnerD, sha
 	api.SetSigner(keyBag)
 	api.SetCustomGetRequiredKeys(func(tx *eos.Transaction) ([]ecc.PublicKey, error) {
 		publickey, _ := ytcrypto.GetPublicKeyByPrivateKey(privateKey)
-		pubkey, _ := ecc.NewPublicKey(fmt.Sprintf("%s%s", "EOS", publickey))
+		pubkey, _ := ecc.NewPublicKey(fmt.Sprintf("%s%s", "YTA", publickey))
 		return []ecc.PublicKey{pubkey}, nil
 	})
 	return &EosTX{API: api, BpAccount: bpAccount, ContractOwnerM: contractOwnerM, ContractOwnerD: contractOwnerD, ShadowAccount: shadowAccount, PrivateKey: privateKey}, nil
+}
+
+//GetPublicKey by account name and permission name
+func (eostx *EosTX) GetPublicKey(accountName string, perm string) (string, error) {
+	accountResp, err := eostx.API.GetAccount(eos.AN(accountName))
+	if err != nil {
+		return "", fmt.Errorf("get account info: %s", err)
+	}
+	for _, p := range accountResp.Permissions {
+		if p.PermName == perm {
+			return p.RequiredAuth.Keys[0].PublicKey.String(), nil
+		}
+	}
+	return "", fmt.Errorf("no key found")
 }
 
 //ChangeEosURL change EOS URL to another one
@@ -40,7 +54,7 @@ func (eostx *EosTX) ChangeEosURL(eosURL string) {
 	api.SetSigner(keyBag)
 	api.SetCustomGetRequiredKeys(func(tx *eos.Transaction) ([]ecc.PublicKey, error) {
 		publickey, _ := ytcrypto.GetPublicKeyByPrivateKey(eostx.PrivateKey)
-		pubkey, _ := ecc.NewPublicKey(fmt.Sprintf("%s%s", "EOS", publickey))
+		pubkey, _ := ecc.NewPublicKey(fmt.Sprintf("%s%s", "YTA", publickey))
 		return []ecc.PublicKey{pubkey}, nil
 	})
 	eostx.API = api

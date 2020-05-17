@@ -14,7 +14,7 @@ import (
 	"time"
 
 	"github.com/aurawing/auramq/msg"
-	"github.com/eoscanada/eos-go"
+	"github.com/aurawing/eos-go"
 	proto "github.com/golang/protobuf/proto"
 	"github.com/mr-tron/base58"
 
@@ -125,7 +125,7 @@ func NewInstance(mongoURL, eosURL, bpAccount, bpPrivkey, contractOwnerM, contrac
 		node.Fillby(nodemsg)
 		dao.SyncNode(node)
 	}
-	syncService, err := nodesync.StartSync(config.AuraMQ.BindAddr, config.AuraMQ.RouterBufferSize, config.AuraMQ.SubscriberBufferSize, config.AuraMQ.ReadBufferSize, config.AuraMQ.WriteBufferSize, config.AuraMQ.PingWait, config.AuraMQ.ReadWait, config.AuraMQ.WriteWait, config.AuraMQ.MinerSyncTopic, int(config.SNID), config.AuraMQ.AllSNURLs, callback)
+	syncService, err := nodesync.StartSync(etx, config.AuraMQ.BindAddr, config.AuraMQ.RouterBufferSize, config.AuraMQ.SubscriberBufferSize, config.AuraMQ.ReadBufferSize, config.AuraMQ.WriteBufferSize, config.AuraMQ.PingWait, config.AuraMQ.ReadWait, config.AuraMQ.WriteWait, config.AuraMQ.MinerSyncTopic, int(config.SNID), config.AuraMQ.AllSNURLs, config.AuraMQ.AllowedAccounts, callback, shadowAccount, bpPrivkey)
 	if err != nil {
 		log.Fatalln("nodemgmt: NewInstance: fatal error when creating sync service:", err)
 	}

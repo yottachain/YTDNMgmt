@@ -6,10 +6,10 @@ import (
 	"os"
 	"testing"
 
-	"github.com/eoscanada/eos-go"
-	"github.com/eoscanada/eos-go/ecc"
-	_ "github.com/eoscanada/eos-go/system"
-	_ "github.com/eoscanada/eos-go/token"
+	"github.com/aurawing/eos-go"
+	"github.com/aurawing/eos-go/ecc"
+	_ "github.com/aurawing/eos-go/system"
+	_ "github.com/aurawing/eos-go/token"
 
 	ytcrypto "github.com/yottachain/YTCrypto"
 	"github.com/yottachain/YTDNMgmt/eostx"

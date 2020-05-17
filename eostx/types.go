@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"sync"
 
-	eos "github.com/eoscanada/eos-go"
+	eos "github.com/aurawing/eos-go"
 )
 
 type FlexString string
