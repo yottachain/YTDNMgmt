@@ -334,6 +334,26 @@ func (self *NodeDaoImpl) UpdateNodeStatus(node *Node) (*Node, error) {
 			log.Printf("nodemgmt: UpdateNodeStatus: warning when parse ext document %s\n", err.Error())
 		} else {
 			otherDoc, _ = bdoc.(bson.A)
+			enableExperiment := true
+			if enableExperiment {
+				if len(otherDoc) > 0 {
+					params, ok := otherDoc[0].(bson.D)
+					if ok {
+						ytfsErrorCount, ok := params.Map()["ytfs_error_count"].(int32)
+						if ok {
+							log.Printf("nodemgmt: UpdateNodeStatus: miner%d's ytfs_error_count=%d\n", n.ID, ytfsErrorCount)
+							if ytfsErrorCount > 100 {
+								weight = 0
+								log.Printf("nodemgmt: UpdateNodeStatus: miner%d's ytfs_error_count>100, set weight to 0\n", n.ID)
+							}
+						} else {
+							log.Println("nodemgmt: UpdateNodeStatus: warning when converting ytfs_error_count to int32")
+						}
+					} else {
+						log.Println("nodemgmt: UpdateNodeStatus: warning when converting othedoc to bson.M")
+					}
+				}
+			}
 		}
 	}
 
