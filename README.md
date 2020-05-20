@@ -37,5 +37,6 @@ misc:
   pool-error-miner-percentage-threshold: 95
   connectivity-test-interval: 60
   enable-test: true
+  enable-extra-weight-params: true
   ipdb-path: "/app/ytsn/yotta.ipdb"
 ```

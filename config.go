@@ -56,6 +56,7 @@ const (
 	MiscPoolErrorMinerPercentageThresholdField = "misc.pool-error-miner-percentage-threshold"
 	MiscConnectivityTestIntervalField          = "misc.connectivity-test-interval"
 	MiscEnableTestField                        = "misc.enable-test"
+	MiscEnableExtraWeightParams                = "misc.enable-extra-weight-params"
 	MiscIPDBPathField                          = "misc.ipdb-path"
 )
 
@@ -116,6 +117,7 @@ type MiscConfig struct {
 	PoolErrorMinerPercentageThreshold int32  `mapstructure:"pool-error-miner-percentage-threshold"`
 	ConnectivityTestInterval          int32  `mapstructure:"connectivity-test-interval"`
 	EnableTest                        bool   `mapstructure:"enable-test"`
+	EnableExtraWeightParams           bool   `mapstructure:"enable-extra-weight-params"`
 	IPDBPath                          string `mapstructure:"ipdb-path"`
 }
 
@@ -152,6 +154,7 @@ func InitConfig(eosURL, bpAccount, bpPrivkey, contractOwnerM, contractOwnerD, sh
 	viper.SetDefault(MiscPoolErrorMinerPercentageThresholdField, 95)
 	viper.SetDefault(MiscConnectivityTestIntervalField, 60)
 	viper.SetDefault(MiscEnableTestField, false)
+	viper.SetDefault(MiscEnableExtraWeightParams, true)
 	viper.SetDefault(MiscIPDBPathField, "/app/ytsn/yotta.ipdb")
 
 	viper.AddConfigPath(configDir)

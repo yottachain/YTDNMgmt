@@ -339,18 +339,22 @@ func (self *NodeDaoImpl) UpdateNodeStatus(node *Node) (*Node, error) {
 				if len(otherDoc) > 0 {
 					params, ok := otherDoc[0].(bson.D)
 					if ok {
-						ytfsErrorCount, ok := params.Map()["ytfs_error_count"].(int32)
-						if ok {
-							log.Printf("nodemgmt: UpdateNodeStatus: miner%d's ytfs_error_count=%d\n", n.ID, ytfsErrorCount)
-							if ytfsErrorCount > 100 {
-								weight = 0
-								log.Printf("nodemgmt: UpdateNodeStatus: miner%d's ytfs_error_count>100, set weight to 0\n", n.ID)
+						if _, ok := params.Map()["ytfs_error_count"]; ok {
+							ytfsErrorCount, ok := params.Map()["ytfs_error_count"].(int32)
+							if ok {
+								log.Printf("nodemgmt: UpdateNodeStatus: miner%d's ytfs_error_count=%d\n", n.ID, ytfsErrorCount)
+								if ytfsErrorCount >= 100 {
+									log.Printf("nodemgmt: UpdateNodeStatus: miner%d's ytfs_error_count>100, set weight to 0\n", n.ID)
+									weight = 0
+								}
+							} else {
+								log.Printf("nodemgmt: UpdateNodeStatus: warning when converting ytfs_error_count to int32 of miner %d\n", n.ID)
 							}
 						} else {
-							log.Println("nodemgmt: UpdateNodeStatus: warning when converting ytfs_error_count to int32")
+							log.Printf("nodemgmt: UpdateNodeStatus: warning no ytfs_error_count property of miner %d\n", n.ID)
 						}
 					} else {
-						log.Println("nodemgmt: UpdateNodeStatus: warning when converting othedoc to bson.M")
+						log.Printf("nodemgmt: UpdateNodeStatus: warning when converting otherdoc to bson.M of miner %d\n", n.ID)
 					}
 				}
 			}
