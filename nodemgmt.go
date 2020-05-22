@@ -13,6 +13,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/aurawing/auramq"
 	"github.com/aurawing/auramq/msg"
 	"github.com/aurawing/eos-go"
 	proto "github.com/golang/protobuf/proto"
@@ -115,15 +116,38 @@ func NewInstance(mongoURL, eosURL, bpAccount, bpPrivkey, contractOwnerM, contrac
 	}()
 
 	callback := func(msg *msg.Message) {
-		nodemsg := new(pb.NodeMsg)
-		err := proto.Unmarshal(msg.Content, nodemsg)
-		if err != nil {
-			log.Println("nodemgmt: synccallback: decoding nodeMsg failed:", err)
+		log.Printf("nodemgmt: synccallback: received information of type %d from %s to %s\n", msg.Type, msg.Sender, msg.Destination)
+		if msg.GetType() == auramq.BROADCAST {
+			if msg.GetDestination() == config.AuraMQ.MinerSyncTopic {
+				nodemsg := new(pb.NodeMsg)
+				err := proto.Unmarshal(msg.Content, nodemsg)
+				if err != nil {
+					log.Println("nodemgmt: synccallback: decoding nodeMsg failed:", err)
+				}
+				//log.Printf("nodemgmt: synccallback: received information of node %d from %s to %s\n", nodemsg.ID, msg.Sender, msg.Destination)
+				node := new(Node)
+				node.Fillby(nodemsg)
+				dao.SyncNode(node)
+			}
+		} else if msg.GetType() == auramq.P2P {
+			if msg.GetDestination() == fmt.Sprintf("sn%d", config.SNID) {
+				b := msg.GetContent()
+				msgType := b[0]
+				content := b[1:]
+				if msgType == byte(UpdateUspaceMessage) {
+
+					umsg := new(pb.UpdateUspaceMessage)
+					err := proto.Unmarshal(content, umsg)
+					if err != nil {
+						log.Println("nodemgmt: synccallback: error when unmarshaling UpdateUspaceMessage:", err)
+						return
+					}
+					log.Printf("nodemgmt: synccallback: received update uspace message of node %d from %s to %s\n", umsg.NodeID, msg.Sender, msg.Destination)
+					dao.updateUspace(umsg)
+				}
+
+			}
 		}
-		log.Printf("nodemgmt: synccallback: received information of node %d from %s to %s\n", nodemsg.ID, msg.Sender, msg.Destination)
-		node := new(Node)
-		node.Fillby(nodemsg)
-		dao.SyncNode(node)
 	}
 	syncService, err := nodesync.StartSync(etx, config.AuraMQ.BindAddr, config.AuraMQ.RouterBufferSize, config.AuraMQ.SubscriberBufferSize, config.AuraMQ.ReadBufferSize, config.AuraMQ.WriteBufferSize, config.AuraMQ.PingWait, config.AuraMQ.ReadWait, config.AuraMQ.WriteWait, config.AuraMQ.MinerSyncTopic, int(config.SNID), config.AuraMQ.AllSNURLs, config.AuraMQ.AllowedAccounts, callback, shadowAccount, bpPrivkey)
 	if err != nil {
@@ -133,6 +157,14 @@ func NewInstance(mongoURL, eosURL, bpAccount, bpPrivkey, contractOwnerM, contrac
 	dao.Config = config
 	log.Printf("nodemgmt: NewInstance: config is: %v\n", config)
 	return dao, nil
+}
+
+func (self *NodeDaoImpl) updateUspace(msg *pb.UpdateUspaceMessage) {
+	collection := self.client.Database(YottaDB).Collection(NodeTab)
+	_, err := collection.UpdateOne(context.Background(), bson.M{"_id": msg.NodeID}, bson.M{"$set": bson.M{fmt.Sprintf("uspaces.sn%d", msg.FromNodeID): msg.Uspace}})
+	if err != nil {
+		log.Printf("nodemgmt: updateUspace: error when update uspace of miner %d from miner %d: %s\n", msg.NodeID, msg.FromNodeID, err)
+	}
 }
 
 //SetMaster change master status
@@ -278,6 +310,11 @@ func (self *NodeDaoImpl) UpdateNodeStatus(node *Node) (*Node, error) {
 	if n.Status > 1 {
 		status = n.Status
 	}
+	var sum int64 = 0
+	for _, v := range n.Uspaces {
+		sum += v
+	}
+	usedSpace := Max(sum, n.UsedSpace)
 	// calculate w1
 	leftSpace := float64(Min(n.AssignedSpace, n.Quota, node.MaxDataSpace) - n.RealSpace)
 	w11 := math.Atan(leftSpace/10000) * 1.6 / math.Pi
@@ -394,7 +431,7 @@ func (self *NodeDaoImpl) UpdateNodeStatus(node *Node) (*Node, error) {
 		n.Addrs = nil
 	}
 
-	if n.UsedSpace+self.Config.Misc.PrePurchaseThreshold > n.ProductiveSpace {
+	if usedSpace+self.Config.Misc.PrePurchaseThreshold > n.ProductiveSpace {
 		assignable := Min(n.AssignedSpace, n.Quota, n.MaxDataSpace) - n.ProductiveSpace
 		if assignable <= 0 {
 			log.Printf("nodemgmt: UpdateNodeStatus: warning: node %d has no left space for allocating\n", n.ID)
@@ -418,6 +455,9 @@ func (self *NodeDaoImpl) UpdateNodeStatus(node *Node) (*Node, error) {
 		}
 	}
 	n.Addrs = filteredAddrs
+	if n.Uspaces == nil {
+		n.Uspaces = make(map[string]int64)
+	}
 	if b, err := proto.Marshal(n.Convert()); err != nil {
 		log.Printf("nodemgmt: UpdateNodeStatus: marshal node %d failed: %s\n", n.ID, err)
 	} else {
@@ -452,8 +492,8 @@ func (self *NodeDaoImpl) IncrUsedSpace(id int32, incr int64) error {
 	if err != nil {
 		return err
 	}
-	weight := float64(Min(n.AssignedSpace, n.Quota, n.MaxDataSpace) - n.UsedSpace)
-	_, err = collection.UpdateOne(context.Background(), bson.M{"_id": id}, bson.M{"$set": bson.M{"weight": weight}, "$inc": bson.M{"usedSpace": incr}})
+	//weight := float64(Min(n.AssignedSpace, n.Quota, n.MaxDataSpace) - n.UsedSpace)
+	_, err = collection.UpdateOne(context.Background(), bson.M{"_id": id}, bson.M{"$inc": bson.M{"usedSpace": incr}})
 	return err
 }
 
@@ -493,21 +533,51 @@ func (self *NodeDaoImpl) SyncNode(node *Node) error {
 			otherDoc, _ = bdoc.(bson.A)
 		}
 	}
-	_, err := collection.InsertOne(context.Background(), bson.M{"_id": node.ID, "nodeid": node.NodeID, "pubkey": node.PubKey, "owner": node.Owner, "profitAcc": node.ProfitAcc, "poolID": node.PoolID, "poolOwner": node.PoolOwner, "quota": node.Quota, "addrs": node.Addrs, "cpu": node.CPU, "memory": node.Memory, "bandwidth": node.Bandwidth, "maxDataSpace": node.MaxDataSpace, "assignedSpace": node.AssignedSpace, "productiveSpace": node.ProductiveSpace, "usedSpace": node.UsedSpace, "weight": node.Weight, "valid": node.Valid, "relay": node.Relay, "status": node.Status, "timestamp": node.Timestamp, "version": node.Version, "rebuilding": node.Rebuilding, "realSpace": node.RealSpace, "tx": node.Tx, "rx": node.Rx, "other": otherDoc})
+	if node.Uspaces == nil {
+		node.Uspaces = make(map[string]int64)
+	}
+	_, err := collection.InsertOne(context.Background(), bson.M{"_id": node.ID, "nodeid": node.NodeID, "pubkey": node.PubKey, "owner": node.Owner, "profitAcc": node.ProfitAcc, "poolID": node.PoolID, "poolOwner": node.PoolOwner, "quota": node.Quota, "addrs": node.Addrs, "cpu": node.CPU, "memory": node.Memory, "bandwidth": node.Bandwidth, "maxDataSpace": node.MaxDataSpace, "assignedSpace": node.AssignedSpace, "productiveSpace": node.ProductiveSpace, "usedSpace": node.UsedSpace, "uspaces": node.Uspaces, "weight": node.Weight, "valid": node.Valid, "relay": node.Relay, "status": node.Status, "timestamp": node.Timestamp, "version": node.Version, "rebuilding": node.Rebuilding, "realSpace": node.RealSpace, "tx": node.Tx, "rx": node.Rx, "other": otherDoc})
 	if err != nil {
 		errstr := err.Error()
 		if !strings.ContainsAny(errstr, "duplicate key error") {
 			log.Printf("nodemgmt: SyncNode: error when inserting node %d to database: %s\n", node.ID, err.Error())
 			return err
 		} else {
-			_, err := collection.UpdateOne(context.Background(), bson.M{"_id": node.ID}, bson.M{"$set": bson.M{"nodeid": node.NodeID, "pubkey": node.PubKey, "owner": node.Owner, "profitAcc": node.ProfitAcc, "poolID": node.PoolID, "poolOwner": node.PoolOwner, "quota": node.Quota, "addrs": node.Addrs, "cpu": node.CPU, "memory": node.Memory, "bandwidth": node.Bandwidth, "maxDataSpace": node.MaxDataSpace, "assignedSpace": node.AssignedSpace, "productiveSpace": node.ProductiveSpace, "usedSpace": node.UsedSpace, "weight": node.Weight, "valid": node.Valid, "relay": node.Relay, "status": node.Status, "timestamp": node.Timestamp, "version": node.Version, "rebuilding": node.Rebuilding, "realSpace": node.RealSpace, "tx": node.Tx, "rx": node.Rx, "other": otherDoc}})
+			cond := bson.M{"nodeid": node.NodeID, "pubkey": node.PubKey, "owner": node.Owner, "profitAcc": node.ProfitAcc, "poolID": node.PoolID, "poolOwner": node.PoolOwner, "quota": node.Quota, "addrs": node.Addrs, "cpu": node.CPU, "memory": node.Memory, "bandwidth": node.Bandwidth, "maxDataSpace": node.MaxDataSpace, "assignedSpace": node.AssignedSpace, "productiveSpace": node.ProductiveSpace, "usedSpace": node.UsedSpace, "weight": node.Weight, "valid": node.Valid, "relay": node.Relay, "status": node.Status, "timestamp": node.Timestamp, "version": node.Version, "rebuilding": node.Rebuilding, "realSpace": node.RealSpace, "tx": node.Tx, "rx": node.Rx, "other": otherDoc}
+			currentSN := fmt.Sprintf("sn%d", self.Config.SNID)
+			log.Printf("nodemgmt: SyncNode: currentSN is %s, uspace is %v\n", currentSN, node.Uspaces)
+			for k, v := range node.Uspaces {
+				if k != currentSN {
+					cond[fmt.Sprintf("uspaces.%s", k)] = v
+				}
+			}
+			log.Printf("nodemgmt: SyncNode: cond %v\n", cond)
+			opts := new(options.FindOneAndUpdateOptions)
+			opts = opts.SetReturnDocument(options.After)
+			result := collection.FindOneAndUpdate(context.Background(), bson.M{"_id": node.ID}, bson.M{"$set": cond}, opts)
+			updatedNode := new(Node)
+			err := result.Decode(updatedNode)
 			if err != nil {
 				log.Printf("nodemgmt: SyncNode: error when updating record of node %d in database: %s\n", node.ID, err.Error())
 				return err
 			}
+			if s, ok := updatedNode.Uspaces[currentSN]; ok {
+				self.sendUspace(node.ID, self.Config.SNID, s)
+			}
 		}
 	}
 	return nil
+}
+
+func (self *NodeDaoImpl) sendUspace(to, from int32, uspace int64) {
+	log.Printf("nodemgmt: sendUspace: send UpdateUspaceMessage of miner %d, from miner %d: %d\n", to, from, uspace)
+	msg := &pb.UpdateUspaceMessage{NodeID: to, FromNodeID: from, Uspace: uspace}
+	b, err := proto.Marshal(msg)
+	if err != nil {
+		log.Printf("nodemgmt: sendUspace: error when marshaling UpdateUspaceMessage of miner %d, from miner %d: %s\n", to, from, err.Error())
+		return
+	}
+	self.syncService.Send(fmt.Sprintf("sn%d", int64(to)%self.Config.SNCount), append([]byte{byte(UpdateUspaceMessage)}, b...))
 }
 
 //GetNodes by node IDs

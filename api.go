@@ -117,6 +117,7 @@ func (self *NodeDaoImpl) PreRegisterNode(trx string) error {
 	node.PoolOwner = ""
 	node.Quota = 0
 	node.AssignedSpace = pledgeAmount * 65536 * int64(rate) / 1000000 //TODO: 1YTA=1G 后需调整
+	node.Uspaces = make(map[string]int64)
 	node.Valid = 0
 	node.Relay = 0
 	node.Status = 0

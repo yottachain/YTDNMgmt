@@ -5,6 +5,11 @@ import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
+const (
+	_                   = iota
+	UpdateUspaceMessage //UpdateUspaceMessage message type
+)
+
 // Node instance
 type Node struct {
 	//data node index
@@ -39,6 +44,8 @@ type Node struct {
 	ProductiveSpace int64 `bson:"productiveSpace"`
 	//used space of data node
 	UsedSpace int64 `bson:"usedSpace"`
+	//used spaces on each SN
+	Uspaces map[string]int64 `bson:"uspaces"`
 	//weight for allocate data node
 	Weight float64 `bson:"weight"`
 	//Is node valid
@@ -193,6 +200,7 @@ func (node *Node) Convert() *pb.NodeMsg {
 		AssignedSpace:   node.AssignedSpace,
 		ProductiveSpace: node.ProductiveSpace,
 		UsedSpace:       node.UsedSpace,
+		Uspaces:         node.Uspaces,
 		Weight:          node.Weight,
 		Valid:           node.Valid,
 		Relay:           node.Relay,
@@ -225,6 +233,7 @@ func (node *Node) Fillby(msg *pb.NodeMsg) {
 	node.AssignedSpace = msg.AssignedSpace
 	node.ProductiveSpace = msg.ProductiveSpace
 	node.UsedSpace = msg.UsedSpace
+	node.Uspaces = msg.Uspaces
 	node.Weight = msg.Weight
 	node.Valid = msg.Valid
 	node.Relay = msg.Relay
