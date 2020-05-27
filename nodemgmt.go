@@ -219,40 +219,41 @@ func (self *NodeDaoImpl) UpdateNodeStatus(node *Node) (*Node, error) {
 	}
 	if n.AssignedSpace == 0 {
 		log.Printf("nodemgmt: UpdateNodeStatus: warning: node %d has not been pledged or punished all deposit\n", n.ID)
-	} else if n.Status == 2 && n.Valid == 1 {
-		errNode := new(SpotCheckRecord)
-		collectionErr := self.client.Database(YottaDB).Collection(ErrorNodeTab)
-		err := collectionErr.FindOne(context.Background(), bson.M{"nid": n.ID}).Decode(errNode)
-		if err != nil {
-			log.Printf("nodemgmt: UpdateNodeStatus: warning: cannot find node %d in error node table\n", n.ID)
-		} else if errNode.Status == 1 { //timeout miner and deposit exhausted miner can be recovered
-			_, err := collectionErr.DeleteOne(context.Background(), bson.M{"nid": n.ID})
-			if err != nil {
-				log.Printf("nodemgmt: UpdateNodeStatus: error when deleting error node %d in error node table\n", n.ID)
-			} else {
-				_, err := collection.UpdateOne(context.Background(), bson.M{"_id": n.ID}, bson.M{"$set": bson.M{"status": 1}, "$unset": bson.M{"tasktimestamp": 1}})
-				if err != nil {
-					log.Printf("nodemgmt: UpdateNodeStatus: error when updating status of node %d from 2 to 1: %s\n", n.ID, err.Error())
-					collectionErr.InsertOne(context.Background(), errNode)
-				} else {
-					collectionDNI := self.client.Database(YottaDB).Collection(DNITab)
-					_, err := collectionDNI.DeleteMany(context.Background(), bson.M{"minerID": n.ID, "delete": 1})
-					if err != nil {
-						log.Printf("nodemgmt: UpdateNodeStatus: error when remove deleted shards of node %d: %s\n", n.ID, err.Error())
-					}
-					newUsedSpace, err := collectionDNI.CountDocuments(context.Background(), bson.M{"minerID": n.ID, "delete": 0})
-					if err != nil {
-						log.Printf("nodemgmt: UpdateNodeStatus: error when counting shards of node %d: %s\n", n.ID, err.Error())
-					} else {
-						_, err := collection.UpdateOne(context.Background(), bson.M{"_id": n.ID}, bson.M{"$set": bson.M{"usedSpace": newUsedSpace}})
-						if err != nil {
-							log.Printf("nodemgmt: UpdateNodeStatus: error when updating used space of node %d: %s\n", n.ID, err.Error())
-						}
-					}
-				}
-			}
-		}
 	}
+	// else if n.Status == 2 && n.Valid == 1 {
+	// 	errNode := new(SpotCheckRecord)
+	// 	collectionErr := self.client.Database(YottaDB).Collection(ErrorNodeTab)
+	// 	err := collectionErr.FindOne(context.Background(), bson.M{"nid": n.ID}).Decode(errNode)
+	// 	if err != nil {
+	// 		log.Printf("nodemgmt: UpdateNodeStatus: warning: cannot find node %d in error node table\n", n.ID)
+	// 	} else if errNode.Status == 1 { //timeout miner and deposit exhausted miner can be recovered
+	// 		_, err := collectionErr.DeleteOne(context.Background(), bson.M{"nid": n.ID})
+	// 		if err != nil {
+	// 			log.Printf("nodemgmt: UpdateNodeStatus: error when deleting error node %d in error node table\n", n.ID)
+	// 		} else {
+	// 			_, err := collection.UpdateOne(context.Background(), bson.M{"_id": n.ID}, bson.M{"$set": bson.M{"status": 1}, "$unset": bson.M{"tasktimestamp": 1}})
+	// 			if err != nil {
+	// 				log.Printf("nodemgmt: UpdateNodeStatus: error when updating status of node %d from 2 to 1: %s\n", n.ID, err.Error())
+	// 				collectionErr.InsertOne(context.Background(), errNode)
+	// 			} else {
+	// 				collectionDNI := self.client.Database(YottaDB).Collection(DNITab)
+	// 				_, err := collectionDNI.DeleteMany(context.Background(), bson.M{"minerID": n.ID, "delete": 1})
+	// 				if err != nil {
+	// 					log.Printf("nodemgmt: UpdateNodeStatus: error when remove deleted shards of node %d: %s\n", n.ID, err.Error())
+	// 				}
+	// 				newUsedSpace, err := collectionDNI.CountDocuments(context.Background(), bson.M{"minerID": n.ID, "delete": 0})
+	// 				if err != nil {
+	// 					log.Printf("nodemgmt: UpdateNodeStatus: error when counting shards of node %d: %s\n", n.ID, err.Error())
+	// 				} else {
+	// 					_, err := collection.UpdateOne(context.Background(), bson.M{"_id": n.ID}, bson.M{"$set": bson.M{"usedSpace": newUsedSpace}})
+	// 					if err != nil {
+	// 						log.Printf("nodemgmt: UpdateNodeStatus: error when updating used space of node %d: %s\n", n.ID, err.Error())
+	// 					}
+	// 				}
+	// 			}
+	// 		}
+	// 	}
+	// }
 
 	// var assignedSpaceBP int64 = -1
 	// var productiveSpaceBP int64 = -1

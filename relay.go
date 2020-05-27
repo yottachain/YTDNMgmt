@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"math/rand"
+	"sort"
 	"strings"
 	"time"
 
@@ -153,7 +154,7 @@ func CheckPublicAddrs(addrs []string, excludeAddrPrefix string) []string {
 			filteredAddrs = append(filteredAddrs, addr)
 		}
 	}
-	return filteredAddrs
+	return dedup(filteredAddrs)
 }
 
 func (self *NodeDaoImpl) AllocRelayNode() *Node {
@@ -166,4 +167,23 @@ func (self *NodeDaoImpl) AllocRelayNode() *Node {
 		return nil
 	}
 	return node
+}
+
+func dedup(urls []string) []string {
+	if urls == nil || len(urls) == 0 {
+		return nil
+	}
+	sort.Strings(urls)
+	j := 0
+	for i := 1; i < len(urls); i++ {
+		if urls[j] == urls[i] {
+			continue
+		}
+		j++
+		// preserve the original data
+		// in[i], in[j] = in[j], in[i]
+		// only set what is required
+		urls[j] = urls[i]
+	}
+	return urls[:j+1]
 }

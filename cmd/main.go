@@ -13,8 +13,6 @@ import (
 	nodemgmt "github.com/yottachain/YTDNMgmt"
 	pb "github.com/yottachain/YTDNMgmt/pb"
 	"go.etcd.io/etcd/clientv3"
-	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
 	"google.golang.org/grpc"
 )
 
@@ -29,7 +27,7 @@ const NODEMGMT_SHADOWACCOUNT = NODEMGMT_ETCD_PREFIX + "shadowAccount"
 const NODEMGMT_BPID = NODEMGMT_ETCD_PREFIX + "bpid"
 const NODEMGMT_MASTER = NODEMGMT_ETCD_PREFIX + "master"
 
-func main1() {
+func main() {
 	var enablePprof bool = true
 	var pprofPort int
 	enablePprofStr := os.Getenv("P2PHOST_ENABLEPPROF")
@@ -215,23 +213,5 @@ func main1() {
 		grpcServer.Serve(lis)
 		log.Printf("GRPC server started\n")
 		break
-	}
-}
-
-type TestStruct struct {
-	ID        int32            `bson:"_id"`
-	Uspace    map[string]int64 `bson:"uspace"`
-	Timestamp int64            `bson:"timestamp"`
-}
-
-func main() {
-	cli, err := mongo.Connect(context.Background(), options.Client().ApplyURI("mongodb://127.0.0.1:27017/?connect=direct"))
-	if err != nil {
-		panic(err)
-	}
-	collection := cli.Database("test").Collection("Test")
-	_, err = collection.InsertOne(context.Background(), &TestStruct{ID: 1, Uspace: map[string]int64{"sn0": 18818, "sn1": 8173}, Timestamp: time.Now().Unix()})
-	if err != nil {
-		panic(err)
 	}
 }
