@@ -923,7 +923,7 @@ func (self *NodeDaoImpl) BatchMinerQuit(id, percent int32) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	assignedSpace := node.AssignedSpace - int64(punishAsset.Amount)*1048576/160000 //node.AssignedSpace*int64(percent)/100
+	assignedSpace := node.AssignedSpace - int64(punishAsset.Amount)*65536*int64(rate)/1000000 //node.AssignedSpace*int64(percent)/100
 	if assignedSpace < 0 {
 		assignedSpace = node.AssignedSpace
 	}
