@@ -112,6 +112,36 @@ func NewInstance(mongoURL, eosURL, bpAccount, bpPrivkey, contractOwnerM, contrac
 			}
 			io.WriteString(w, fmt.Sprintf("扣抵押成功：%s\n", s))
 		})
+		http.HandleFunc("/batchquit", func(w http.ResponseWriter, r *http.Request) {
+			r.ParseForm()
+			mineridstr := r.Form.Get("minerid")
+			if mineridstr == "" {
+				io.WriteString(w, "矿机ID不存在！\n")
+				return
+			}
+			minerid, err := strconv.Atoi(mineridstr)
+			if err != nil {
+				io.WriteString(w, fmt.Sprintf("解析矿机ID失败：%s\n", err.Error()))
+				return
+			}
+			percentStr := r.Form.Get("percent")
+			if percentStr == "" {
+				io.WriteString(w, "扣抵押百分比不存在！\n")
+				return
+			}
+			percent, err := strconv.Atoi(percentStr)
+			if err != nil {
+				io.WriteString(w, fmt.Sprintf("解析扣抵押百分比失败：%s\n", err.Error()))
+				return
+			}
+
+			s, err := dao.BatchMinerQuit(int32(minerid), int32(percent))
+			if err != nil {
+				io.WriteString(w, fmt.Sprintf("扣抵押失败：%s\n", err.Error()))
+				return
+			}
+			io.WriteString(w, fmt.Sprintf("扣抵押成功：%s\n", s))
+		})
 		http.ListenAndServe("127.0.0.1:12345", nil)
 	}()
 
@@ -123,8 +153,8 @@ func NewInstance(mongoURL, eosURL, bpAccount, bpPrivkey, contractOwnerM, contrac
 				err := proto.Unmarshal(msg.Content, nodemsg)
 				if err != nil {
 					log.Println("nodemgmt: synccallback: decoding nodeMsg failed:", err)
+					return
 				}
-				//log.Printf("nodemgmt: synccallback: received information of node %d from %s to %s\n", nodemsg.ID, msg.Sender, msg.Destination)
 				node := new(Node)
 				node.Fillby(nodemsg)
 				dao.SyncNode(node)
@@ -145,7 +175,6 @@ func NewInstance(mongoURL, eosURL, bpAccount, bpPrivkey, contractOwnerM, contrac
 					log.Printf("nodemgmt: synccallback: received update uspace message of node %d from %s to %s\n", umsg.NodeID, msg.Sender, msg.Destination)
 					dao.updateUspace(umsg)
 				}
-
 			}
 		}
 	}
@@ -188,7 +217,7 @@ func getCurrentNodeIndex(client *mongo.Client) (int32, error) {
 	return m["seq"], nil
 }
 
-//UpdateNode update data info by data node status
+//UpdateNodeStatus update data info by data node status
 func (self *NodeDaoImpl) UpdateNodeStatus(node *Node) (*Node, error) {
 	if node == nil {
 		log.Println("nodemgmt: UpdateNodeStatus: warning: report info is null")
@@ -855,5 +884,54 @@ func (self *NodeDaoImpl) MinerQuit(id int32) (string, error) {
 	}
 	resp := fmt.Sprintf("punish %dYTA deposit of node %d\n", punishAsset.Amount/10000, node.ID)
 	log.Printf("spotcheck: MinerQuit: %s", resp)
+	return resp, nil
+}
+
+//BatchMinerQuit quit miner
+func (self *NodeDaoImpl) BatchMinerQuit(id, percent int32) (string, error) {
+	if id%int32(incr) != index {
+		log.Printf("nodemgmt: MinerQuit: warning: node %d do not belong to current SN\n", id)
+		return "", errors.New("miner do not belong to this SN")
+	}
+	rate, err := self.eostx.GetExchangeRate()
+	if err != nil {
+		log.Printf("nodemgmt: MinerQuit: error when fetching exchange rate from BP: %s\n", err.Error())
+		return "", err
+	}
+	pledgeData, err := self.eostx.GetPledgeData(uint64(id))
+	if err != nil {
+		return "", err
+	}
+	totalAsset := pledgeData.Total
+	punishAsset := pledgeData.Deposit
+	log.Printf("nodemgmt: BatchMinerQuit: deposit of miner %d is %dYTA, total %dYTA\n", id, punishAsset.Amount/10000, totalAsset.Amount/10000)
+	collection := self.client.Database(YottaDB).Collection(NodeTab)
+	node := new(Node)
+	err = collection.FindOne(context.Background(), bson.M{"_id": id}).Decode(node)
+	if err != nil {
+		log.Printf("nodemgmt: BatchMinerQuit: error when decoding information of miner %d: %s\n", id, err.Error())
+		return "", err
+	}
+	if node.AssignedSpace == 0 {
+		return fmt.Sprintf("AssignedSpace of miner %d is 0\n", node.ID), nil
+	}
+	punishAmount := node.AssignedSpace * int64(percent) * 10000 / int64(rate) / 65536
+	if punishAmount < int64(punishAsset.Amount) {
+		punishAsset.Amount = eos.Int64(punishAmount)
+	}
+	err = self.eostx.DeducePledge(uint64(node.ID), &punishAsset)
+	if err != nil {
+		return "", err
+	}
+	assignedSpace := node.AssignedSpace - node.AssignedSpace*int64(percent)/100
+	if assignedSpace < 0 {
+		assignedSpace = node.AssignedSpace
+	}
+	_, err = collection.UpdateOne(context.Background(), bson.M{"_id": id}, bson.M{"$set": bson.M{"assignedSpace": assignedSpace}})
+	if err != nil {
+		log.Printf("spotcheck: BatchMinerQuit: warning when punishing %dYTA deposit of node %d: %s\n", punishAsset.Amount/10000, node.ID, err.Error())
+	}
+	resp := fmt.Sprintf("punish %dYTA deposit of node %d\n", punishAsset.Amount/10000, node.ID)
+	log.Printf("spotcheck: BatchMinerQuit: %s", resp)
 	return resp, nil
 }
