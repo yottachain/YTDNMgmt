@@ -915,7 +915,7 @@ func (self *NodeDaoImpl) BatchMinerQuit(id, percent int32) (string, error) {
 	if node.AssignedSpace == 0 {
 		return fmt.Sprintf("AssignedSpace of miner %d is 0\n", node.ID), nil
 	}
-	punishAmount := node.AssignedSpace * int64(percent) * 10000 / int64(rate) / 65536
+	punishAmount := int64(pledgeData.Deposit.Amount) * int64(percent) / 100 //node.AssignedSpace * int64(percent) * 10000 / int64(rate) / 65536
 	if punishAmount < int64(punishAsset.Amount) {
 		punishAsset.Amount = eos.Int64(punishAmount)
 	}
@@ -923,7 +923,7 @@ func (self *NodeDaoImpl) BatchMinerQuit(id, percent int32) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	assignedSpace := node.AssignedSpace - node.AssignedSpace*int64(percent)/100
+	assignedSpace := node.AssignedSpace - int64(punishAsset.Amount)*1048576/160000 //node.AssignedSpace*int64(percent)/100
 	if assignedSpace < 0 {
 		assignedSpace = node.AssignedSpace
 	}
