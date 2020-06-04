@@ -105,7 +105,16 @@ func NewInstance(mongoURL, eosURL, bpAccount, bpPrivkey, contractOwnerM, contrac
 				io.WriteString(w, fmt.Sprintf("解析矿机ID失败：%s\n", err.Error()))
 				return
 			}
-			s, err := dao.MinerQuit(int32(minerid))
+			percentStr := r.Form.Get("percent")
+			if percentStr == "" {
+				percentStr = "100"
+			}
+			percent, err := strconv.Atoi(percentStr)
+			if err != nil {
+				io.WriteString(w, fmt.Sprintf("解析扣抵押百分比失败：%s\n", err.Error()))
+				return
+			}
+			s, err := dao.MinerQuit(int32(minerid), int32(percent))
 			if err != nil {
 				io.WriteString(w, fmt.Sprintf("扣抵押失败：%s\n", err.Error()))
 				return
@@ -839,7 +848,7 @@ func (self *NodeDaoImpl) Statistics() (*NodeStat, error) {
 }
 
 //MinerQuit quit miner
-func (self *NodeDaoImpl) MinerQuit(id int32) (string, error) {
+func (self *NodeDaoImpl) MinerQuit(id int32, percent int32) (string, error) {
 	if id%int32(incr) != index {
 		log.Printf("nodemgmt: MinerQuit: warning: node %d do not belong to current SN\n", id)
 		return "", errors.New("miner do not belong to this SN")
@@ -866,7 +875,7 @@ func (self *NodeDaoImpl) MinerQuit(id int32) (string, error) {
 	if node.UsedSpace == 0 {
 		return fmt.Sprintf("UsedSpace of miner %d is 0\n", node.ID), nil
 	}
-	punishAmount := node.UsedSpace * 1000000 / int64(rate) / 65536
+	punishAmount := node.UsedSpace * 1000000 * int64(percent) / int64(rate) / 6553600
 	if punishAmount < int64(punishAsset.Amount) {
 		punishAsset.Amount = eos.Int64(punishAmount)
 	}
@@ -874,7 +883,7 @@ func (self *NodeDaoImpl) MinerQuit(id int32) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	assignedSpace := node.AssignedSpace - node.UsedSpace
+	assignedSpace := node.AssignedSpace - node.UsedSpace*int64(percent)/100
 	if assignedSpace < 0 {
 		assignedSpace = node.AssignedSpace
 	}
