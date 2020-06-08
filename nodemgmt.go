@@ -8,6 +8,7 @@ import (
 	"log"
 	"math"
 	"net/http"
+	"sort"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -174,7 +175,6 @@ func NewInstance(mongoURL, eosURL, bpAccount, bpPrivkey, contractOwnerM, contrac
 				msgType := b[0]
 				content := b[1:]
 				if msgType == byte(UpdateUspaceMessage) {
-
 					umsg := new(pb.UpdateUspaceMessage)
 					err := proto.Unmarshal(content, umsg)
 					if err != nil {
@@ -183,6 +183,95 @@ func NewInstance(mongoURL, eosURL, bpAccount, bpPrivkey, contractOwnerM, contrac
 					}
 					log.Printf("nodemgmt: synccallback: received update uspace message of node %d from %s to %s\n", umsg.NodeID, msg.Sender, msg.Destination)
 					dao.updateUspace(umsg)
+				} else if msgType == byte(PunishMessage) {
+					pmsg := new(pb.PunishMessage)
+					err := proto.Unmarshal(content, pmsg)
+					if err != nil {
+						log.Println("nodemgmt: synccallback: error when unmarshaling PunishMessage:", err)
+						return
+					}
+					log.Printf("nodemgmt: synccallback: received punish message of node %d from %s to %s\n", pmsg.NodeID, msg.Sender, msg.Destination)
+					collection := dao.client.Database(YottaDB).Collection(NodeTab)
+					node := new(Node)
+					err = collection.FindOne(context.Background(), bson.M{"_id": pmsg.NodeID}).Decode(node)
+					if err != nil {
+						log.Printf("nodemgmt: synccallback: error when decoding struct of miner %d: %s\n", pmsg.NodeID, err.Error())
+						return
+					}
+					if node.Status > 1 {
+						return
+					}
+					if pmsg.Type == 0 {
+						errorCount := pmsg.Count
+						ruleMap := pmsg.Rule
+						keys := make([]int32, 0, len(ruleMap))
+						for k := range ruleMap {
+							keys = append(keys, k)
+						}
+						sort.Sort(Int32Slice(keys))
+						_, err = collection.UpdateOne(context.Background(), bson.M{"_id": node.ID}, bson.M{"$set": bson.M{"errorCount": errorCount}})
+						if err != nil {
+							log.Printf("nodemgmt: synccallback: error when updating error count of miner %d to %d: %s\n", node.ID, errorCount, err.Error())
+							return
+						}
+						var i int = 0
+						var p int32 = 0
+						if node.ErrorCount < int64(errorCount-1) {
+							for i, p = range keys {
+								if int32(node.ErrorCount) < p && errorCount > p {
+									left, err := dao.punish(node.ID, int64(ruleMap[p]))
+									if err != nil {
+										return
+									}
+									if left == 0 {
+										_, err = collection.UpdateOne(context.Background(), bson.M{"_id": node.ID}, bson.M{"$set": bson.M{"status": 2}})
+										if err != nil {
+											log.Printf("nodemgmt: synccallback: error when updating status of miner %d to 2 of type 0: %s\n", node.ID, err.Error())
+										}
+										return
+									}
+								}
+							}
+						}
+						for i, p = range keys {
+							if errorCount == p {
+								left, err := dao.punish(node.ID, int64(ruleMap[p]))
+								if err != nil {
+									return
+								}
+								if left == 0 || (i == len(keys)-1) {
+									_, err = collection.UpdateOne(context.Background(), bson.M{"_id": node.ID}, bson.M{"$set": bson.M{"status": 2}})
+									if err != nil {
+										log.Printf("nodemgmt: synccallback: error when updating status of miner %d to 2 of type 0: %s\n", node.ID, err.Error())
+									}
+									return
+								}
+								break
+							}
+						}
+					} else if pmsg.Type == 1 {
+						left, err := dao.punish(node.ID, int64(pmsg.Count))
+						if err != nil {
+							return
+						}
+						if left == 0 {
+							_, err = collection.UpdateOne(context.Background(), bson.M{"_id": node.ID}, bson.M{"$set": bson.M{"status": 2}})
+							if err != nil {
+								log.Printf("nodemgmt: synccallback: error when updating status of miner %d to 2 of type 1: %s\n", node.ID, err.Error())
+								return
+							}
+						}
+					} else if pmsg.Type == 2 {
+						_, err := dao.punish(node.ID, int64(pmsg.Count))
+						if err != nil {
+							return
+						}
+						_, err = collection.UpdateOne(context.Background(), bson.M{"_id": node.ID}, bson.M{"$set": bson.M{"status": 2}})
+						if err != nil {
+							log.Printf("nodemgmt: synccallback: error when updating status of miner %d to 2 of type 2: %s\n", node.ID, err.Error())
+							return
+						}
+					}
 				}
 			}
 		}
@@ -195,6 +284,49 @@ func NewInstance(mongoURL, eosURL, bpAccount, bpPrivkey, contractOwnerM, contrac
 	dao.Config = config
 	log.Printf("nodemgmt: NewInstance: config is: %v\n", config)
 	return dao, nil
+}
+
+func (self *NodeDaoImpl) punish(nodeID int32, percent int64) (int64, error) {
+	log.Printf("nodemgmt: punish: punishing %d deposit of miner %d\n", percent, nodeID)
+	rate, err := self.eostx.GetExchangeRate()
+	if err != nil {
+		return 0, err
+	}
+	pledgeData, err := self.eostx.GetPledgeData(uint64(nodeID))
+	if err != nil {
+		log.Printf("nodemgmt: punish: error when get pledge data of miner %d: %s\n", nodeID, err.Error())
+		return 0, err
+	}
+	log.Printf("nodemgmt: punish: get pledge data of miner %d: %d/%d\n", nodeID, int64(pledgeData.Deposit.Amount), int64(pledgeData.Total.Amount))
+	totalAsset := pledgeData.Total
+	leftAsset := pledgeData.Deposit
+	punishAsset := pledgeData.Deposit
+	if leftAsset.Amount == 0 {
+		log.Printf("nodemgmt: punish: no left deposit of miner %d\n", nodeID)
+		return 0, nil
+	}
+	var retLeft int64 = 0
+	punishFee := int64(totalAsset.Amount) * percent / 100
+	if punishFee < int64(punishAsset.Amount) {
+		punishAsset.Amount = eos.Int64(punishFee)
+		retLeft = int64(leftAsset.Amount - punishAsset.Amount)
+	}
+	err = self.eostx.DeducePledge(uint64(nodeID), &punishAsset)
+	if err != nil {
+		log.Printf("nodemgmt: punish: error when punishing %f YTA of miner %d: %s\n", float64(punishFee)/10000, nodeID, err.Error())
+		return 0, err
+	}
+	log.Printf("nodemgmt: punish: punishing %f YTA of miner %d\n", float64(punishFee)/10000, nodeID)
+	newAssignedSpace := retLeft * 65536 * int64(rate) / 1000000
+	if newAssignedSpace < 0 {
+		newAssignedSpace = 0
+	}
+	collection := self.client.Database(YottaDB).Collection(NodeTab)
+	_, err = collection.UpdateOne(context.Background(), bson.M{"_id": nodeID}, bson.M{"$set": bson.M{"assignedSpace": newAssignedSpace}})
+	if err != nil {
+		return 0, err
+	}
+	return retLeft, nil
 }
 
 func (self *NodeDaoImpl) updateUspace(msg *pb.UpdateUspaceMessage) {

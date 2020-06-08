@@ -8,6 +8,7 @@ import (
 const (
 	_                   = iota
 	UpdateUspaceMessage //UpdateUspaceMessage message type
+	PunishMessage       //PunishMessage message type
 )
 
 // Node instance
@@ -68,6 +69,8 @@ type Node struct {
 	Rx int64 `bson:"rx"`
 	//Ext
 	Ext string `bson:"-"`
+	//ErrorCount
+	ErrorCount int64 `bson:"errorCount"`
 }
 
 //NewNode create a node struct
