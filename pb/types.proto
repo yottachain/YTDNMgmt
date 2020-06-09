@@ -209,7 +209,8 @@ message UpdateUspaceMessage {
 
 message PunishMessage {
 	int32 nodeID = 1;
-	int32 type = 2;
-	int32 count = 3;
-	map<int32, int32> rule = 4;
+  int32 type = 2;
+  bool needPunish = 3;
+	int32 count = 4;
+	map<int32, int32> rule = 5;
 }

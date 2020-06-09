@@ -214,42 +214,44 @@ func NewInstance(mongoURL, eosURL, bpAccount, bpPrivkey, contractOwnerM, contrac
 							log.Printf("nodemgmt: synccallback: error when updating error count of miner %d to %d: %s\n", node.ID, errorCount, err.Error())
 							return
 						}
-						var i int = 0
-						var p int32 = 0
-						if node.ErrorCount < int64(errorCount-1) {
+						if pmsg.NeedPunish {
+							var i int = 0
+							var p int32 = 0
+							if node.ErrorCount < int64(errorCount-1) {
+								for i, p = range keys {
+									if int32(node.ErrorCount) < p && errorCount > p {
+										left, err := dao.punish(node.ID, int64(ruleMap[p]))
+										if err != nil {
+											return
+										}
+										if left == 0 {
+											_, err = collection.UpdateOne(context.Background(), bson.M{"_id": node.ID}, bson.M{"$set": bson.M{"status": 2}})
+											if err != nil {
+												log.Printf("nodemgmt: synccallback: error when updating status of miner %d to 2 of type 0: %s\n", node.ID, err.Error())
+											}
+											return
+										}
+									}
+								}
+							}
 							for i, p = range keys {
-								if int32(node.ErrorCount) < p && errorCount > p {
+								if errorCount == p {
 									left, err := dao.punish(node.ID, int64(ruleMap[p]))
 									if err != nil {
 										return
 									}
-									if left == 0 {
+									if left == 0 || (i == len(keys)-1) {
 										_, err = collection.UpdateOne(context.Background(), bson.M{"_id": node.ID}, bson.M{"$set": bson.M{"status": 2}})
 										if err != nil {
 											log.Printf("nodemgmt: synccallback: error when updating status of miner %d to 2 of type 0: %s\n", node.ID, err.Error())
 										}
 										return
 									}
+									break
 								}
 							}
 						}
-						for i, p = range keys {
-							if errorCount == p {
-								left, err := dao.punish(node.ID, int64(ruleMap[p]))
-								if err != nil {
-									return
-								}
-								if left == 0 || (i == len(keys)-1) {
-									_, err = collection.UpdateOne(context.Background(), bson.M{"_id": node.ID}, bson.M{"$set": bson.M{"status": 2}})
-									if err != nil {
-										log.Printf("nodemgmt: synccallback: error when updating status of miner %d to 2 of type 0: %s\n", node.ID, err.Error())
-									}
-									return
-								}
-								break
-							}
-						}
-					} else if pmsg.Type == 1 {
+					} else if pmsg.Type == 1 && pmsg.NeedPunish {
 						left, err := dao.punish(node.ID, int64(pmsg.Count))
 						if err != nil {
 							return
@@ -261,7 +263,7 @@ func NewInstance(mongoURL, eosURL, bpAccount, bpPrivkey, contractOwnerM, contrac
 								return
 							}
 						}
-					} else if pmsg.Type == 2 {
+					} else if pmsg.Type == 2 && pmsg.NeedPunish {
 						_, err := dao.punish(node.ID, int64(pmsg.Count))
 						if err != nil {
 							return
