@@ -199,6 +199,14 @@ func NewInstance(mongoURL, eosURL, bpAccount, bpPrivkey, contractOwnerM, contrac
 						return
 					}
 					if node.Status > 1 {
+						if b, err := proto.Marshal(node.Convert()); err != nil {
+							log.Printf("nodemgmt: synccallback: marshal node %d failed: %s\n", node.ID, err)
+						} else {
+							if dao.syncService != nil {
+								log.Println("nodemgmt: synccallback: publish information of node", node.ID)
+								dao.syncService.Publish("sync", b)
+							}
+						}
 						return
 					}
 					if pmsg.Type == 0 {
@@ -229,6 +237,14 @@ func NewInstance(mongoURL, eosURL, bpAccount, bpPrivkey, contractOwnerM, contrac
 											if err != nil {
 												log.Printf("nodemgmt: synccallback: error when updating status of miner %d to 2 of type 0: %s\n", node.ID, err.Error())
 											}
+											if b, err := proto.Marshal(node.Convert()); err != nil {
+												log.Printf("nodemgmt: synccallback: marshal node %d failed: %s\n", node.ID, err)
+											} else {
+												if dao.syncService != nil {
+													log.Println("nodemgmt: synccallback: publish information of node", node.ID)
+													dao.syncService.Publish("sync", b)
+												}
+											}
 											return
 										}
 									}
@@ -245,6 +261,14 @@ func NewInstance(mongoURL, eosURL, bpAccount, bpPrivkey, contractOwnerM, contrac
 										if err != nil {
 											log.Printf("nodemgmt: synccallback: error when updating status of miner %d to 2 of type 0: %s\n", node.ID, err.Error())
 										}
+										if b, err := proto.Marshal(node.Convert()); err != nil {
+											log.Printf("nodemgmt: synccallback: marshal node %d failed: %s\n", node.ID, err)
+										} else {
+											if dao.syncService != nil {
+												log.Println("nodemgmt: synccallback: publish information of node", node.ID)
+												dao.syncService.Publish("sync", b)
+											}
+										}
 										return
 									}
 									break
@@ -260,8 +284,16 @@ func NewInstance(mongoURL, eosURL, bpAccount, bpPrivkey, contractOwnerM, contrac
 							_, err = collection.UpdateOne(context.Background(), bson.M{"_id": node.ID}, bson.M{"$set": bson.M{"status": 2}})
 							if err != nil {
 								log.Printf("nodemgmt: synccallback: error when updating status of miner %d to 2 of type 1: %s\n", node.ID, err.Error())
-								return
 							}
+							if b, err := proto.Marshal(node.Convert()); err != nil {
+								log.Printf("nodemgmt: synccallback: marshal node %d failed: %s\n", node.ID, err)
+							} else {
+								if dao.syncService != nil {
+									log.Println("nodemgmt: synccallback: publish information of node", node.ID)
+									dao.syncService.Publish("sync", b)
+								}
+							}
+							return
 						}
 					} else if pmsg.Type == 2 && pmsg.NeedPunish {
 						_, err := dao.punish(node.ID, int64(pmsg.Count))
@@ -271,8 +303,16 @@ func NewInstance(mongoURL, eosURL, bpAccount, bpPrivkey, contractOwnerM, contrac
 						_, err = collection.UpdateOne(context.Background(), bson.M{"_id": node.ID}, bson.M{"$set": bson.M{"status": 2}})
 						if err != nil {
 							log.Printf("nodemgmt: synccallback: error when updating status of miner %d to 2 of type 2: %s\n", node.ID, err.Error())
-							return
 						}
+						if b, err := proto.Marshal(node.Convert()); err != nil {
+							log.Printf("nodemgmt: synccallback: marshal node %d failed: %s\n", node.ID, err)
+						} else {
+							if dao.syncService != nil {
+								log.Println("nodemgmt: synccallback: publish information of node", node.ID)
+								dao.syncService.Publish("sync", b)
+							}
+						}
+						return
 					}
 				}
 			}
