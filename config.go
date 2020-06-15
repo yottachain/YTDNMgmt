@@ -3,6 +3,7 @@ package YTDNMgmt
 import (
 	"log"
 	"os"
+	"path"
 	"strings"
 
 	"github.com/spf13/viper"
@@ -123,9 +124,12 @@ type MiscConfig struct {
 
 //InitConfig decode config file
 func InitConfig(eosURL, bpAccount, bpPrivkey, contractOwnerM, contractOwnerD, shadowAccount string, bpID int32) *Config {
-	configDir := os.Getenv("NODEMGMT_CONFIGDIR")
+	// configDir := os.Getenv("NODEMGMT_CONFIGDIR")
+	configDir := os.Getenv("YTSN_HOME")
 	if configDir == "" {
 		configDir = "../conf"
+	} else {
+		configDir = path.Join(configDir, "conf")
 	}
 	viper.SetDefault(GrpcBindAddrField, ":11001")
 	viper.SetDefault(PprofEnableField, false)

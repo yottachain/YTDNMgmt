@@ -272,7 +272,6 @@ import (
 	"errors"
 	"log"
 	"net"
-	"net/http"
 	"sync"
 	"unsafe"
 
@@ -300,16 +299,16 @@ func NewInstance(mongodbURL, eosURL, bpAccount, bpPrivkey, contractOwnerM, contr
 	ctrcOwnerD := C.GoString(contractOwnerD)
 	shadowAcc := C.GoString(shadowAccount)
 	config := nodemgmt.InitConfig(eurl, bpAcc, bpPriv, ctrcOwnerM, ctrcOwnerD, shadowAcc, int32(bpid))
-	if config.PProf.Enable {
-		go func() {
-			err := http.ListenAndServe(config.PProf.BindAddr, nil)
-			if err != nil {
-				log.Printf("error when starting pprof server on address %s: %s\n", config.PProf.BindAddr, err)
-			} else {
-				log.Println("enable pprof server:", config.PProf.BindAddr)
-			}
-		}()
-	}
+	// if config.PProf.Enable {
+	// 	go func() {
+	// 		err := http.ListenAndServe(config.PProf.BindAddr, nil)
+	// 		if err != nil {
+	// 			log.Printf("error when starting pprof server on address %s: %s\n", config.PProf.BindAddr, err)
+	// 		} else {
+	// 			log.Println("enable pprof server:", config.PProf.BindAddr)
+	// 		}
+	// 	}()
+	// }
 	var err error
 	nodeDao, err = nodemgmt.NewInstance(murl, eurl, bpAcc, bpPriv, ctrcOwnerM, ctrcOwnerD, shadowAcc, int32(bpid), int32(master), config)
 	if err != nil {

@@ -325,6 +325,16 @@ func NewInstance(mongoURL, eosURL, bpAccount, bpPrivkey, contractOwnerM, contrac
 	dao.syncService = syncService
 	dao.Config = config
 	log.Printf("nodemgmt: NewInstance: config is: %v\n", config)
+	if config.PProf.Enable {
+		go func() {
+			err := http.ListenAndServe(config.PProf.BindAddr, nil)
+			if err != nil {
+				log.Printf("error when starting pprof server on address %s: %s\n", config.PProf.BindAddr, err)
+			} else {
+				log.Println("enable pprof server:", config.PProf.BindAddr)
+			}
+		}()
+	}
 	return dao, nil
 }
 

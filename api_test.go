@@ -20,7 +20,7 @@ var eosURL = "http://127.0.0.1:8888"
 var nodeDao *NodeDaoImpl
 
 func TestMain(m *testing.M) {
-	nodeDao, _ = NewInstance(mongoURL, eosURL, "producer1", "5HtM6e3mQNLEu2TkQ1ZrbMNpRQiHGsKxEsLdxd9VsdCmp1um8QH", "hddpool12345", "hdddeposit12", "shadow1", 0, 1)
+	nodeDao, _ = NewInstance(mongoURL, eosURL, "producer1", "5HtM6e3mQNLEu2TkQ1ZrbMNpRQiHGsKxEsLdxd9VsdCmp1um8QH", "hddpool12345", "hdddeposit12", "shadow1", 0, 1, nil)
 	os.Exit(m.Run())
 }
 
