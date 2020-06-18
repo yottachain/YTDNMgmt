@@ -85,6 +85,13 @@ func (self *NodeDaoImpl) ConnectivityCheck(nodeID string, addrs []string) bool {
 }
 
 func CheckPublicAddr(addrs []string, excludeAddrPrefix string) string {
+	if excludeAddrPrefix != "" {
+		for _, addr := range addrs {
+			if strings.HasPrefix(addr, excludeAddrPrefix) {
+				return addr
+			}
+		}
+	}
 	for _, addr := range addrs {
 		if strings.HasPrefix(addr, "/ip4/127.") ||
 			strings.HasPrefix(addr, "/ip4/192.168.") ||
@@ -109,9 +116,9 @@ func CheckPublicAddr(addrs []string, excludeAddrPrefix string) string {
 			strings.HasPrefix(addr, "/ip6/") ||
 			strings.HasPrefix(addr, "/p2p-circuit/") ||
 			strings.Index(addr, "/p2p/") != -1 {
-			if excludeAddrPrefix != "" && strings.HasPrefix(addr, excludeAddrPrefix) {
-				return addr
-			}
+			// if excludeAddrPrefix != "" && strings.HasPrefix(addr, excludeAddrPrefix) {
+			// 	return addr
+			// }
 			continue
 		} else {
 			return addr
