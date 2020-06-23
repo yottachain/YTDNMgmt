@@ -123,6 +123,7 @@ func (self *NodeDaoImpl) PreRegisterNode(trx string) error {
 	node.Status = 0
 	node.Timestamp = time.Now().Unix()
 	node.Version = 0
+	node.ManualWeight = 100
 	collection = self.client.Database(YottaDB).Collection(NodeTab)
 	_, err = collection.InsertOne(context.Background(), node)
 	if err != nil {
