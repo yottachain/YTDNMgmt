@@ -710,6 +710,7 @@ func (self *NodeDaoImpl) UpdateNodeStatus(node *Node) (*Node, error) {
 			err = self.eostx.AddSpace(n.ProfitAcc, uint64(n.ID), uint64(assignable))
 			if err != nil {
 				log.Printf("nodemgmt: UpdateNodeStatus: error when adding space for node %d: %s\n", n.ID, err.Error())
+				log.Printf("nodemgmt: UpdateNodeStatus: error when adding space for node %+v, eos params %+v\n", n, self.eostx)
 				self.IncrProductiveSpace(n.ID, -1*assignable)
 				return nil, err
 			}
