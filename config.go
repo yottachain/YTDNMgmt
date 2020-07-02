@@ -58,6 +58,7 @@ const (
 	MiscConnectivityTestIntervalField          = "misc.connectivity-test-interval"
 	MiscEnableTestField                        = "misc.enable-test"
 	MiscEnableExtraWeightParams                = "misc.enable-extra-weight-params"
+	MiscBPSyncInterval                         = "bp-sync-interval"
 	MiscIPDBPathField                          = "misc.ipdb-path"
 )
 
@@ -119,6 +120,7 @@ type MiscConfig struct {
 	ConnectivityTestInterval          int32  `mapstructure:"connectivity-test-interval"`
 	EnableTest                        bool   `mapstructure:"enable-test"`
 	EnableExtraWeightParams           bool   `mapstructure:"enable-extra-weight-params"`
+	BPSyncInterval                    int32  `mapstructure:"bp-sync-interval"`
 	IPDBPath                          string `mapstructure:"ipdb-path"`
 }
 
@@ -159,6 +161,7 @@ func InitConfig(eosURL, bpAccount, bpPrivkey, contractOwnerM, contractOwnerD, sh
 	viper.SetDefault(MiscConnectivityTestIntervalField, 60)
 	viper.SetDefault(MiscEnableTestField, false)
 	viper.SetDefault(MiscEnableExtraWeightParams, true)
+	viper.SetDefault(MiscBPSyncInterval, 60)
 	viper.SetDefault(MiscIPDBPathField, "/app/ytsn/yotta.ipdb")
 
 	viper.AddConfigPath(configDir)

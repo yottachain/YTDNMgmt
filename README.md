@@ -74,6 +74,8 @@ misc:
   enable-test: false
   #是否在权重计算中使用实验性参数，默认为true
   enable-extra-weight-params: true
+  #从BP同步抵押和生产空间的时间间隔，默认为60（分钟）
+  bp-sync-interval: 60
   #IP数据库的位置
   ipdb-path: "/app/ytsn/yotta.ipdb"
 ```

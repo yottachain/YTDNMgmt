@@ -26,7 +26,7 @@ type Service struct {
 }
 
 //StartSync start syncing
-func StartSync(etx *eostx.EosTX, bindAddr string, routerBufferSize, subscriberBufferSize, readBufferSize, writerBufferSize, pingWait, readWait, writeWait int, topic string, snID int, urls, allowedAccounts []string, callback func(msg *msg.Message), shadowAccount, shadowPrivateKey string) (*Service, error) {
+func StartSync(etx *eostx.EosTX, bindAddr string, routerBufferSize, subscriberBufferSize, readBufferSize, writerBufferSize, pingWait, readWait, writeWait int, topic string, snID int, urls, allowedAccounts []string, callback func(msg *msg.Message), shadowAccount, shadowPrivateKey string, isMaster bool) (*Service, error) {
 	accountMap := make(map[string]string)
 	for _, acc := range allowedAccounts {
 		pk, err := etx.GetPublicKey(acc, "active")
@@ -69,14 +69,16 @@ func StartSync(etx *eostx.EosTX, bindAddr string, routerBufferSize, subscriberBu
 			wsurl := url
 			go func() {
 				for {
-					cli, err := wsclient.Connect(wsurl, callback, &msg.AuthReq{Id: fmt.Sprintf("sn%d", snID), Credential: crendData}, []string{topic}, subscriberBufferSize, pingWait, readWait, writeWait)
-					if err != nil {
-						log.Printf("sync: StartSync: error when connecting to SN%d: %s\n", i, err)
-						time.Sleep(time.Duration(3) * time.Second)
-						continue
+					if isMaster {
+						cli, err := wsclient.Connect(wsurl, callback, &msg.AuthReq{Id: fmt.Sprintf("sn%d", snID), Credential: crendData}, []string{topic}, subscriberBufferSize, pingWait, readWait, writeWait)
+						if err != nil {
+							log.Printf("sync: StartSync: error when connecting to SN%d: %s\n", i, err)
+							time.Sleep(time.Duration(3) * time.Second)
+							continue
+						}
+						cli.Run()
+						log.Printf("sync: StartSync: connect to SN%d successful\n", i)
 					}
-					cli.Run()
-					log.Printf("sync: StartSync: connect to SN%d successful\n", i)
 					time.Sleep(time.Duration(3) * time.Second)
 				}
 			}()
