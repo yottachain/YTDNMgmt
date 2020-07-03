@@ -5,6 +5,7 @@ import (
 	"log"
 	"math/rand"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/aurawing/auramq"
@@ -23,10 +24,11 @@ import (
 type Service struct {
 	client     auramq.Client
 	accountMap map[string]string
+	master     *int32
 }
 
 //StartSync start syncing
-func StartSync(etx *eostx.EosTX, bindAddr string, routerBufferSize, subscriberBufferSize, readBufferSize, writerBufferSize, pingWait, readWait, writeWait int, topic string, snID int, urls, allowedAccounts []string, callback func(msg *msg.Message), shadowAccount, shadowPrivateKey string, isMaster bool) (*Service, error) {
+func StartSync(etx *eostx.EosTX, bindAddr string, routerBufferSize, subscriberBufferSize, readBufferSize, writerBufferSize, pingWait, readWait, writeWait int, topic string, snID int, urls, allowedAccounts []string, callback func(msg *msg.Message), shadowAccount, shadowPrivateKey string, isMaster *int32) (*Service, error) {
 	accountMap := make(map[string]string)
 	for _, acc := range allowedAccounts {
 		pk, err := etx.GetPublicKey(acc, "active")
@@ -40,6 +42,7 @@ func StartSync(etx *eostx.EosTX, bindAddr string, routerBufferSize, subscriberBu
 		accountMap[acc] = pk
 	}
 	syncService := new(Service)
+	syncService.master = isMaster
 	syncService.accountMap = accountMap
 
 	router := auramq.NewRouter(routerBufferSize)
@@ -69,7 +72,7 @@ func StartSync(etx *eostx.EosTX, bindAddr string, routerBufferSize, subscriberBu
 			wsurl := url
 			go func() {
 				for {
-					if isMaster {
+					if atomic.LoadInt32(syncService.master) == 1 {
 						cli, err := wsclient.Connect(wsurl, callback, &msg.AuthReq{Id: fmt.Sprintf("sn%d", snID), Credential: crendData}, []string{topic}, subscriberBufferSize, pingWait, readWait, writeWait)
 						if err != nil {
 							log.Printf("sync: StartSync: error when connecting to SN%d: %s\n", i, err)
