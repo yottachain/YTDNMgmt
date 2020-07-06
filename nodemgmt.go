@@ -77,6 +77,7 @@ func NewInstance(mongoURL, eosURL, bpAccount, bpPrivkey, contractOwnerM, contrac
 	}
 	log.Println("nodemgmt: NewInstance: create host2")
 	dao := &NodeDaoImpl{client: client, eostx: etx, host1: host1, host2: host2, ns: &NodesSelector{Config: config.Misc}, bpID: bpID, master: isMaster}
+	log.Printf("nodemgmt: NewInstance: master status is %d\n", isMaster)
 	//dao.StartRecheck()
 	dao.ns.Start(context.Background(), dao)
 	if incr == 0 {
@@ -431,6 +432,7 @@ func (self *NodeDaoImpl) updateUspace(msg *pb.UpdateUspaceMessage) {
 
 //SetMaster change master status
 func (self *NodeDaoImpl) SetMaster(master int32) {
+	log.Printf("nodemgmt: SetMaster: master status is %d\n", master)
 	atomic.StoreInt32(&(self.master), master)
 }
 
