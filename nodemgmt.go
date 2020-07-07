@@ -848,17 +848,13 @@ func (self *NodeDaoImpl) sendUspace(to, from int32, uspace int64) {
 
 //GetNodes by node IDs
 func (self *NodeDaoImpl) GetNodes(nodeIDs []int32) ([]*Node, error) {
-	cond := bson.A{}
-	for _, id := range nodeIDs {
-		cond = append(cond, bson.D{{"_id", id}})
-	}
-	nodes := make([]*Node, 0)
 	collection := self.client.Database(YottaDB).Collection(NodeTab)
-	cur, err := collection.Find(context.Background(), bson.D{{"$or", cond}})
+	cur, err := collection.Find(context.Background(), bson.M{"_id": bson.M{"$in": nodeIDs}})
 	if err != nil {
 		log.Printf("nodemgmt: GetNodes: error when finding nodes %v in database: %s\n", nodeIDs, err.Error())
 		return nil, err
 	}
+	nodes := make([]*Node, 0)
 	defer cur.Close(context.Background())
 	for cur.Next(context.Background()) {
 		result := new(Node)
