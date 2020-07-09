@@ -1,57 +1,94 @@
 package YTDNMgmt
 
 import (
+	"bytes"
 	"context"
+	"encoding/binary"
+	"fmt"
 	"log"
 	"time"
 
+	"github.com/libp2p/go-libp2p-core/crypto"
+	"github.com/libp2p/go-libp2p-core/peer"
+	"github.com/mr-tron/base58"
 	ma "github.com/multiformats/go-multiaddr"
-	server "github.com/yottachain/P2PHost"
-	pb "github.com/yottachain/P2PHost/pb"
 	ytcrypto "github.com/yottachain/YTCrypto"
+	host "github.com/yottachain/YTHost"
+	hst "github.com/yottachain/YTHost/interface"
+	"github.com/yottachain/YTHost/option"
 )
+
+//GETTOKEN token ID of
+const GETTOKEN = 50311
 
 //Host p2p host
 type Host struct {
 	//lhost host.Host
-	lhost  *server.Server
+	lhost  hst.Host
 	config *MiscConfig
 }
 
 //NewHost create a new host
 func NewHost(config *MiscConfig) (*Host, error) {
-	//host, err := libp2p.New(context.Background())
 	sk, _ := ytcrypto.CreateKey()
-	host, err := server.NewServer("0", sk)
+	ma, _ := ma.NewMultiaddr(fmt.Sprintf("/ip4/0.0.0.0/tcp/%d", 0))
+	privbytes, err := base58.Decode(sk)
 	if err != nil {
 		return nil, err
 	}
-	return &Host{lhost: host, config: config}, nil
+	pk, err := crypto.UnmarshalSecp256k1PrivateKey(privbytes[1:33])
+	if err != nil {
+		return nil, err
+	}
+	lhost, err := host.NewHost(option.ListenAddr(ma), option.Identity(pk))
+	if err != nil {
+		return nil, err
+	}
+	go lhost.Accept()
+	return &Host{lhost: lhost, config: config}, nil
 }
+
+// func NewHost(config *MiscConfig) (*Host, error) {
+// 	//host, err := libp2p.New(context.Background())
+// 	sk, _ := ytcrypto.CreateKey()
+// 	host, err := server.NewServer("0", sk)
+// 	if err != nil {
+// 		return nil, err
+// 	}
+// 	return &Host{lhost: host, config: config}, nil
+// }
 
 //SendMsg send a message to client
 func (host *Host) SendMsg(id string, msg []byte) ([]byte, error) {
-	sendMsgReq := &pb.SendMsgReq{Id: id, Msgid: msg[0:2], Msg: msg[2:]}
-	// pid := protocol.ID(msgType)
-	// peerID, err := peer.IDB58Decode(id)
+	// sendMsgReq := &pb.SendMsgReq{Id: id, Msgid: msg[0:2], Msg: msg[2:]}
+	// ctx, cancle := context.WithTimeout(context.Background(), time.Second*time.Duration(host.config.ConnectivityConnectTimeout))
+	// defer cancle()
+	// sendMsgResp, err := host.lhost.SendMsg(ctx, sendMsgReq)
 	// if err != nil {
 	// 	return nil, err
 	// }
-	ctx, cancle := context.WithTimeout(context.Background(), time.Second*time.Duration(host.config.ConnectivityConnectTimeout))
-	defer cancle()
-	sendMsgResp, err := host.lhost.SendMsg(ctx, sendMsgReq)
-	// stm, err := host.lhost.NewStream(ctx, peerID, pid)
+	// return sendMsgResp.Value, nil
+
+	msid := msg[0:2]
+	bytebuff := bytes.NewBuffer(msid)
+	var tmp uint16
+	err := binary.Read(bytebuff, binary.BigEndian, &tmp)
+	msgID := int32(tmp)
+	ID, err := peer.Decode(id)
 	if err != nil {
 		return nil, err
 	}
-	//defer stm.Close()
-	// stm.SetReadDeadline(time.Now().Add(time.Duration(readTimeout) * time.Second))
-	// ed := gob.NewEncoder(stm)
-	// err = ed.Encode(msg)
-	// if err != nil {
-	// 	return nil, err
-	// }
-	return sendMsgResp.Value, nil
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*time.Duration(host.config.ConnectivityConnectTimeout))
+	if msgID == GETTOKEN {
+		ctx, cancel = context.WithTimeout(context.Background(), time.Millisecond*1000)
+	}
+	defer cancel()
+
+	bytes, err := host.lhost.SendMsg(ctx, ID, msgID, msg[2:])
+	if err != nil {
+		return nil, err
+	}
+	return bytes, nil
 }
 
 //TestNetwork connectivity test
@@ -72,36 +109,21 @@ func (host *Host) testNetworkN(nodeID string, addrs []string, retries int) error
 }
 
 func (host *Host) testNetwork(nodeID string, addrs []string) error {
-	// maddrs, err := stringListToMaddrs(addrs)
-	// if err != nil {
-	// 	return err
-	// }
-	// pid, err := peer.IDB58Decode(nodeID)
-	// if err != nil {
-	// 	return err
-	// }
-	// info := ps.PeerInfo{
-	// 	pid,
-	// 	maddrs,
-	// }
 	ctx, cancle := context.WithTimeout(context.Background(), time.Second*time.Duration(host.config.ConnectivityConnectTimeout))
 	defer cancle()
-	req := &pb.ConnectReq{Id: nodeID, Addrs: addrs}
-	_, err := host.lhost.Connect(ctx, req)
+	ID, err := peer.Decode(nodeID)
 	if err != nil {
 		return err
 	}
-	disreq := &pb.StringMsg{Value: nodeID}
-	_, err = host.lhost.DisConnect(context.Background(), disreq)
+	maddrs, _ := stringListToMaddrs(addrs)
+	_, err = host.lhost.ClientStore().Get(ctx, ID, maddrs)
 	if err != nil {
 		return err
 	}
-	// defer host.lhost.Network().ClosePeer(pid)
-	// defer host.lhost.Network().(*swarm.Swarm).Backoff().Clear(pid)
-	// err = host.lhost.Connect(ctx, info)
-	// if err != nil {
-	// 	return err
-	// }
+	err = host.lhost.ClientStore().Close(ID)
+	if err != nil {
+		return err
+	}
 	return nil
 }
 

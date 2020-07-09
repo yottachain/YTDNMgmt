@@ -5,6 +5,8 @@ go 1.13
 require (
 	github.com/aurawing/auramq v0.0.2-0.20200521072017-845ffa488ac8
 	github.com/aurawing/eos-go v0.9.1-0.20200517054114-c338bd5d1974
+	github.com/coreos/etcd v3.3.22+incompatible // indirect
+	github.com/fastly/go-utils v0.0.0-20180712184237-d95a45783239
 	github.com/golang/protobuf v1.4.1
 	github.com/ipipdotnet/ipdb-go v1.2.0
 	github.com/libp2p/go-libp2p-core v0.3.0
@@ -14,8 +16,8 @@ require (
 	github.com/tidwall/gjson v1.3.4 // indirect
 	github.com/xdg/scram v0.0.0-20180814205039-7eeb5667e42c // indirect
 	github.com/xdg/stringprep v1.0.0 // indirect
-	github.com/yottachain/P2PHost v0.0.0-20200309075623-e0c7920a6130
 	github.com/yottachain/YTCrypto v0.0.0-20200122165219-0ea35dc29812
+	github.com/yottachain/YTHost v1.0.2-0.20200703084155-b2658f82b387
 	go.etcd.io/etcd v3.3.18+incompatible
 	go.mongodb.org/mongo-driver v1.1.3
 	google.golang.org/genproto v0.0.0-20191216205247-b31c10ee225f // indirect

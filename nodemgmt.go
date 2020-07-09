@@ -35,8 +35,7 @@ import (
 type NodeDaoImpl struct {
 	client      *mongo.Client
 	eostx       *eostx.EosTX
-	host1       *Host
-	host2       *Host
+	host        *Host
 	ns          *NodesSelector
 	bpID        int32
 	master      int32
@@ -64,19 +63,13 @@ func NewInstance(mongoURL, eosURL, bpAccount, bpPrivkey, contractOwnerM, contrac
 		return nil, err
 	}
 	log.Printf("nodemgmt: NewInstance: create eos client: %s\n", eosURL)
-	host1, err := NewHost(config.Misc)
+	host, err := NewHost(config.Misc)
 	if err != nil {
-		log.Printf("nodemgmt: NewInstance: error when creating host1 failed: %s\n", err.Error())
+		log.Printf("nodemgmt: NewInstance: error when creating host failed: %s\n", err.Error())
 		return nil, err
 	}
-	log.Println("nodemgmt: NewInstance: create host1")
-	host2, err := NewHost(config.Misc)
-	if err != nil {
-		log.Printf("nodemgmt: NewInstance: error when creating host2 failed: %s\n", err.Error())
-		return nil, err
-	}
-	log.Println("nodemgmt: NewInstance: create host2")
-	dao := &NodeDaoImpl{client: client, eostx: etx, host1: host1, host2: host2, ns: &NodesSelector{Config: config.Misc}, bpID: bpID, master: isMaster}
+	log.Println("nodemgmt: NewInstance: create host")
+	dao := &NodeDaoImpl{client: client, eostx: etx, host: host, ns: &NodesSelector{Config: config.Misc}, bpID: bpID, master: isMaster}
 	log.Printf("nodemgmt: NewInstance: master status is %d\n", isMaster)
 	//dao.StartRecheck()
 	dao.ns.Start(context.Background(), dao)

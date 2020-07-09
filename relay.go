@@ -76,7 +76,7 @@ func GetRelayUrl(addrs []string) string {
 }
 
 func (self *NodeDaoImpl) ConnectivityCheck(nodeID string, addrs []string) bool {
-	err := self.host1.TestNetwork(nodeID, addrs)
+	err := self.host.TestNetwork(nodeID, addrs)
 	if err != nil {
 		return false
 	}
