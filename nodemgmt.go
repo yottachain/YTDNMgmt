@@ -841,6 +841,9 @@ func (self *NodeDaoImpl) sendUspace(to, from int32, uspace int64) {
 
 //GetNodes by node IDs
 func (self *NodeDaoImpl) GetNodes(nodeIDs []int32) ([]*Node, error) {
+	if len(nodeIDs) == 1 && nodeIDs[0] == -1 {
+		return self.GetForbiddenNodes()
+	}
 	collection := self.client.Database(YottaDB).Collection(NodeTab)
 	cur, err := collection.Find(context.Background(), bson.M{"_id": bson.M{"$in": nodeIDs}})
 	if err != nil {
@@ -854,6 +857,28 @@ func (self *NodeDaoImpl) GetNodes(nodeIDs []int32) ([]*Node, error) {
 		err := cur.Decode(result)
 		if err != nil {
 			log.Printf("nodemgmt: GetNodes: error when decoding nodes: %s\n", err.Error())
+			return nil, err
+		}
+		nodes = append(nodes, result)
+	}
+	return nodes, nil
+}
+
+//GetForbiddenNodes get all forbidden nodes(manualWeight is 0)
+func (self *NodeDaoImpl) GetForbiddenNodes() ([]*Node, error) {
+	collection := self.client.Database(YottaDB).Collection(NodeTab)
+	cur, err := collection.Find(context.Background(), bson.M{"manualWeight": 0})
+	if err != nil {
+		log.Printf("nodemgmt: GetForbiddenNodes: error when finding forbidden nodes in database: %s\n", err.Error())
+		return nil, err
+	}
+	nodes := make([]*Node, 0)
+	defer cur.Close(context.Background())
+	for cur.Next(context.Background()) {
+		result := new(Node)
+		err := cur.Decode(result)
+		if err != nil {
+			log.Printf("nodemgmt: GetForbiddenNodes: error when decoding forbidden nodes: %s\n", err.Error())
 			return nil, err
 		}
 		nodes = append(nodes, result)
