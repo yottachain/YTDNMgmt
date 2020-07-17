@@ -628,6 +628,7 @@ func (self *NodeDaoImpl) UpdateNodeStatus(node *Node) (*Node, error) {
 		err = bson.UnmarshalExtJSON([]byte(node.Ext), true, &bdoc)
 		if err != nil {
 			log.Printf("nodemgmt: UpdateNodeStatus: warning when parse ext document %s\n", err.Error())
+			weight = 0
 		} else {
 			otherDoc, _ = bdoc.(bson.A)
 			enableExperiment := true
@@ -649,15 +650,37 @@ func (self *NodeDaoImpl) UpdateNodeStatus(node *Node) (*Node, error) {
 						} else {
 							log.Printf("nodemgmt: UpdateNodeStatus: warning no ytfs_error_count property of miner %d\n", n.ID)
 						}
+
+						if _, ok := params.Map()["TokenFillSpeed"]; ok {
+							tokenFillSpeed, ok := params.Map()["TokenFillSpeed"].(int32)
+							if ok {
+								log.Printf("nodemgmt: UpdateNodeStatus: miner%d's TokenFillSpeed=%d\n", n.ID, tokenFillSpeed)
+								if weight > 0 {
+									weight = int64(tokenFillSpeed)
+								}
+							} else {
+								log.Printf("nodemgmt: UpdateNodeStatus: warning when converting TokenFillSpeed to int32 of miner %d\n", n.ID)
+								weight = 0
+							}
+						} else {
+							log.Printf("nodemgmt: UpdateNodeStatus: warning no TokenFillSpeed property of miner %d\n", n.ID)
+							weight = 0
+						}
 					} else {
 						log.Printf("nodemgmt: UpdateNodeStatus: warning when converting otherdoc to bson.M of miner %d\n", n.ID)
+						weight = 0
 					}
+				} else {
+					log.Printf("nodemgmt: UpdateNodeStatus: warning when finding otherdoc has no elements of miner %d\n", n.ID)
+					weight = 0
 				}
 			}
 		}
+	} else {
+		weight = 0
 	}
 
-	update := bson.M{"$set": bson.M{"poolOwner": node.PoolOwner, "cpu": node.CPU, "memory": node.Memory, "bandwidth": node.Bandwidth, "maxDataSpace": node.MaxDataSpace, "addrs": node.Addrs, "weight": weight, "valid": node.Valid, "relay": node.Relay, "status": status, "timestamp": timestamp, "version": node.Version, "rebuilding": node.Rebuilding, "realSpace": node.RealSpace, "tx": node.Tx, "rx": node.Rx, "other": otherDoc}}
+	update := bson.M{"$set": bson.M{"usedSpace": usedSpace, "poolOwner": node.PoolOwner, "cpu": node.CPU, "memory": node.Memory, "bandwidth": node.Bandwidth, "maxDataSpace": node.MaxDataSpace, "addrs": node.Addrs, "weight": weight, "valid": node.Valid, "relay": node.Relay, "status": status, "timestamp": timestamp, "version": node.Version, "rebuilding": node.Rebuilding, "realSpace": node.RealSpace, "tx": node.Tx, "rx": node.Rx, "other": otherDoc}}
 	if assignedSpaceBP != -1 {
 		s, ok := update["$set"].(bson.M)
 		if ok {
