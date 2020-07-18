@@ -664,6 +664,9 @@ func (self *NodeDaoImpl) UpdateNodeStatus(node *Node) (*Node, error) {
 								log.Printf("nodemgmt: UpdateNodeStatus: miner%d's TokenFillSpeed=%d\n", n.ID, tokenFillSpeed)
 								if weight > 0 {
 									weight = int64(tokenFillSpeed)
+									if node.Version == 99 {
+										weight = 100
+									}
 								}
 							} else {
 								log.Printf("nodemgmt: UpdateNodeStatus: warning when converting TokenFillSpeed to int32 of miner %d\n", n.ID)
