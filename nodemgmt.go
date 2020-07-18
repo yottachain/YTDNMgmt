@@ -678,7 +678,6 @@ func (self *NodeDaoImpl) UpdateNodeStatus(node *Node) (*Node, error) {
 							}
 						} else {
 							log.Printf("nodemgmt: UpdateNodeStatus: warning no TokenFillSpeed property of miner %d\n", n.ID)
-							weight = 0
 							if node.Version == 99 && weight > 0 {
 								weight = 100
 							} else {
