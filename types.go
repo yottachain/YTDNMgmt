@@ -9,6 +9,7 @@ const (
 	_                   = iota
 	UpdateUspaceMessage //UpdateUspaceMessage message type
 	PunishMessage       //PunishMessage message type
+	RebuiltMessage      //RebuiltMessage message type
 )
 
 // Node instance

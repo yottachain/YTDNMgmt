@@ -355,6 +355,35 @@ func NewInstance(mongoURL, eosURL, bpAccount, bpPrivkey, contractOwnerM, contrac
 						}
 						return
 					}
+				} else if msgType == byte(RebuiltMessage) {
+					pmsg := new(pb.RebuiltMessage)
+					err := proto.Unmarshal(content, pmsg)
+					if err != nil {
+						log.Println("nodemgmt: synccallback: error when unmarshaling RebuiltMessage:", err)
+						return
+					}
+					log.Printf("nodemgmt: synccallback: received rebuilt message of node %d from %s to %s\n", pmsg.NodeID, msg.Sender, msg.Destination)
+					collection := dao.client.Database(YottaDB).Collection(NodeTab)
+					opts := new(options.FindOneAndUpdateOptions)
+					opts = opts.SetReturnDocument(options.After)
+					result := collection.FindOneAndUpdate(context.Background(), bson.M{"_id": pmsg.NodeID}, bson.M{"$set": bson.M{"status": 3}}, opts)
+					updatedNode := new(Node)
+					err = result.Decode(updatedNode)
+					if err != nil {
+						log.Printf("nodemgmt: synccallback: error when updating status of node %d to 3: %s\n", pmsg.NodeID, err.Error())
+						return
+					}
+					if b, err := proto.Marshal(updatedNode.Convert()); err != nil {
+						log.Printf("nodemgmt: synccallback: marshal node %d failed: %s\n", updatedNode.ID, err)
+					} else {
+						if dao.syncService != nil {
+							log.Println("nodemgmt: synccallback: publish information of node", updatedNode.ID)
+							dao.syncService.Publish("sync", b)
+						}
+					}
+					return
+				} else {
+					log.Printf("nodemgmt: synccallback: unknown message type: %d\n", msgType)
 				}
 			}
 		}
