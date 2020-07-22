@@ -348,6 +348,35 @@ func NewInstance(mongoURL, eosURL, bpAccount, bpPrivkey, contractOwnerM, contrac
 						}
 						return
 					}
+				} else if msgType == byte(RebuiltMessage) {
+					pmsg := new(pb.RebuiltMessage)
+					err := proto.Unmarshal(content, pmsg)
+					if err != nil {
+						log.Println("nodemgmt: synccallback: error when unmarshaling RebuiltMessage:", err)
+						return
+					}
+					log.Printf("nodemgmt: synccallback: received rebuilt message of node %d from %s to %s\n", pmsg.NodeID, msg.Sender, msg.Destination)
+					collection := dao.client.Database(YottaDB).Collection(NodeTab)
+					opts := new(options.FindOneAndUpdateOptions)
+					opts = opts.SetReturnDocument(options.After)
+					result := collection.FindOneAndUpdate(context.Background(), bson.M{"_id": pmsg.NodeID}, bson.M{"$set": bson.M{"status": 3}}, opts)
+					updatedNode := new(Node)
+					err = result.Decode(updatedNode)
+					if err != nil {
+						log.Printf("nodemgmt: synccallback: error when updating status of node %d to 3: %s\n", pmsg.NodeID, err.Error())
+						return
+					}
+					if b, err := proto.Marshal(updatedNode.Convert()); err != nil {
+						log.Printf("nodemgmt: synccallback: marshal node %d failed: %s\n", updatedNode.ID, err)
+					} else {
+						if dao.syncService != nil {
+							log.Println("nodemgmt: synccallback: publish information of node", updatedNode.ID)
+							dao.syncService.Publish("sync", b)
+						}
+					}
+					return
+				} else {
+					log.Printf("nodemgmt: synccallback: unknown message type: %d\n", msgType)
 				}
 			}
 		}
@@ -657,14 +686,25 @@ func (self *NodeDaoImpl) UpdateNodeStatus(node *Node) (*Node, error) {
 								log.Printf("nodemgmt: UpdateNodeStatus: miner%d's TokenFillSpeed=%d\n", n.ID, tokenFillSpeed)
 								if weight > 0 {
 									weight = int64(tokenFillSpeed)
+									if node.Version == 99 {
+										weight = 100
+									}
 								}
 							} else {
 								log.Printf("nodemgmt: UpdateNodeStatus: warning when converting TokenFillSpeed to int32 of miner %d\n", n.ID)
-								weight = 0
+								if node.Version == 99 && weight > 0 {
+									weight = 100
+								} else {
+									weight = 0
+								}
 							}
 						} else {
 							log.Printf("nodemgmt: UpdateNodeStatus: warning no TokenFillSpeed property of miner %d\n", n.ID)
-							weight = 0
+							if node.Version == 99 && weight > 0 {
+								weight = 100
+							} else {
+								weight = 0
+							}
 						}
 					} else {
 						log.Printf("nodemgmt: UpdateNodeStatus: warning when converting otherdoc to bson.M of miner %d\n", n.ID)

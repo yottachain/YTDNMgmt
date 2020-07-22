@@ -215,3 +215,7 @@ message PunishMessage {
 	int32 count = 4;
 	map<int32, int32> rule = 5;
 }
+
+message RebuiltMessage {
+  int32 nodeID = 1;
+}
