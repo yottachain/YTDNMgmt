@@ -1118,7 +1118,8 @@ func (self *NodeDaoImpl) ActiveNodesList() ([]*Node, error) {
 //Statistics of data nodes
 func (self *NodeDaoImpl) Statistics() (*NodeStat, error) {
 	collection := self.client.Database(YottaDB).Collection(NodeTab)
-	active, err := collection.CountDocuments(context.Background(), bson.M{"valid": 1, "status": 1, "assignedSpace": bson.M{"$gt": 0}, "quota": bson.M{"$gt": 0}, "timestamp": bson.M{"$gt": time.Now().Unix() - IntervalTime*self.Config.Misc.AvaliableMinerTimeGap}, "weight": bson.M{"$gt": 0}, "version": bson.M{"$gte": self.Config.Misc.MinerVersionThreshold}})
+	//active, err := collection.CountDocuments(context.Background(), bson.M{"valid": 1, "status": 1, "assignedSpace": bson.M{"$gt": 0}, "quota": bson.M{"$gt": 0}, "timestamp": bson.M{"$gt": time.Now().Unix() - IntervalTime*self.Config.Misc.AvaliableMinerTimeGap}, "weight": bson.M{"$gt": 0}, "version": bson.M{"$gte": self.Config.Misc.MinerVersionThreshold}})
+	active, err := collection.CountDocuments(context.Background(), bson.M{"valid": 1, "status": 1, "assignedSpace": bson.M{"$gt": 0}, "quota": bson.M{"$gt": 0}, "timestamp": bson.M{"$gt": time.Now().Unix() - IntervalTime*self.Config.Misc.AvaliableMinerTimeGap}})
 	if err != nil {
 		log.Printf("nodemgmt: Statistics: error when counting active nodes: %s\n", err.Error())
 		return nil, err
