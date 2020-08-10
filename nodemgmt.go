@@ -1260,6 +1260,12 @@ func (self *NodeDaoImpl) BatchMinerQuit(id, percent int32) (string, error) {
 //ChangeManualWeight modify manual weight
 func (self *NodeDaoImpl) ChangeManualWeight(id, weight int32) error {
 	collection := self.client.Database(YottaDB).Collection(NodeTab)
-	_, err := collection.UpdateOne(context.Background(), bson.M{"_id": id}, bson.M{"$set": bson.M{"manualWeight": weight}})
+	cond := bson.M{}
+	if weight == 0 {
+		cond = bson.M{"$set": bson.M{"manualWeight": weight}, "$inc": bson.M{"blCount": 1}}
+	} else {
+		cond = bson.M{"$set": bson.M{"manualWeight": weight}}
+	}
+	_, err := collection.UpdateOne(context.Background(), bson.M{"_id": id}, cond)
 	return err
 }
