@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strconv"
 
 	"github.com/aurawing/eos-go"
 	"github.com/aurawing/eos-go/ecc"
@@ -14,7 +15,7 @@ import (
 )
 
 // NewInstance create a new eostx instance contans connect url, contract owner and it's private key
-func NewInstance(url, bpAccount, privateKey, contractOwnerM, contractOwnerD, shadowAccount string) (*EosTX, error) {
+func NewInstance(url, bpAccount, privateKey, contractOwnerM, contractOwnerD, shadowAccount, tokenSymbol string, tokenPrecision uint32) (*EosTX, error) {
 	api := eos.New(url)
 	keyBag := &eos.KeyBag{}
 	err := keyBag.ImportPrivateKey(privateKey)
@@ -27,7 +28,8 @@ func NewInstance(url, bpAccount, privateKey, contractOwnerM, contractOwnerD, sha
 		pubkey, _ := ecc.NewPublicKey(fmt.Sprintf("%s%s", "YTA", publickey))
 		return []ecc.PublicKey{pubkey}, nil
 	})
-	return &EosTX{API: api, BpAccount: bpAccount, ContractOwnerM: contractOwnerM, ContractOwnerD: contractOwnerD, ShadowAccount: shadowAccount, PrivateKey: privateKey}, nil
+	symbol := eos.Symbol{Precision: uint8(tokenPrecision), Symbol: tokenSymbol}
+	return &EosTX{API: api, BpAccount: bpAccount, ContractOwnerM: contractOwnerM, ContractOwnerD: contractOwnerD, ShadowAccount: shadowAccount, PrivateKey: privateKey, Symbol: symbol}, nil
 }
 
 //GetPublicKey by account name and permission name
@@ -94,10 +96,14 @@ func (eostx *EosTX) AddSpace(owner string, minerID, space uint64) error {
 func (eostx *EosTX) GetExchangeRate() (int32, error) {
 	eostx.RLock()
 	defer eostx.RUnlock()
+	table := "gdepositrate"
+	if eostx.Symbol != YTASymbol {
+		table = "sysinfo"
+	}
 	req := eos.GetTableRowsRequest{
 		Code:  eostx.ContractOwnerD,
 		Scope: eostx.ContractOwnerD,
-		Table: "gdepositrate",
+		Table: table,
 		Limit: 1,
 		JSON:  true,
 	}
@@ -108,7 +114,8 @@ func (eostx *EosTX) GetExchangeRate() (int32, error) {
 	if resp.More == true {
 		return 0, fmt.Errorf("more than one rows returned：get exchange rate")
 	}
-	rows := make([]map[string]int32, 0)
+	//rows := make([]map[string]int32, 0)
+	rows := make([]ExchangeRate, 0)
 	err = json.Unmarshal(resp.Rows, &rows)
 	if err != nil {
 		return 0, err
@@ -116,17 +123,22 @@ func (eostx *EosTX) GetExchangeRate() (int32, error) {
 	if len(rows) == 0 {
 		return 0, fmt.Errorf("no row found：get exchange rate")
 	}
-	return rows[0]["rate"], nil
+	//return rows[0]["rate"], nil
+	return int32(rows[0].Rate), nil
 }
 
 //GetPledgeData get pledge data of one miner
 func (eostx *EosTX) GetPledgeData(minerid uint64) (*PledgeData, error) {
 	eostx.RLock()
 	defer eostx.RUnlock()
+	table := "miner2dep"
+	if eostx.Symbol != YTASymbol {
+		table = "miners"
+	}
 	req := eos.GetTableRowsRequest{
 		Code:       eostx.ContractOwnerD,
 		Scope:      eostx.ContractOwnerD,
-		Table:      "miner2dep",
+		Table:      table,
 		LowerBound: fmt.Sprintf("%d", minerid),
 		UpperBound: fmt.Sprintf("%d", minerid),
 		Limit:      1,
@@ -149,15 +161,26 @@ func (eostx *EosTX) GetPledgeData(minerid uint64) (*PledgeData, error) {
 	if len(rows) == 0 {
 		return nil, fmt.Errorf("no matched row found, minerid: %s", req.Scope)
 	}
-	return &rows[0], nil
+	ret := &rows[0]
+	if ret.AccountName == "" {
+		ret.AccountName = ret.Depacc
+	}
+	return ret, nil
+
 }
 
 //GetMinerInfo get miner info
 func (eostx *EosTX) GetMinerInfo(minerid uint64) (*MinerInfo, error) {
+	eostx.RLock()
+	defer eostx.RUnlock()
+	table := "minerinfo"
+	if eostx.Symbol != YTASymbol {
+		table = "miners"
+	}
 	req := eos.GetTableRowsRequest{
 		Code:       eostx.ContractOwnerM,
 		Scope:      eostx.ContractOwnerM,
-		Table:      "minerinfo",
+		Table:      table,
 		LowerBound: fmt.Sprintf("%d", minerid),
 		UpperBound: fmt.Sprintf("%d", minerid),
 		Limit:      1,
@@ -167,10 +190,10 @@ func (eostx *EosTX) GetMinerInfo(minerid uint64) (*MinerInfo, error) {
 	}
 	resp, err := eostx.API.GetTableRows(req)
 	if err != nil {
-		return nil, fmt.Errorf("get table row failed：get exchange rate")
+		return nil, fmt.Errorf("get table row failed：get miner info: %s", err)
 	}
 	if resp.More == true {
-		return nil, fmt.Errorf("more than one rows returned：get exchange rate")
+		return nil, fmt.Errorf("more than one rows returned：get miner info: %s", err)
 	}
 	rows := make([]MinerInfo, 0)
 	err = json.Unmarshal(resp.Rows, &rows)
@@ -180,7 +203,29 @@ func (eostx *EosTX) GetMinerInfo(minerid uint64) (*MinerInfo, error) {
 	if len(rows) == 0 {
 		return nil, fmt.Errorf("no matched row found, minerid: %s", req.Scope)
 	}
-	return &rows[0], nil
+	ret := &rows[0]
+	if string(ret.ProdSpace) == "" {
+		spaceLeft, err := strconv.ParseInt(string(ret.SpaceLeft), 10, 64)
+		if err != nil {
+			return nil, err
+		}
+		maxSpace, err := strconv.ParseInt(string(ret.MaxSpace), 10, 64)
+		if err != nil {
+			return nil, err
+		}
+		ret.ProdSpace = FlexString(fmt.Sprintf("%d", maxSpace-spaceLeft))
+	} else if string(ret.SpaceLeft) == "" {
+		prodSpace, err := strconv.ParseInt(string(ret.ProdSpace), 10, 64)
+		if err != nil {
+			return nil, err
+		}
+		maxSpace, err := strconv.ParseInt(string(ret.MaxSpace), 10, 64)
+		if err != nil {
+			return nil, err
+		}
+		ret.SpaceLeft = FlexString(fmt.Sprintf("%d", maxSpace-prodSpace))
+	}
+	return ret, nil
 }
 
 //DeducePledge invalid miner need to pay forfeit
@@ -207,10 +252,14 @@ func (eostx *EosTX) DeducePledge(minerID uint64, count *eos.Asset) error {
 func (eostx *EosTX) GetPoolInfoByPoolID(poolID string) (*PoolInfo, error) {
 	eostx.RLock()
 	defer eostx.RUnlock()
+	table := "storepool"
+	if eostx.Symbol != YTASymbol {
+		table = "storepools"
+	}
 	req := eos.GetTableRowsRequest{
 		Code:       eostx.ContractOwnerM,
 		Scope:      eostx.ContractOwnerM,
-		Table:      "storepool",
+		Table:      table,
 		LowerBound: poolID,
 		UpperBound: poolID,
 		Limit:      1,
@@ -220,7 +269,7 @@ func (eostx *EosTX) GetPoolInfoByPoolID(poolID string) (*PoolInfo, error) {
 	}
 	resp, err := eostx.API.GetTableRows(req)
 	if err != nil {
-		return nil, fmt.Errorf("get table row failed, pool ID: %s", poolID)
+		return nil, fmt.Errorf("get table row failed, pool ID: %s: %s", poolID, err)
 	}
 	if resp.More == true {
 		return nil, fmt.Errorf("more than one rows returned, pool ID: %s", poolID)
@@ -231,9 +280,33 @@ func (eostx *EosTX) GetPoolInfoByPoolID(poolID string) (*PoolInfo, error) {
 		return nil, err
 	}
 	if len(rows) == 0 {
-		return nil, fmt.Errorf("no matched row found, minerid: %s", req.Scope)
+		return nil, fmt.Errorf("no matched row found, pool ID: %s", poolID)
 	}
-	return &rows[0], nil
+	ret := &rows[0]
+	if string(ret.ProdSpace) == "" {
+		spaceLeft, err := strconv.ParseInt(string(ret.SpaceLeft), 10, 64)
+		if err != nil {
+			return nil, err
+		}
+		maxSpace, err := strconv.ParseInt(string(ret.MaxSpace), 10, 64)
+		if err != nil {
+			return nil, err
+		}
+		ret.ProdSpace = FlexString(fmt.Sprintf("%d", maxSpace-spaceLeft))
+		ret.Owner2 = ret.Owner
+	} else if string(ret.SpaceLeft) == "" {
+		prodSpace, err := strconv.ParseInt(string(ret.ProdSpace), 10, 64)
+		if err != nil {
+			return nil, err
+		}
+		maxSpace, err := strconv.ParseInt(string(ret.MaxSpace), 10, 64)
+		if err != nil {
+			return nil, err
+		}
+		ret.SpaceLeft = FlexString(fmt.Sprintf("%d", maxSpace-prodSpace))
+		ret.Owner = ret.Owner2
+	}
+	return ret, nil
 }
 
 func (eostx *EosTX) payForfeit(user string, minerID uint64, count *eos.Asset) error {

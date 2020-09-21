@@ -25,6 +25,8 @@ const (
 	EOSContractOwnerMField = "eos.contract-ownerm"
 	EOSContractOwnerDField = "eos.contract-ownerd"
 	EOSShadowAccountField  = "eos.shadow-account"
+	EOSTokenSymbolField    = "eos.token-symbol"
+	EOSTokenPrecisionField = "eos.token-precision"
 
 	//config of PProf
 	PprofEnableField   = "pprof.enable"
@@ -81,6 +83,8 @@ type EOSConfig struct {
 	ContractOwnerM string `mapstructure:"contract-ownerm"`
 	ContractOwnerD string `mapstructure:"contract-ownerd"`
 	ShadowAccount  string `mapstructure:"shadow-account"`
+	TokenSymbol    string `mapstructure:"token-symbol"`
+	TokenPrecision uint32 `mapstructure:"token-precision"`
 }
 
 //PProfConfig PProf configuration
@@ -136,6 +140,8 @@ func InitConfig(eosURL, bpAccount, bpPrivkey, contractOwnerM, contractOwnerD, sh
 	viper.SetDefault(GrpcBindAddrField, ":11001")
 	viper.SetDefault(PprofEnableField, false)
 	viper.SetDefault(PprofBindAddrField, ":6161")
+	viper.SetDefault(EOSTokenSymbolField, "YTA")
+	viper.SetDefault(EOSTokenPrecisionField, 4)
 	viper.SetDefault(AuramqBindAddrField, ":8787")
 	viper.SetDefault(AuramqRouterBufferSizeField, 1024)
 	viper.SetDefault(AuramqSubscriberBufferSizeField, 1024)
@@ -189,7 +195,7 @@ func InitConfig(eosURL, bpAccount, bpPrivkey, contractOwnerM, contractOwnerD, sh
 	if err := viper.Unmarshal(config); err != nil {
 		log.Fatalf("nodemgmt: InitConfig: unable to decode into config struct, %s\n", err)
 	}
-	config.EOS = &EOSConfig{URL: eosURL, BPAccount: bpAccount, BPPrivateKey: bpPrivkey, ContractOwnerM: contractOwnerM, ContractOwnerD: contractOwnerD, ShadowAccount: shadowAccount}
+	config.EOS = &EOSConfig{URL: eosURL, BPAccount: bpAccount, BPPrivateKey: bpPrivkey, ContractOwnerM: contractOwnerM, ContractOwnerD: contractOwnerD, ShadowAccount: shadowAccount, TokenSymbol: viper.GetString(EOSTokenSymbolField), TokenPrecision: viper.GetUint32(EOSTokenPrecisionField)}
 	config.SNID = bpID
 	return config
 }

@@ -32,7 +32,12 @@ type EosTX struct {
 	ContractOwnerD string
 	ShadowAccount  string
 	PrivateKey     string
+	Symbol         eos.Symbol
 	sync.RWMutex
+}
+
+type ExchangeRate struct {
+	Rate uint64 `json:"rate"`
 }
 
 type RegMiner struct {
@@ -64,8 +69,9 @@ type Profit struct {
 }
 
 type PledgeData struct {
-	MinerID     uint32    `json:"minerid"`
+	// MinerID     uint32    `json:"minerid"`
 	AccountName string    `json:"account_name"`
+	Depacc      string    `json:"depacc"`
 	Deposit     eos.Asset `json:"deposit"`
 	Total       eos.Asset `json:"dep_total"`
 }
@@ -76,13 +82,16 @@ type MinerInfo struct {
 	PoolID    eos.AccountName `json:"pool_id"`
 	MaxSpace  FlexString      `json:"max_space"`
 	SpaceLeft FlexString      `json:"space_left"`
+	ProdSpace FlexString      `json:"prod_space"`
 }
 
 type PoolInfo struct {
-	Owner     eos.AccountName `json:"pool_owner"`
-	PoolID    eos.AccountName `json:"pool_id"`
-	MaxSpace  FlexString      `json:"max_space"`
-	SpaceLeft FlexString      `json:"space_left"`
+	Owner  eos.AccountName `json:"pool_owner"`
+	Owner2 eos.AccountName `json:"owner"`
+	// PoolID    eos.AccountName `json:"pool_id"`
+	MaxSpace  FlexString `json:"max_space"`
+	SpaceLeft FlexString `json:"space_left"`
+	ProdSpace FlexString `json:"prod_space"`
 }
 
 type PayForfeit struct {
