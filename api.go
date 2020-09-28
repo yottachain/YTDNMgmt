@@ -148,7 +148,7 @@ func (self *NodeDaoImpl) ChangeMinerPool(trx string) error {
 	poolInfo, err := self.eostx.GetPoolInfoByPoolID(poolID)
 	if err != nil {
 		log.Printf("nodemgmt: ChangeMinerPool: error when get pool owner: %d %s\n", minerID, err.Error())
-		return err
+		return fmt.Errorf("error when get pool owner of miner %d: %w", minerID, err)
 	}
 	if minerID%int32(incr) != index {
 		log.Printf("nodemgmt: ChangeMinerPool: minerID %d is not belong to SN%d\n", minerID, index)
@@ -159,12 +159,12 @@ func (self *NodeDaoImpl) ChangeMinerPool(trx string) error {
 	err = collection.FindOne(context.Background(), bson.M{"_id": minerID}).Decode(node)
 	if err != nil {
 		log.Printf("nodemgmt: ChangeMinerPool: error when decoding node: %d %s\n", minerID, err.Error())
-		return err
+		return fmt.Errorf("error when decoding miner %d: %w", minerID, err)
 	}
 	err = self.eostx.SendTrx(signedTrx)
 	if err != nil {
 		log.Printf("nodemgmt: ChangeMinerPool: error when sending transaction: %s\n", err.Error())
-		return err
+		return fmt.Errorf("error when sending transaction of miner %d: %w", minerID, err)
 	}
 	var afterReg bool = false
 	if node.Status == 0 && node.ProductiveSpace == 0 {
@@ -173,14 +173,14 @@ func (self *NodeDaoImpl) ChangeMinerPool(trx string) error {
 	_, err = collection.UpdateOne(context.Background(), bson.M{"_id": minerID}, bson.M{"$set": bson.M{"poolID": poolID, "poolOwner": poolInfo.Owner, "profitAcc": minerProfit, "quota": quota}})
 	if err != nil {
 		log.Printf("nodemgmt: ChangeMinerPool: error when updating poolID->%s, profitAcc->%s, quota->%d: %s\n", poolID, minerProfit, quota, err.Error())
-		return err
+		return fmt.Errorf("error when updating poolID->%s, profitAcc->%s, quota->%d of miner %d: %w", poolID, minerProfit, quota, minerID, err)
 	}
 	if afterReg {
 		log.Printf("node %d is not added to pool %s for first time\n", minerID, poolID)
 		err = collection.FindOne(context.Background(), bson.M{"_id": minerID}).Decode(node)
 		if err != nil {
 			log.Printf("nodemgmt: ChangeMinerPool: error when decoding node: %d %s\n", minerID, err.Error())
-			return err
+			return fmt.Errorf("error when decoding miner %d: %w", minerID, err)
 		}
 		assignable := Min(node.AssignedSpace, node.Quota)
 		if assignable <= 0 {
@@ -192,15 +192,15 @@ func (self *NodeDaoImpl) ChangeMinerPool(trx string) error {
 		}
 		err := self.IncrProductiveSpace(node.ID, assignable)
 		if err != nil {
-			log.Printf("nodemgmt: ChangeMinerPool: error when increasing assignable space: %s\n", err.Error())
-			return err
+			log.Printf("nodemgmt: ChangeMinerPool: error when increasing productive space: %s\n", err.Error())
+			return fmt.Errorf("error when increasing productive space of miner %d: %w", minerID, err)
 		}
-		log.Printf("nodemgmt: ChangeMinerPool: increased assignable space %d\n", assignable)
+		log.Printf("nodemgmt: ChangeMinerPool: increased productive space: %d\n", assignable)
 		err = self.eostx.AddSpace(node.ProfitAcc, uint64(node.ID), uint64(assignable))
 		if err != nil {
-			log.Printf("nodemgmt: ChangeMinerPool: error when adding assignable space on BP: %s\n", err.Error())
+			log.Printf("nodemgmt: ChangeMinerPool: error when adding productive space on BP: %s\n", err.Error())
 			self.IncrProductiveSpace(node.ID, -1*assignable)
-			return err
+			return fmt.Errorf("error when adding productive space of miner %d: %w", minerID, err)
 		}
 		log.Printf("nodemgmt: ChangeMinerPool: added assignable space on BP %d\n", assignable)
 	}
