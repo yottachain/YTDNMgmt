@@ -1122,6 +1122,29 @@ func (self *NodeDaoImpl) ActiveNodesList() ([]*Node, error) {
 	return nodes, nil
 }
 
+//ReadableNodesList show id and public IP of all readable data nodes
+func (self *NodeDaoImpl) ReadableNodesList() ([]*Node, error) {
+	nodes := make([]*Node, 0)
+	collection := self.client.Database(YottaDB).Collection(NodeTab)
+	cur, err := collection.Find(context.Background(), bson.M{"valid": 1, "status": 1, "assignedSpace": bson.M{"$gt": 0}, "quota": bson.M{"$gt": 0}, "timestamp": bson.M{"$gt": time.Now().Unix() - IntervalTime*self.Config.Misc.AvaliableMinerTimeGap}})
+	if err != nil {
+		log.Printf("nodemgmt: ReadableNodesList: error when finding readable nodes list: %s\n", err.Error())
+		return nil, err
+	}
+	defer cur.Close(context.Background())
+	for cur.Next(context.Background()) {
+		result := new(Node)
+		err := cur.Decode(result)
+		if err != nil {
+			log.Printf("nodemgmt: ReadableNodesList: error when decoding readable nodes: %s\n", err.Error())
+			return nil, err
+		}
+		result.Addrs = []string{CheckPublicAddr(result.Addrs, self.Config.Misc.ExcludeAddrPrefix)}
+		nodes = append(nodes, result)
+	}
+	return nodes, nil
+}
+
 //Statistics of data nodes
 func (self *NodeDaoImpl) Statistics() (*NodeStat, error) {
 	collection := self.client.Database(YottaDB).Collection(NodeTab)
