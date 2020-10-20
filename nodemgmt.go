@@ -1125,7 +1125,7 @@ func (self *NodeDaoImpl) ActiveNodesList() ([]*Node, error) {
 //ReadableNodesList show id and public IP of all readable data nodes
 func (self *NodeDaoImpl) ReadableNodesList(timerange int) ([]*Node, error) {
 	if timerange == 0 {
-		timerange = 1200
+		timerange = 600
 	}
 	nodes := make([]*Node, 0)
 	collection := self.client.Database(YottaDB).Collection(NodeTab)
