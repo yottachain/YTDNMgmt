@@ -18,6 +18,6 @@ type NodeDao interface {
 	GetSuperNodeIDByPubKey(pubkey string) (int32, error)
 	AddDNI(id int32, shard []byte) error
 	ActiveNodesList() ([]*Node, error)
-	ReadableNodesList() ([]*Node, error)
+	ReadableNodesList(timerange int) ([]*Node, error)
 	Statistics() (*NodeStat, error)
 }
