@@ -1123,10 +1123,13 @@ func (self *NodeDaoImpl) ActiveNodesList() ([]*Node, error) {
 }
 
 //ReadableNodesList show id and public IP of all readable data nodes
-func (self *NodeDaoImpl) ReadableNodesList() ([]*Node, error) {
+func (self *NodeDaoImpl) ReadableNodesList(timerange int) ([]*Node, error) {
+	if timerange == 0 {
+		timerange = 1200
+	}
 	nodes := make([]*Node, 0)
 	collection := self.client.Database(YottaDB).Collection(NodeTab)
-	cur, err := collection.Find(context.Background(), bson.M{"valid": 1, "status": 1, "assignedSpace": bson.M{"$gt": 0}, "quota": bson.M{"$gt": 0}, "timestamp": bson.M{"$gt": time.Now().Unix() - IntervalTime*self.Config.Misc.AvaliableMinerTimeGap}})
+	cur, err := collection.Find(context.Background(), bson.M{"valid": 1, "status": 1, "assignedSpace": bson.M{"$gt": 0}, "quota": bson.M{"$gt": 0}, "timestamp": bson.M{"$gt": time.Now().Unix() - int64(timerange)}})
 	if err != nil {
 		log.Printf("nodemgmt: ReadableNodesList: error when finding readable nodes list: %s\n", err.Error())
 		return nil, err
