@@ -1292,6 +1292,22 @@ func (self *NodeDaoImpl) ChangeManualWeight(id, weight int32) error {
 	} else {
 		cond = bson.M{"$set": bson.M{"manualWeight": weight}}
 	}
-	_, err := collection.UpdateOne(context.Background(), bson.M{"_id": id}, cond)
+	opts := new(options.FindOneAndUpdateOptions)
+	opts = opts.SetReturnDocument(options.After)
+	result := collection.FindOneAndUpdate(context.Background(), bson.M{"_id": id}, cond, opts)
+	updatedNode := new(Node)
+	err := result.Decode(updatedNode)
+	if err != nil {
+		log.Printf("nodemgmt: ChangeManualWeight: error when decoding node %d: %s\n", id, err.Error())
+		return err
+	}
+	if b, err := proto.Marshal(updatedNode.Convert()); err != nil {
+		log.Printf("nodemgmt: ChangeManualWeight: marshal node %d failed: %s\n", updatedNode.ID, err)
+	} else {
+		if self.syncService != nil {
+			log.Println("nodemgmt: ChangeManualWeight: publish information of node", updatedNode.ID)
+			self.syncService.Publish("sync", b)
+		}
+	}
 	return err
 }
