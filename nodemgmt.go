@@ -872,7 +872,10 @@ func (self *NodeDaoImpl) SyncNode(node *Node) error {
 			log.Printf("nodemgmt: SyncNode: error when inserting node %d to database: %s\n", node.ID, err.Error())
 			return err
 		} else {
-			cond := bson.M{"nodeid": node.NodeID, "pubkey": node.PubKey, "owner": node.Owner, "profitAcc": node.ProfitAcc, "poolID": node.PoolID, "poolOwner": node.PoolOwner, "quota": node.Quota, "addrs": node.Addrs, "cpu": node.CPU, "memory": node.Memory, "bandwidth": node.Bandwidth, "maxDataSpace": node.MaxDataSpace, "assignedSpace": node.AssignedSpace, "productiveSpace": node.ProductiveSpace, "usedSpace": node.UsedSpace, "manualWeight": node.ManualWeight, "weight": node.Weight, "valid": node.Valid, "relay": node.Relay, "status": node.Status, "timestamp": node.Timestamp, "version": node.Version, "rebuilding": node.Rebuilding, "realSpace": node.RealSpace, "tx": node.Tx, "rx": node.Rx, "other": otherDoc}
+			cond := bson.M{"nodeid": node.NodeID, "pubkey": node.PubKey, "owner": node.Owner, "profitAcc": node.ProfitAcc, "poolID": node.PoolID, "poolOwner": node.PoolOwner, "quota": node.Quota, "addrs": node.Addrs, "cpu": node.CPU, "memory": node.Memory, "bandwidth": node.Bandwidth, "maxDataSpace": node.MaxDataSpace, "assignedSpace": node.AssignedSpace, "productiveSpace": node.ProductiveSpace, "usedSpace": node.UsedSpace, "manualWeight": node.ManualWeight, "weight": node.Weight, "valid": node.Valid, "relay": node.Relay, "status": node.Status, "timestamp": node.Timestamp, "version": node.Version, "rebuilding": node.Rebuilding, "realSpace": node.RealSpace, "tx": node.Tx, "rx": node.Rx}
+			if otherDoc != nil && len(otherDoc) > 0 {
+				cond["other"] = otherDoc
+			}
 			currentSN := fmt.Sprintf("sn%d", self.Config.SNID)
 			log.Printf("nodemgmt: SyncNode: currentSN is %s, uspace is %v\n", currentSN, node.Uspaces)
 			for k, v := range node.Uspaces {
@@ -1285,6 +1288,10 @@ func (self *NodeDaoImpl) BatchMinerQuit(id, percent int32) (string, error) {
 
 //ChangeManualWeight modify manual weight
 func (self *NodeDaoImpl) ChangeManualWeight(id, weight int32) error {
+	if id%int32(incr) != index {
+		log.Printf("nodemgmt: ChangeManualWeight: warning: node %d do not belong to current SN\n", id)
+		return errors.New("miner do not belong to current SN")
+	}
 	collection := self.client.Database(YottaDB).Collection(NodeTab)
 	cond := bson.M{}
 	if weight == 0 {
