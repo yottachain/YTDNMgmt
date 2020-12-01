@@ -1190,7 +1190,14 @@ func (self *NodeDaoImpl) Statistics() (*NodeStat, error) {
 
 //MinerQuit quit miner
 func (self *NodeDaoImpl) MinerQuit(id int32, percent int32) (string, error) {
+	collection := self.client.Database(YottaDB).Collection(NodeTab)
+	collectionDel := self.client.Database(YottaDB).Collection(NodeDelTab)
+	collectionLog := self.client.Database(YottaDB).Collection(NodeLogTab)
 	if id%int32(incr) != index {
+		_, err := collection.DeleteOne(context.Background(), bson.M{"_id": id})
+		if err != nil {
+			log.Printf("spotcheck: MinerQuit: warning when deleting miner %d from node table: %s\n", id, err.Error())
+		}
 		log.Printf("nodemgmt: MinerQuit: warning: node %d do not belong to current SN\n", id)
 		return "", errors.New("miner do not belong to this SN")
 	}
@@ -1206,7 +1213,6 @@ func (self *NodeDaoImpl) MinerQuit(id int32, percent int32) (string, error) {
 	totalAsset := pledgeData.Total
 	punishAsset := pledgeData.Deposit
 	log.Printf("nodemgmt: MinerQuit: deposit of miner %d is %dYTA, total %dYTA\n", id, punishAsset.Amount/10000, totalAsset.Amount/10000)
-	collection := self.client.Database(YottaDB).Collection(NodeTab)
 	node := new(Node)
 	err = collection.FindOne(context.Background(), bson.M{"_id": id}).Decode(node)
 	if err != nil {
@@ -1234,6 +1240,27 @@ func (self *NodeDaoImpl) MinerQuit(id int32, percent int32) (string, error) {
 	}
 	resp := fmt.Sprintf("punish %dYTA deposit of node %d\n", punishAsset.Amount/10000, node.ID)
 	log.Printf("spotcheck: MinerQuit: %s", resp)
+	_, err = collectionDel.InsertOne(context.Background(), node)
+	if err != nil {
+		log.Printf("spotcheck: MinerQuit: warning when moving node %d to delete table: %s\n", node.ID, err.Error())
+	} else {
+		log.Printf("spotcheck: MinerQuit: moving node %d to delete table\n", node.ID)
+	}
+
+	nodelog := NewNodeLog(self.bpID, node.ID, node.Status, -1, "delete")
+	_, err = collectionLog.InsertOne(context.Background(), nodelog)
+	if err != nil {
+		log.Printf("spotcheck: MinerQuit: warning when add node log of miner %d: %s\n", node.ID, err.Error())
+	} else {
+		log.Printf("spotcheck: MinerQuit: adding node log of miner %d\n", node.ID)
+	}
+
+	_, err = collection.DeleteOne(context.Background(), bson.M{"_id": node.ID})
+	if err != nil {
+		log.Printf("spotcheck: MinerQuit: warning when deleting miner %d from node table: %s\n", id, err.Error())
+	} else {
+		log.Printf("spotcheck: MinerQuit: deleting miner %d from node table\n", id)
+	}
 	return resp, nil
 }
 

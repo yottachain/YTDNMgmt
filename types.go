@@ -165,6 +165,20 @@ type PoolWeight struct {
 	ManualWeight      int64  `bson:"manualWeight"`
 }
 
+//NodeLog log of node operation
+type NodeLog struct {
+	ID         int64  `bson:"_id"`
+	MinerID    int32  `bson:"minerID"`
+	FromStatus int32  `bson:"fromStatus"`
+	ToStatus   int32  `bson:"toStatus"`
+	Type       string `bson:"type"`
+}
+
+//NewNodeLog create a new node log
+func NewNodeLog(snID, minerID, fromStatus, toStatus int32, desc string) *NodeLog {
+	return &NodeLog{ID: GetSequence(snID), MinerID: minerID, FromStatus: fromStatus, ToStatus: toStatus, Type: desc}
+}
+
 //relative DB and collection name
 var (
 	YottaDB       = "yotta"
@@ -176,6 +190,8 @@ var (
 	ErrorNodeTab  = "ErrorNode"
 	PoolWeightTab = "PoolWeight"
 	SpaceSumTab   = "SpaceSum"
+	NodeDelTab    = "NodeDel"
+	NodeLogTab    = "NodeLog"
 )
 
 //index type of node and supernode collection
