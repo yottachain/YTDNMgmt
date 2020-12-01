@@ -1,6 +1,8 @@
 package YTDNMgmt
 
 import (
+	"time"
+
 	pb "github.com/yottachain/YTDNMgmt/pb"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
@@ -172,11 +174,12 @@ type NodeLog struct {
 	FromStatus int32  `bson:"fromStatus"`
 	ToStatus   int32  `bson:"toStatus"`
 	Type       string `bson:"type"`
+	Timestamp  int64  `bson:"timestamp"`
 }
 
 //NewNodeLog create a new node log
 func NewNodeLog(snID, minerID, fromStatus, toStatus int32, desc string) *NodeLog {
-	return &NodeLog{ID: GetSequence(snID), MinerID: minerID, FromStatus: fromStatus, ToStatus: toStatus, Type: desc}
+	return &NodeLog{ID: GetSequence(snID), MinerID: minerID, FromStatus: fromStatus, ToStatus: toStatus, Type: desc, Timestamp: time.Now().Unix()}
 }
 
 //relative DB and collection name
