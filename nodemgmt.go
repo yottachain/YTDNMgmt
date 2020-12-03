@@ -1219,34 +1219,35 @@ func (self *NodeDaoImpl) MinerQuit(id int32, percent int32) (string, error) {
 		log.Printf("nodemgmt: MinerQuit: error when decoding information of miner %d: %s\n", id, err.Error())
 		return "", err
 	}
+	resp := ""
 	if node.UsedSpace == 0 {
-		return fmt.Sprintf("UsedSpace of miner %d is 0\n", node.ID), nil
+		log.Printf("UsedSpace of miner %d is 0\n", node.ID)
+	} else {
+		punishAmount := node.UsedSpace * 1000000 * int64(percent) / int64(rate) / 6553600
+		if punishAmount < int64(punishAsset.Amount) {
+			punishAsset.Amount = eos.Int64(punishAmount)
+		}
+		err = self.eostx.DeducePledge(uint64(node.ID), &punishAsset)
+		if err != nil {
+			return "", err
+		}
+		assignedSpace := node.AssignedSpace - node.UsedSpace*int64(percent)/100
+		if assignedSpace < 0 {
+			assignedSpace = node.AssignedSpace
+		}
+		_, err = collection.UpdateOne(context.Background(), bson.M{"_id": id}, bson.M{"$set": bson.M{"assignedSpace": assignedSpace}})
+		if err != nil {
+			log.Printf("spotcheck: MinerQuit: warning when punishing %dYTA deposit of node %d: %s\n", punishAsset.Amount/10000, node.ID, err.Error())
+		}
+		resp = fmt.Sprintf("punish %dYTA deposit of node %d\n", punishAsset.Amount/10000, node.ID)
+		log.Printf("spotcheck: MinerQuit: %s", resp)
 	}
-	punishAmount := node.UsedSpace * 1000000 * int64(percent) / int64(rate) / 6553600
-	if punishAmount < int64(punishAsset.Amount) {
-		punishAsset.Amount = eos.Int64(punishAmount)
-	}
-	err = self.eostx.DeducePledge(uint64(node.ID), &punishAsset)
-	if err != nil {
-		return "", err
-	}
-	assignedSpace := node.AssignedSpace - node.UsedSpace*int64(percent)/100
-	if assignedSpace < 0 {
-		assignedSpace = node.AssignedSpace
-	}
-	_, err = collection.UpdateOne(context.Background(), bson.M{"_id": id}, bson.M{"$set": bson.M{"assignedSpace": assignedSpace}})
-	if err != nil {
-		log.Printf("spotcheck: MinerQuit: warning when punishing %dYTA deposit of node %d: %s\n", punishAsset.Amount/10000, node.ID, err.Error())
-	}
-	resp := fmt.Sprintf("punish %dYTA deposit of node %d\n", punishAsset.Amount/10000, node.ID)
-	log.Printf("spotcheck: MinerQuit: %s", resp)
 	_, err = collectionDel.InsertOne(context.Background(), node)
 	if err != nil {
 		log.Printf("spotcheck: MinerQuit: warning when moving node %d to delete table: %s\n", node.ID, err.Error())
 	} else {
 		log.Printf("spotcheck: MinerQuit: moving node %d to delete table\n", node.ID)
 	}
-
 	nodelog := NewNodeLog(self.bpID, node.ID, node.Status, -1, "delete")
 	_, err = collectionLog.InsertOne(context.Background(), nodelog)
 	if err != nil {
@@ -1254,7 +1255,6 @@ func (self *NodeDaoImpl) MinerQuit(id int32, percent int32) (string, error) {
 	} else {
 		log.Printf("spotcheck: MinerQuit: adding node log of miner %d\n", node.ID)
 	}
-
 	_, err = collection.DeleteOne(context.Background(), bson.M{"_id": node.ID})
 	if err != nil {
 		log.Printf("spotcheck: MinerQuit: warning when deleting miner %d from node table: %s\n", id, err.Error())
