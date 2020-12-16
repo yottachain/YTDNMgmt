@@ -193,6 +193,40 @@ func NewInstance(mongoURL, eosURL, bpAccount, bpPrivkey, contractOwnerM, contrac
 			}
 			io.WriteString(w, fmt.Sprintln("修改权重成功"))
 		})
+		http.HandleFunc("/change_unreadable", func(w http.ResponseWriter, r *http.Request) {
+			r.ParseForm()
+			mineridstr := r.Form.Get("minerid")
+			if mineridstr == "" {
+				w.WriteHeader(http.StatusInternalServerError)
+				io.WriteString(w, "矿机ID不存在！\n")
+				return
+			}
+			minerid, err := strconv.Atoi(mineridstr)
+			if err != nil {
+				w.WriteHeader(http.StatusInternalServerError)
+				io.WriteString(w, fmt.Sprintf("解析矿机ID失败：%s\n", err.Error()))
+				return
+			}
+			unreadableStr := r.Form.Get("unreadable")
+			if unreadableStr == "" {
+				w.WriteHeader(http.StatusInternalServerError)
+				io.WriteString(w, "可读参数不存在！\n")
+				return
+			}
+			unreadable, err := strconv.ParseBool(unreadableStr)
+			if err != nil {
+				w.WriteHeader(http.StatusInternalServerError)
+				io.WriteString(w, fmt.Sprintf("解析可读参数失败：%s\n", err.Error()))
+				return
+			}
+			err = dao.ChangeUnreadable(int32(minerid), unreadable)
+			if err != nil {
+				w.WriteHeader(http.StatusInternalServerError)
+				io.WriteString(w, fmt.Sprintf("修改可读状态失败：%s\n", err.Error()))
+				return
+			}
+			io.WriteString(w, fmt.Sprintln("修改可读状态成功"))
+		})
 		http.ListenAndServe("0.0.0.0:12345", nil)
 	}()
 
@@ -865,14 +899,14 @@ func (self *NodeDaoImpl) SyncNode(node *Node) error {
 	if node.Uspaces == nil {
 		node.Uspaces = make(map[string]int64)
 	}
-	_, err := collection.InsertOne(context.Background(), bson.M{"_id": node.ID, "nodeid": node.NodeID, "pubkey": node.PubKey, "owner": node.Owner, "profitAcc": node.ProfitAcc, "poolID": node.PoolID, "poolOwner": node.PoolOwner, "quota": node.Quota, "addrs": node.Addrs, "cpu": node.CPU, "memory": node.Memory, "bandwidth": node.Bandwidth, "maxDataSpace": node.MaxDataSpace, "assignedSpace": node.AssignedSpace, "productiveSpace": node.ProductiveSpace, "usedSpace": node.UsedSpace, "uspaces": node.Uspaces, "manualWeight": node.ManualWeight, "weight": node.Weight, "valid": node.Valid, "relay": node.Relay, "status": node.Status, "timestamp": node.Timestamp, "version": node.Version, "rebuilding": node.Rebuilding, "realSpace": node.RealSpace, "tx": node.Tx, "rx": node.Rx, "other": otherDoc})
+	_, err := collection.InsertOne(context.Background(), bson.M{"_id": node.ID, "nodeid": node.NodeID, "pubkey": node.PubKey, "owner": node.Owner, "profitAcc": node.ProfitAcc, "poolID": node.PoolID, "poolOwner": node.PoolOwner, "quota": node.Quota, "addrs": node.Addrs, "cpu": node.CPU, "memory": node.Memory, "bandwidth": node.Bandwidth, "maxDataSpace": node.MaxDataSpace, "assignedSpace": node.AssignedSpace, "productiveSpace": node.ProductiveSpace, "usedSpace": node.UsedSpace, "uspaces": node.Uspaces, "manualWeight": node.ManualWeight, "weight": node.Weight, "valid": node.Valid, "relay": node.Relay, "status": node.Status, "timestamp": node.Timestamp, "version": node.Version, "rebuilding": node.Rebuilding, "realSpace": node.RealSpace, "tx": node.Tx, "rx": node.Rx, "other": otherDoc, "unreadable": node.Unreadable})
 	if err != nil {
 		errstr := err.Error()
 		if !strings.ContainsAny(errstr, "duplicate key error") {
 			log.Printf("nodemgmt: SyncNode: error when inserting node %d to database: %s\n", node.ID, err.Error())
 			return err
 		} else {
-			cond := bson.M{"nodeid": node.NodeID, "pubkey": node.PubKey, "owner": node.Owner, "profitAcc": node.ProfitAcc, "poolID": node.PoolID, "poolOwner": node.PoolOwner, "quota": node.Quota, "addrs": node.Addrs, "cpu": node.CPU, "memory": node.Memory, "bandwidth": node.Bandwidth, "maxDataSpace": node.MaxDataSpace, "assignedSpace": node.AssignedSpace, "productiveSpace": node.ProductiveSpace, "usedSpace": node.UsedSpace, "manualWeight": node.ManualWeight, "weight": node.Weight, "valid": node.Valid, "relay": node.Relay, "status": node.Status, "timestamp": node.Timestamp, "version": node.Version, "rebuilding": node.Rebuilding, "realSpace": node.RealSpace, "tx": node.Tx, "rx": node.Rx}
+			cond := bson.M{"nodeid": node.NodeID, "pubkey": node.PubKey, "owner": node.Owner, "profitAcc": node.ProfitAcc, "poolID": node.PoolID, "poolOwner": node.PoolOwner, "quota": node.Quota, "addrs": node.Addrs, "cpu": node.CPU, "memory": node.Memory, "bandwidth": node.Bandwidth, "maxDataSpace": node.MaxDataSpace, "assignedSpace": node.AssignedSpace, "productiveSpace": node.ProductiveSpace, "usedSpace": node.UsedSpace, "manualWeight": node.ManualWeight, "weight": node.Weight, "valid": node.Valid, "relay": node.Relay, "status": node.Status, "timestamp": node.Timestamp, "version": node.Version, "rebuilding": node.Rebuilding, "realSpace": node.RealSpace, "tx": node.Tx, "rx": node.Rx, "unreadable": node.Unreadable}
 			if otherDoc != nil && len(otherDoc) > 0 {
 				cond["other"] = otherDoc
 			}
@@ -1132,7 +1166,7 @@ func (self *NodeDaoImpl) ReadableNodesList(timerange int) ([]*Node, error) {
 	}
 	nodes := make([]*Node, 0)
 	collection := self.client.Database(YottaDB).Collection(NodeTab)
-	cur, err := collection.Find(context.Background(), bson.M{"valid": 1, "status": 1, "assignedSpace": bson.M{"$gt": 0}, "quota": bson.M{"$gt": 0}, "timestamp": bson.M{"$gt": time.Now().Unix() - int64(timerange)}})
+	cur, err := collection.Find(context.Background(), bson.M{"valid": 1, "status": 1, "assignedSpace": bson.M{"$gt": 0}, "quota": bson.M{"$gt": 0}, "timestamp": bson.M{"$gt": time.Now().Unix() - int64(timerange)}, "unreadable": false})
 	if err != nil {
 		log.Printf("nodemgmt: ReadableNodesList: error when finding readable nodes list: %s\n", err.Error())
 		return nil, err
@@ -1340,6 +1374,34 @@ func (self *NodeDaoImpl) ChangeManualWeight(id, weight int32) error {
 	} else {
 		if self.syncService != nil {
 			log.Println("nodemgmt: ChangeManualWeight: publish information of node", updatedNode.ID)
+			self.syncService.Publish("sync", b)
+		}
+	}
+	return err
+}
+
+//ChangeUnreadable modify manual weight
+func (self *NodeDaoImpl) ChangeUnreadable(id int32, unreadable bool) error {
+	if id%int32(incr) != index {
+		log.Printf("nodemgmt: ChangeUnreadable: warning: node %d do not belong to current SN\n", id)
+		return errors.New("miner do not belong to current SN")
+	}
+	collection := self.client.Database(YottaDB).Collection(NodeTab)
+	cond := bson.M{"$set": bson.M{"unreadable": unreadable}}
+	opts := new(options.FindOneAndUpdateOptions)
+	opts = opts.SetReturnDocument(options.After)
+	result := collection.FindOneAndUpdate(context.Background(), bson.M{"_id": id}, cond, opts)
+	updatedNode := new(Node)
+	err := result.Decode(updatedNode)
+	if err != nil {
+		log.Printf("nodemgmt: ChangeUnreadable: error when decoding node %d: %s\n", id, err.Error())
+		return err
+	}
+	if b, err := proto.Marshal(updatedNode.Convert()); err != nil {
+		log.Printf("nodemgmt: ChangeUnreadable: marshal node %d failed: %s\n", updatedNode.ID, err)
+	} else {
+		if self.syncService != nil {
+			log.Println("nodemgmt: ChangeUnreadable: publish information of node", updatedNode.ID)
 			self.syncService.Publish("sync", b)
 		}
 	}
