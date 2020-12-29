@@ -78,6 +78,8 @@ type Node struct {
 	ErrorCount int64 `bson:"errorCount"`
 	//Unreadable
 	Unreadable bool `bson:"unreadable"`
+	//HashID
+	HashID string `bson:"hashID"`
 }
 
 //NewNode create a node struct
@@ -241,6 +243,7 @@ func (node *Node) Convert() *pb.NodeMsg {
 		Rx:              node.Rx,
 		Ext:             node.Ext,
 		Unreadable:      node.Unreadable,
+		Hash:            node.HashID,
 	}
 }
 
@@ -276,6 +279,7 @@ func (node *Node) Fillby(msg *pb.NodeMsg) {
 	node.Rx = msg.Rx
 	node.Ext = msg.Ext
 	node.Unreadable = msg.Unreadable
+	node.HashID = msg.Hash
 }
 
 // ConvertNodesToNodesMsg convert list of Node to list of NodeMsg

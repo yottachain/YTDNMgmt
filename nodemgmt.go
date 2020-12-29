@@ -44,6 +44,7 @@ type NodeDaoImpl struct {
 	Config      *Config
 }
 
+var IdentifyError = errors.New("identify error")
 var incr int64 = 0
 var index int32 = -1
 
@@ -540,6 +541,12 @@ func (self *NodeDaoImpl) UpdateNodeStatus(node *Node) (*Node, error) {
 		log.Printf("nodemgmt: UpdateNodeStatus: warning: reporting of node %d is too frequency\n", n.ID)
 		return nil, errors.New("reporting is too frequency")
 	}
+	//process hashID
+	if n.HashID != "" && n.HashID != node.HashID {
+		log.Printf("nodemgmt: UpdateNodeStatus: warning: identify of node %d is failed: %s\n", n.ID, node.HashID)
+		return nil, IdentifyError
+	}
+
 	if n.Quota == 0 {
 		log.Printf("nodemgmt: UpdateNodeStatus: warning: node %d has not been added to a pool\n", n.ID)
 		return nil, fmt.Errorf("node %d has not been added to a pool", n.ID)
@@ -761,7 +768,7 @@ func (self *NodeDaoImpl) UpdateNodeStatus(node *Node) (*Node, error) {
 		weight = 0
 	}
 
-	update := bson.M{"$set": bson.M{"usedSpace": usedSpace, "poolOwner": node.PoolOwner, "cpu": node.CPU, "memory": node.Memory, "bandwidth": node.Bandwidth, "maxDataSpace": node.MaxDataSpace, "addrs": node.Addrs, "weight": weight, "valid": node.Valid, "relay": node.Relay, "status": status, "timestamp": timestamp, "version": node.Version, "rebuilding": node.Rebuilding, "realSpace": node.RealSpace, "tx": node.Tx, "rx": node.Rx, "other": otherDoc}}
+	update := bson.M{"$set": bson.M{"usedSpace": usedSpace, "poolOwner": node.PoolOwner, "cpu": node.CPU, "memory": node.Memory, "bandwidth": node.Bandwidth, "maxDataSpace": node.MaxDataSpace, "addrs": node.Addrs, "weight": weight, "valid": node.Valid, "relay": node.Relay, "status": status, "timestamp": timestamp, "version": node.Version, "rebuilding": node.Rebuilding, "realSpace": node.RealSpace, "tx": node.Tx, "rx": node.Rx, "other": otherDoc, "hashID": node.HashID}}
 	if assignedSpaceBP != -1 {
 		s, ok := update["$set"].(bson.M)
 		if ok {
@@ -899,14 +906,14 @@ func (self *NodeDaoImpl) SyncNode(node *Node) error {
 	if node.Uspaces == nil {
 		node.Uspaces = make(map[string]int64)
 	}
-	_, err := collection.InsertOne(context.Background(), bson.M{"_id": node.ID, "nodeid": node.NodeID, "pubkey": node.PubKey, "owner": node.Owner, "profitAcc": node.ProfitAcc, "poolID": node.PoolID, "poolOwner": node.PoolOwner, "quota": node.Quota, "addrs": node.Addrs, "cpu": node.CPU, "memory": node.Memory, "bandwidth": node.Bandwidth, "maxDataSpace": node.MaxDataSpace, "assignedSpace": node.AssignedSpace, "productiveSpace": node.ProductiveSpace, "usedSpace": node.UsedSpace, "uspaces": node.Uspaces, "manualWeight": node.ManualWeight, "weight": node.Weight, "valid": node.Valid, "relay": node.Relay, "status": node.Status, "timestamp": node.Timestamp, "version": node.Version, "rebuilding": node.Rebuilding, "realSpace": node.RealSpace, "tx": node.Tx, "rx": node.Rx, "other": otherDoc, "unreadable": node.Unreadable})
+	_, err := collection.InsertOne(context.Background(), bson.M{"_id": node.ID, "nodeid": node.NodeID, "pubkey": node.PubKey, "owner": node.Owner, "profitAcc": node.ProfitAcc, "poolID": node.PoolID, "poolOwner": node.PoolOwner, "quota": node.Quota, "addrs": node.Addrs, "cpu": node.CPU, "memory": node.Memory, "bandwidth": node.Bandwidth, "maxDataSpace": node.MaxDataSpace, "assignedSpace": node.AssignedSpace, "productiveSpace": node.ProductiveSpace, "usedSpace": node.UsedSpace, "uspaces": node.Uspaces, "manualWeight": node.ManualWeight, "weight": node.Weight, "valid": node.Valid, "relay": node.Relay, "status": node.Status, "timestamp": node.Timestamp, "version": node.Version, "rebuilding": node.Rebuilding, "realSpace": node.RealSpace, "tx": node.Tx, "rx": node.Rx, "other": otherDoc, "unreadable": node.Unreadable, "hashID": node.HashID})
 	if err != nil {
 		errstr := err.Error()
 		if !strings.ContainsAny(errstr, "duplicate key error") {
 			log.Printf("nodemgmt: SyncNode: error when inserting node %d to database: %s\n", node.ID, err.Error())
 			return err
 		} else {
-			cond := bson.M{"nodeid": node.NodeID, "pubkey": node.PubKey, "owner": node.Owner, "profitAcc": node.ProfitAcc, "poolID": node.PoolID, "poolOwner": node.PoolOwner, "quota": node.Quota, "addrs": node.Addrs, "cpu": node.CPU, "memory": node.Memory, "bandwidth": node.Bandwidth, "maxDataSpace": node.MaxDataSpace, "assignedSpace": node.AssignedSpace, "productiveSpace": node.ProductiveSpace, "usedSpace": node.UsedSpace, "manualWeight": node.ManualWeight, "weight": node.Weight, "valid": node.Valid, "relay": node.Relay, "status": node.Status, "timestamp": node.Timestamp, "version": node.Version, "rebuilding": node.Rebuilding, "realSpace": node.RealSpace, "tx": node.Tx, "rx": node.Rx, "unreadable": node.Unreadable}
+			cond := bson.M{"nodeid": node.NodeID, "pubkey": node.PubKey, "owner": node.Owner, "profitAcc": node.ProfitAcc, "poolID": node.PoolID, "poolOwner": node.PoolOwner, "quota": node.Quota, "addrs": node.Addrs, "cpu": node.CPU, "memory": node.Memory, "bandwidth": node.Bandwidth, "maxDataSpace": node.MaxDataSpace, "assignedSpace": node.AssignedSpace, "productiveSpace": node.ProductiveSpace, "usedSpace": node.UsedSpace, "manualWeight": node.ManualWeight, "weight": node.Weight, "valid": node.Valid, "relay": node.Relay, "status": node.Status, "timestamp": node.Timestamp, "version": node.Version, "rebuilding": node.Rebuilding, "realSpace": node.RealSpace, "tx": node.Tx, "rx": node.Rx, "unreadable": node.Unreadable, "hashID": node.HashID}
 			if otherDoc != nil && len(otherDoc) > 0 {
 				cond["other"] = otherDoc
 			}
