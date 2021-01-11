@@ -130,6 +130,14 @@ func (self *NodeDaoImpl) PreRegisterNode(trx string) error {
 		log.Printf("nodemgmt: PreRegisterNode: error when inserting node to database: %d %s\n", minerID, err.Error())
 		return err
 	}
+	collectionLog := self.client.Database(YottaDB).Collection(NodeLogTab)
+	nodelog := NewNodeLog(self.bpID, node.ID, -1, node.Status, "new")
+	_, err = collectionLog.InsertOne(context.Background(), nodelog)
+	if err != nil {
+		log.Printf("nodemgmt: PreRegisterNode: warning when add node log of miner %d: %s\n", node.ID, err.Error())
+	} else {
+		log.Printf("nodemgmt: PreRegisterNode: adding node log of miner %d\n", node.ID)
+	}
 	log.Printf("nodemgmt: PreRegisterNode: new node registered: ID->%d, nodeID->%s, pubkey->%s, owner->%s, proficAcc->%s, assignedSpace->%d\n", node.ID, node.NodeID, node.PubKey, node.Owner, node.ProfitAcc, node.AssignedSpace)
 	return nil
 }

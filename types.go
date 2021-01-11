@@ -1,6 +1,8 @@
 package YTDNMgmt
 
 import (
+	"time"
+
 	pb "github.com/yottachain/YTDNMgmt/pb"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
@@ -74,6 +76,10 @@ type Node struct {
 	Ext string `bson:"-"`
 	//ErrorCount
 	ErrorCount int64 `bson:"errorCount"`
+	//Unreadable
+	Unreadable bool `bson:"unreadable"`
+	//HashID
+	HashID string `bson:"hashID"`
 }
 
 //NewNode create a node struct
@@ -165,6 +171,21 @@ type PoolWeight struct {
 	ManualWeight      int64  `bson:"manualWeight"`
 }
 
+//NodeLog log of node operation
+type NodeLog struct {
+	ID         int64  `bson:"_id"`
+	MinerID    int32  `bson:"minerID"`
+	FromStatus int32  `bson:"fromStatus"`
+	ToStatus   int32  `bson:"toStatus"`
+	Type       string `bson:"type"`
+	Timestamp  int64  `bson:"timestamp"`
+}
+
+//NewNodeLog create a new node log
+func NewNodeLog(snID, minerID, fromStatus, toStatus int32, desc string) *NodeLog {
+	return &NodeLog{ID: GetSequence(snID), MinerID: minerID, FromStatus: fromStatus, ToStatus: toStatus, Type: desc, Timestamp: time.Now().Unix()}
+}
+
 //relative DB and collection name
 var (
 	YottaDB       = "yotta"
@@ -176,6 +197,8 @@ var (
 	ErrorNodeTab  = "ErrorNode"
 	PoolWeightTab = "PoolWeight"
 	SpaceSumTab   = "SpaceSum"
+	NodeDelTab    = "NodeDel"
+	NodeLogTab    = "NodeLog"
 )
 
 //index type of node and supernode collection
@@ -219,6 +242,8 @@ func (node *Node) Convert() *pb.NodeMsg {
 		Tx:              node.Tx,
 		Rx:              node.Rx,
 		Ext:             node.Ext,
+		Unreadable:      node.Unreadable,
+		Hash:            node.HashID,
 	}
 }
 
@@ -253,6 +278,8 @@ func (node *Node) Fillby(msg *pb.NodeMsg) {
 	node.Tx = msg.Tx
 	node.Rx = msg.Rx
 	node.Ext = msg.Ext
+	node.Unreadable = msg.Unreadable
+	node.HashID = msg.Hash
 }
 
 // ConvertNodesToNodesMsg convert list of Node to list of NodeMsg
