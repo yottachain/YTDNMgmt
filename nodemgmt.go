@@ -728,10 +728,19 @@ func (self *NodeDaoImpl) UpdateNodeStatus(node *Node) (*Node, error) {
 							log.Printf("nodemgmt: UpdateNodeStatus: warning no ytfs_error_count property of miner %d\n", n.ID)
 						}
 
-						if _, ok := params.Map()["TokenFillSpeed"]; ok {
-							tokenFillSpeed, ok := params.Map()["TokenFillSpeed"].(int32)
+						tokenFillSpeed1, ok1 := params.Map()["TokenFillSpeed"]
+						tokenFillSpeed2, ok2 := params.Map()["RXTokenFillRate"]
+						var itokenFillSpeed interface{}
+						if ok1 {
+							itokenFillSpeed = tokenFillSpeed1
+						} else if ok2 {
+							itokenFillSpeed = tokenFillSpeed2
+						}
+
+						if itokenFillSpeed != nil {
+							tokenFillSpeed, ok := itokenFillSpeed.(int32)
 							if ok {
-								log.Printf("nodemgmt: UpdateNodeStatus: miner%d's TokenFillSpeed=%d\n", n.ID, tokenFillSpeed)
+								log.Printf("nodemgmt: UpdateNodeStatus: miner%d's TokenFillSpeed(RXTokenFillRate)=%d\n", n.ID, tokenFillSpeed)
 								if weight > 0 {
 									weight = int64(tokenFillSpeed)
 									if node.Version == 99 {
@@ -739,7 +748,7 @@ func (self *NodeDaoImpl) UpdateNodeStatus(node *Node) (*Node, error) {
 									}
 								}
 							} else {
-								log.Printf("nodemgmt: UpdateNodeStatus: warning when converting TokenFillSpeed to int32 of miner %d\n", n.ID)
+								log.Printf("nodemgmt: UpdateNodeStatus: warning when converting TokenFillSpeed or RXTokenFillRate to int32 of miner %d\n", n.ID)
 								if node.Version == 99 && weight > 0 {
 									weight = 100
 								} else {
@@ -747,7 +756,7 @@ func (self *NodeDaoImpl) UpdateNodeStatus(node *Node) (*Node, error) {
 								}
 							}
 						} else {
-							log.Printf("nodemgmt: UpdateNodeStatus: warning no TokenFillSpeed property of miner %d\n", n.ID)
+							log.Printf("nodemgmt: UpdateNodeStatus: warning no TokenFillSpeed or RXTokenFillRate property of miner %d\n", n.ID)
 							if node.Version == 99 && weight > 0 {
 								weight = 100
 							} else {
