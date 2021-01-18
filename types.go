@@ -101,7 +101,7 @@ type SuperNode struct {
 	//listening addresses of super node
 	Addrs []string `bson:"addrs"`
 	//http addrs
-	Multiaddrs []*multiaddr.Multiaddr `bson:"-"`
+	Multiaddrs [] multiaddr.Multiaddr `bson:"-"`
 }
 
 //NodeStat statistics of data node
