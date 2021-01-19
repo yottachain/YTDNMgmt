@@ -3,6 +3,7 @@ package YTDNMgmt
 import (
 	"time"
 
+	"github.com/multiformats/go-multiaddr"
 	pb "github.com/yottachain/YTDNMgmt/pb"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
@@ -99,6 +100,8 @@ type SuperNode struct {
 	PrivKey string `bson:"privkey"`
 	//listening addresses of super node
 	Addrs []string `bson:"addrs"`
+	//http addrs
+	Multiaddrs []multiaddr.Multiaddr `bson:"-"`
 }
 
 //NodeStat statistics of data node
