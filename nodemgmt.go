@@ -97,7 +97,8 @@ func NewInstance(mongoURL, eosURL, bpAccount, bpPrivkey, contractOwnerM, contrac
 		log.Printf("nodemgmt: NewInstance: index of SN: %d\n", index)
 	}
 	go func() {
-		http.HandleFunc("/quit", func(w http.ResponseWriter, r *http.Request) {
+		mux := http.NewServeMux()
+		mux.HandleFunc("/quit", func(w http.ResponseWriter, r *http.Request) {
 			r.ParseForm()
 			mineridstr := r.Form.Get("minerid")
 			if mineridstr == "" {
@@ -125,7 +126,7 @@ func NewInstance(mongoURL, eosURL, bpAccount, bpPrivkey, contractOwnerM, contrac
 			}
 			io.WriteString(w, fmt.Sprintf("扣抵押成功：%s\n", s))
 		})
-		http.HandleFunc("/batchquit", func(w http.ResponseWriter, r *http.Request) {
+		mux.HandleFunc("/batchquit", func(w http.ResponseWriter, r *http.Request) {
 			r.ParseForm()
 			mineridstr := r.Form.Get("minerid")
 			if mineridstr == "" {
@@ -155,7 +156,7 @@ func NewInstance(mongoURL, eosURL, bpAccount, bpPrivkey, contractOwnerM, contrac
 			}
 			io.WriteString(w, fmt.Sprintf("扣抵押成功：%s\n", s))
 		})
-		http.HandleFunc("/change_weight", func(w http.ResponseWriter, r *http.Request) {
+		mux.HandleFunc("/change_weight", func(w http.ResponseWriter, r *http.Request) {
 			r.ParseForm()
 			mineridstr := r.Form.Get("minerid")
 			if mineridstr == "" {
@@ -194,7 +195,7 @@ func NewInstance(mongoURL, eosURL, bpAccount, bpPrivkey, contractOwnerM, contrac
 			}
 			io.WriteString(w, fmt.Sprintln("修改权重成功"))
 		})
-		http.HandleFunc("/change_unreadable", func(w http.ResponseWriter, r *http.Request) {
+		mux.HandleFunc("/change_unreadable", func(w http.ResponseWriter, r *http.Request) {
 			r.ParseForm()
 			mineridstr := r.Form.Get("minerid")
 			if mineridstr == "" {
@@ -228,7 +229,11 @@ func NewInstance(mongoURL, eosURL, bpAccount, bpPrivkey, contractOwnerM, contrac
 			}
 			io.WriteString(w, fmt.Sprintln("修改可读状态成功"))
 		})
-		http.ListenAndServe("0.0.0.0:12345", nil)
+		server := &http.Server{
+			Addr:    ":12345",
+			Handler: mux,
+		}
+		server.ListenAndServe()
 	}()
 
 	callback := func(msg *msg.Message) {
