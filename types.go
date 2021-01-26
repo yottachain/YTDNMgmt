@@ -1,6 +1,7 @@
 package YTDNMgmt
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/multiformats/go-multiaddr"
@@ -81,6 +82,10 @@ type Node struct {
 	Unreadable bool `bson:"unreadable"`
 	//HashID
 	HashID string `bson:"hashID"`
+	//BlCount
+	BlCount int32 `bson:"blCount"`
+	//Filing
+	Filing bool `bson:"filing"`
 }
 
 //NewNode create a node struct
@@ -247,6 +252,8 @@ func (node *Node) Convert() *pb.NodeMsg {
 		Ext:             node.Ext,
 		Unreadable:      node.Unreadable,
 		Hash:            node.HashID,
+		BlCount:         node.BlCount,
+		Filing:          node.Filing,
 	}
 }
 
@@ -283,6 +290,8 @@ func (node *Node) Fillby(msg *pb.NodeMsg) {
 	node.Ext = msg.Ext
 	node.Unreadable = msg.Unreadable
 	node.HashID = msg.Hash
+	node.BlCount = msg.BlCount
+	node.Filing = msg.Filing
 }
 
 // ConvertNodesToNodesMsg convert list of Node to list of NodeMsg
@@ -411,4 +420,22 @@ func ConvertSpotCheckListsToSpotCheckListsMsg(spotCheckLists []*SpotCheckList) [
 		spotCheckListMsgs[i] = s.Convert()
 	}
 	return spotCheckListMsgs
+}
+
+//ReportError error when miner report failed
+type ReportError struct {
+	ErrCode int32 //-1:hash错误，-2:上报到错误的SN，-3: 两次上报时间间隔过短，-4:抵押空间为0，-5:可达性探测出错，-6:获取矿池管理员出错，-11:数据库错误，-12:预采购空间出错，-99:其他错误
+	Err     error
+}
+
+func (e *ReportError) Error() string {
+	return fmt.Sprintf("%d: %s", e.ErrCode, e.Err.Error())
+}
+
+func (e *ReportError) Unwrap() error {
+	return e.Err
+}
+
+func NewReportError(errCode int32, err error) *ReportError {
+	return &ReportError{ErrCode: errCode, Err: err}
 }

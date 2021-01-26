@@ -86,6 +86,8 @@ message NodeMsg {
   int32 manualWeight = 29;       //control weight manually
   bool unreadable = 30;          //whether node is readable
   string hash = 31;              //hash identity
+  int32 blCount = 32;            //count of inserted into black list
+  bool filing = 33;              //filing miner will not be punished
 }
 
 // SuperNode message
