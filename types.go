@@ -424,7 +424,7 @@ func ConvertSpotCheckListsToSpotCheckListsMsg(spotCheckLists []*SpotCheckList) [
 
 //ReportError error when miner report failed
 type ReportError struct {
-	ErrCode int32 //-1:hash错误，-2:上报到错误的SN，-3: 两次上报时间间隔过短，-4:抵押空间为0，-5:可达性探测出错，-6:获取矿池管理员出错，-11:数据库错误，-12:预采购空间出错，-99:其他错误
+	ErrCode int32 //-1:hash错误，-2:上报到错误的SN，-3: 两次上报时间间隔过短，-4:抵押空间为0，-5:可达性探测出错，-6:获取矿池管理员出错，-7:手动权重系数为0（黑名单），-8：可采购空间不足，-11:数据库错误，-12:预采购空间出错，-99:其他错误
 	Err     error
 }
 

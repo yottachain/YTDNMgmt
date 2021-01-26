@@ -883,6 +883,12 @@ func (self *NodeDaoImpl) UpdateNodeStatus(node *Node) (*Node, error) {
 		log.Println("nodemgmt: UpdateNodeStatus: publish information of node", n.ID)
 		self.syncService.Publish("sync", b)
 	}
+	if n.ManualWeight == 0 {
+		return nil, NewReportError(-7, fmt.Errorf("manual weight of miner %d is 0", n.ID))
+	}
+	if leftSpace <= 655360 {
+		return nil, NewReportError(-8, fmt.Errorf("no space for miner %d", n.ID))
+	}
 	return n, nil
 }
 
