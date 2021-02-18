@@ -263,6 +263,55 @@ func NewInstance(mongoURL, eosURL, bpAccount, bpPrivkey, contractOwnerM, contrac
 			}
 			io.WriteString(w, fmt.Sprintln("修改报备状态成功"))
 		})
+		mux.HandleFunc("/test_productivespace", func(w http.ResponseWriter, r *http.Request) {
+			r.ParseForm()
+			mineridstr := r.Form.Get("minerid")
+			if mineridstr == "" {
+				w.WriteHeader(http.StatusInternalServerError)
+				io.WriteString(w, fmt.Sprintln("矿机ID不存在！"))
+				return
+			}
+			minerid, err := strconv.Atoi(mineridstr)
+			if err != nil {
+				w.WriteHeader(http.StatusInternalServerError)
+				io.WriteString(w, fmt.Sprintf("解析矿机ID失败：%s\n", err.Error()))
+				return
+			}
+			collection := dao.client.Database(YottaDB).Collection(NodeTab)
+			node := new(Node)
+			err = collection.FindOne(context.Background(), bson.M{"_id": minerid}).Decode(node)
+			if err != nil {
+				w.WriteHeader(http.StatusInternalServerError)
+				io.WriteString(w, fmt.Sprintf("解析矿机失败：%s\n", err.Error()))
+				return
+			}
+
+			if node.RealSpace+dao.Config.Misc.PrePurchaseThreshold > node.ProductiveSpace {
+				assignable := Min(node.AssignedSpace, node.Quota, node.MaxDataSpace) - node.ProductiveSpace
+				if assignable <= 0 {
+					io.WriteString(w, fmt.Sprintln("可分配的空间已耗尽"))
+					return
+				}
+				if assignable >= dao.Config.Misc.PrePurchaseAmount {
+					assignable = dao.Config.Misc.PrePurchaseAmount
+				}
+				err = dao.IncrProductiveSpace(node.ID, assignable)
+				if err != nil {
+					io.WriteString(w, fmt.Sprintf("修改数据库失败: %s\n", err.Error()))
+					return
+				}
+				err = dao.eostx.AddSpace(node.ProfitAcc, uint64(node.ID), uint64(assignable))
+				if err != nil {
+					io.WriteString(w, fmt.Sprintf("增加采购空间失败: %s\n", err.Error()))
+					dao.IncrProductiveSpace(node.ID, -1*assignable)
+					return
+				}
+			} else {
+				io.WriteString(w, fmt.Sprintln("已分配空间暂时够用，无需分配"))
+				return
+			}
+			io.WriteString(w, fmt.Sprintln("预采购空间成功"))
+		})
 		server := &http.Server{
 			Addr:    ":12345",
 			Handler: mux,
