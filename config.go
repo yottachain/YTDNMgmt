@@ -58,8 +58,12 @@ const (
 	MiscConnectivityTestIntervalField          = "misc.connectivity-test-interval"
 	MiscEnableTestField                        = "misc.enable-test"
 	MiscEnableExtraWeightParams                = "misc.enable-extra-weight-params"
-	MiscBPSyncInterval                         = "bp-sync-interval"
+	MiscBPSyncInterval                         = "misc.bp-sync-interval"
 	MiscIPDBPathField                          = "misc.ipdb-path"
+	MiscPunishTimeField                        = "misc.punish-time"
+	MiscPunishPercentField                     = "misc.punish-percent"
+	MiscPunishTimeGapField                     = "misc.punish-time-gap"
+	MiscDataSpaceThresholdField                = "misc.data-space-threshold"
 )
 
 //Config system configuration
@@ -122,6 +126,10 @@ type MiscConfig struct {
 	EnableExtraWeightParams           bool   `mapstructure:"enable-extra-weight-params"`
 	BPSyncInterval                    int32  `mapstructure:"bp-sync-interval"`
 	IPDBPath                          string `mapstructure:"ipdb-path"`
+	PunishTime                        string `mapstructure:"punish-time"`
+	PunishPercent                     string `mapstructure:"punish-percent"`
+	PunishTimeGap                     int64  `mapstructure:"punish-time-gap"`
+	DataSpaceThreshold                int64  `mapstructure:"data-space-threshold"`
 }
 
 //InitConfig decode config file
@@ -163,6 +171,10 @@ func InitConfig(eosURL, bpAccount, bpPrivkey, contractOwnerM, contractOwnerD, sh
 	viper.SetDefault(MiscEnableExtraWeightParams, true)
 	viper.SetDefault(MiscBPSyncInterval, 60)
 	viper.SetDefault(MiscIPDBPathField, "/app/ytsn/yotta.ipdb")
+	viper.SetDefault(MiscPunishTimeField, "")
+	viper.SetDefault(MiscPunishPercentField, "")
+	viper.SetDefault(MiscPunishTimeGapField, 3600*20)
+	viper.SetDefault(MiscDataSpaceThresholdField, 67108864)
 
 	viper.AddConfigPath(configDir)
 	viper.AddConfigPath(".")

@@ -2,6 +2,7 @@ package YTDNMgmt
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -30,6 +31,9 @@ import (
 	pb "github.com/yottachain/YTDNMgmt/pb"
 	nodesync "github.com/yottachain/YTDNMgmt/sync"
 )
+
+//Int64Max max value of int64
+const Int64Max int64 = 9223372036854775807
 
 //NodeDaoImpl node manipulator implemention
 type NodeDaoImpl struct {
@@ -96,6 +100,38 @@ func NewInstance(mongoURL, eosURL, bpAccount, bpPrivkey, contractOwnerM, contrac
 		index = bpID
 		log.Printf("nodemgmt: NewInstance: index of SN: %d\n", index)
 	}
+	punishTime := make([]int64, 0)
+	punishPercent := make([]int32, 0)
+	punishTimeGap := config.Misc.PunishTimeGap
+	punishTimeStr := strings.Trim(config.Misc.PunishTime, " ")
+	punishPercentStr := strings.Trim(config.Misc.PunishPercent, " ")
+	if punishTimeStr != "" && punishPercentStr != "" {
+		punishTimeArr := strings.Split(punishTimeStr, ",")
+		punishPercentArr := strings.Split(punishPercentStr, ",")
+		if len(punishTimeArr) == len(punishPercentArr) {
+			for i, item := range punishTimeArr {
+				item = strings.Trim(punishTimeArr[i], " ")
+				t, err := strconv.ParseInt(item, 10, 64)
+				if err != nil {
+					log.Println("nodemgmt: NewInstance: parse punish time failed")
+					punishTime = make([]int64, 0)
+					punishPercent = make([]int32, 0)
+					break
+				}
+				punishTime = append(punishTime, t)
+				item = strings.Trim(punishPercentArr[i], " ")
+				p, err := strconv.ParseInt(item, 10, 32)
+				if err != nil {
+					log.Println("nodemgmt: NewInstance: parse punish percent failed")
+					punishTime = make([]int64, 0)
+					punishPercent = make([]int32, 0)
+					break
+				}
+				punishPercent = append(punishPercent, int32(p))
+			}
+		}
+	}
+
 	go func() {
 		mux := http.NewServeMux()
 		mux.HandleFunc("/quit", func(w http.ResponseWriter, r *http.Request) {
@@ -262,6 +298,20 @@ func NewInstance(mongoURL, eosURL, bpAccount, bpPrivkey, contractOwnerM, contrac
 				return
 			}
 			io.WriteString(w, fmt.Sprintln("修改报备状态成功"))
+		})
+		mux.HandleFunc("/bulk_punish", func(w http.ResponseWriter, r *http.Request) {
+			if len(punishTime) == 0 || len(punishPercent) == 0 {
+				io.WriteString(w, "[]")
+				return
+			}
+			ret, err := dao.BulkPunish(punishTime, punishPercent, punishTimeGap)
+			if err != nil {
+				w.WriteHeader(http.StatusInternalServerError)
+				io.WriteString(w, fmt.Sprintf("执行惩罚过程中出错：%s\n", err.Error()))
+				return
+			}
+			data, _ := json.Marshal(ret)
+			io.WriteString(w, string(data))
 		})
 		mux.HandleFunc("/test_productivespace", func(w http.ResponseWriter, r *http.Request) {
 			r.ParseForm()
@@ -617,6 +667,10 @@ func (self *NodeDaoImpl) UpdateNodeStatus(node *Node) (*Node, error) {
 	if node.ID%int32(incr) != index {
 		log.Printf("nodemgmt: UpdateNodeStatus: warning: node %d do not belong to current SN\n", node.ID)
 		return nil, NewReportError(-2, errors.New("node do not belong to this SN"))
+	}
+	if node.MaxDataSpace < self.Config.Misc.DataSpaceThreshold {
+		log.Printf("max dataspace of node %d not reach data space threshold: %d\n", node.ID, node.MaxDataSpace)
+		return nil, NewReportError(-9, fmt.Errorf("max dataspace of node %d not reach data space threshold: %d", node.ID, node.MaxDataSpace))
 	}
 	collection := self.client.Database(YottaDB).Collection(NodeTab)
 	n := new(Node)
@@ -1545,4 +1599,64 @@ func (self *NodeDaoImpl) ChangeFiling(id int32, filing bool) error {
 		}
 	}
 	return err
+}
+
+//BulkPunish punish miners
+func (self *NodeDaoImpl) BulkPunish(punishTimes []int64, punishPercent []int32, punishTimeGap int64) ([]map[string]int64, error) {
+	collection := self.client.Database(YottaDB).Collection(NodeTab)
+	cond := bson.M{"_id": bson.M{"$mod": bson.A{incr, index}}, "status": 1, "filing": false, "timestamp": bson.M{"$lt": time.Now().Unix() - 24*3600}, "punishTime": bson.M{"$lt": time.Now().Unix() - punishTimeGap}}
+	nodes := make([]*Node, 0)
+	cur, err := collection.Find(context.Background(), cond)
+	if err != nil {
+		log.Printf("nodemgmt: BulkPunish: error when finding nodes in database: %s\n", err.Error())
+		return nil, err
+	}
+	defer cur.Close(context.Background())
+	for cur.Next(context.Background()) {
+		result := new(Node)
+		err := cur.Decode(result)
+		if err != nil {
+			log.Printf("nodemgmt: BulkPunish: error when decoding nodes: %s\n", err.Error())
+			return nil, err
+		}
+		nodes = append(nodes, result)
+	}
+	punishTimes = append(punishTimes, Int64Max)
+	ret := make([]map[string]int64, 0)
+	for _, node := range nodes {
+		var percent int32
+		for i := 0; i < len(punishTimes)-1; i++ {
+			if node.Timestamp >= punishTimes[i] && node.Timestamp < punishTimes[i+1] {
+				percent = punishPercent[i]
+			}
+		}
+		m := map[string]int64{"id": int64(node.ID), "timestamp": node.Timestamp, "success": 1, "percent": int64(percent)}
+		left, err := self.punish(node.ID, int64(percent))
+		if err != nil {
+			log.Printf("nodemgmt: BulkPunish: error when punish miner %d: %s\n", node.ID, err.Error())
+			m["success"] = 0
+			continue
+		}
+		m["left"] = left
+		_, err = collection.UpdateOne(context.Background(), bson.M{"_id": node.ID}, bson.M{"$set": bson.M{"punishTime": time.Now().Unix()}})
+		if err != nil {
+			log.Printf("nodemgmt: BulkPunish: error when updating punishTime of miner %d: %s\n", node.ID, err.Error())
+		}
+		if left == 0 {
+			_, err = collection.UpdateOne(context.Background(), bson.M{"_id": node.ID}, bson.M{"$set": bson.M{"status": 2}})
+			if err != nil {
+				log.Printf("nodemgmt: BulkPunish: error when updating status of miner %d to 2 of type 0: %s\n", node.ID, err.Error())
+			}
+			if b, err := proto.Marshal(node.Convert()); err != nil {
+				log.Printf("nodemgmt: BulkPunish: marshal node %d failed: %s\n", node.ID, err)
+			} else {
+				if self.syncService != nil {
+					log.Println("nodemgmt: BulkPunish: publish information of node", node.ID)
+					self.syncService.Publish("sync", b)
+				}
+			}
+		}
+		ret = append(ret, m)
+	}
+	return ret, nil
 }
