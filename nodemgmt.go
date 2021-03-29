@@ -336,7 +336,7 @@ func NewInstance(mongoURL, eosURL, bpAccount, bpPrivkey, contractOwnerM, contrac
 				return
 			}
 
-			if node.RealSpace+dao.Config.Misc.PrePurchaseThreshold > node.ProductiveSpace {
+			if node.UsedSpace+dao.Config.Misc.PrePurchaseThreshold > node.ProductiveSpace {
 				assignable := Min(node.AssignedSpace, node.Quota, node.MaxDataSpace) - node.ProductiveSpace
 				if assignable <= 0 {
 					io.WriteString(w, fmt.Sprintln("可分配的空间已耗尽"))
@@ -794,7 +794,7 @@ func (self *NodeDaoImpl) UpdateNodeStatus(node *Node) (*Node, error) {
 	}
 	usedSpace := Max(sum, n.UsedSpace)
 	// calculate w1
-	leftSpace := float64(Min(n.AssignedSpace, n.Quota, node.MaxDataSpace) - n.RealSpace)
+	leftSpace := float64(Min(n.AssignedSpace, n.Quota, node.MaxDataSpace) - n.UsedSpace)
 	w11 := math.Atan(leftSpace/10000) * 1.6 / math.Pi
 	w12 := 0.8
 	if n.CPU >= 90 {
@@ -953,7 +953,7 @@ func (self *NodeDaoImpl) UpdateNodeStatus(node *Node) (*Node, error) {
 		n.Addrs = nil
 	}
 
-	if node.RealSpace+self.Config.Misc.PrePurchaseThreshold > n.ProductiveSpace {
+	if node.UsedSpace+self.Config.Misc.PrePurchaseThreshold > n.ProductiveSpace {
 		assignable := Min(n.AssignedSpace, n.Quota, n.MaxDataSpace) - n.ProductiveSpace
 		if assignable <= 0 {
 			log.Printf("nodemgmt: UpdateNodeStatus: warning: node %d has no left space for allocating\n", n.ID)

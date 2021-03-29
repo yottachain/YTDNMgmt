@@ -78,6 +78,8 @@ misc:
   bp-sync-interval: 60
   #IP数据库的位置
   ipdb-path: "/app/ytsn/yotta.ipdb"
+  #矿机空间限制
+  data-space-threshold: 13107200
 ```
 最大的变化来自于SN之间同步矿机数据的方式，之前采用SN向其他SN推的方式，本次架构调整改为从其他SN拉取的方式，这样可以保证矿机数据的实时性，并且可以支持第三方服务从SN及时获取矿机信息。相关的配置集中在`auramq`配置节内，由于消息通信基于websocket实现，因此`all-sn-urls`中各SN的接入点均为websocket的URL格式（`ws://<IP>:<PORT>/ws`）,比如主网有21个SN，那在这里需要依次配置全部21个SN的消息监听地址（包括当前SN在内）
 
