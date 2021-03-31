@@ -953,7 +953,7 @@ func (self *NodeDaoImpl) UpdateNodeStatus(node *Node) (*Node, error) {
 		n.Addrs = nil
 	}
 
-	if node.UsedSpace+self.Config.Misc.PrePurchaseThreshold > n.ProductiveSpace {
+	if usedSpace+self.Config.Misc.PrePurchaseThreshold > n.ProductiveSpace {
 		assignable := Min(n.AssignedSpace, n.Quota, n.MaxDataSpace) - n.ProductiveSpace
 		if assignable <= 0 {
 			log.Printf("nodemgmt: UpdateNodeStatus: warning: node %d has no left space for allocating\n", n.ID)
