@@ -324,7 +324,7 @@ func (eostx *EosTX) cutVote(user string) error {
 }
 
 //CalculateProfit whether continuing calculating profit for a miner
-func (eostx *EosTX) CalculateProfit(owner string, minerID uint64, flag bool) error {
+func (eostx *EosTX) CalculateProfit(owner string, minerID uint64, flag bool) (string, error) {
 	eostx.RLock()
 	defer eostx.RUnlock()
 	var actionName string
@@ -343,20 +343,20 @@ func (eostx *EosTX) CalculateProfit(owner string, minerID uint64, flag bool) err
 	}
 	txOpts := &eos.TxOptions{}
 	if err := txOpts.FillFromChain(eostx.API); err != nil {
-		return fmt.Errorf("filling tx opts: %s", err)
+		return "", fmt.Errorf("filling tx opts: %s", err)
 	}
 
 	tx := eos.NewTransaction([]*eos.Action{action}, txOpts)
 	_, packedTx, err := eostx.API.SignTransaction(tx, txOpts.ChainID, eos.CompressionNone)
 	if err != nil {
-		return fmt.Errorf("sign transaction: %s", err)
+		return "", fmt.Errorf("sign transaction: %s", err)
 	}
 
-	_, err = eostx.API.PushTransaction(packedTx)
+	resp, err := eostx.API.PushTransaction(packedTx)
 	if err != nil {
-		return fmt.Errorf("push transaction: %s", err)
+		return "", fmt.Errorf("push transaction: %s", err)
 	}
-	return nil
+	return resp.TransactionID, nil
 }
 
 //PreRegisterTrx extract all neccessary parameters from transaction

@@ -346,17 +346,13 @@ func NewInstance(mongoURL, eosURL, bpAccount, bpPrivkey, contractOwnerM, contrac
 				io.WriteString(w, fmt.Sprintf("解析矿机失败：%s\n", err.Error()))
 				return
 			}
-			err = dao.eostx.CalculateProfit(node.ProfitAcc, uint64(minerid), flag)
+			trxid, err := dao.eostx.CalculateProfit(node.ProfitAcc, uint64(minerid), flag)
 			if err != nil {
 				w.WriteHeader(http.StatusInternalServerError)
 				io.WriteString(w, fmt.Sprintln("调用BP接口失败！"))
 				return
 			}
-			if flag {
-				io.WriteString(w, fmt.Sprintf("开始为矿机%d计算收益\n", minerid))
-			} else {
-				io.WriteString(w, fmt.Sprintf("停止为矿机%d计算收益\n", minerid))
-			}
+			io.WriteString(w, trxid)
 		})
 		mux.HandleFunc("/test_productivespace", func(w http.ResponseWriter, r *http.Request) {
 			r.ParseForm()
