@@ -314,6 +314,7 @@ func NewInstance(mongoURL, eosURL, bpAccount, bpPrivkey, contractOwnerM, contrac
 			io.WriteString(w, string(data))
 		})
 		mux.HandleFunc("/calculate_profit", func(w http.ResponseWriter, r *http.Request) {
+			r.ParseForm()
 			mineridstr := r.Form.Get("minerid")
 			if mineridstr == "" {
 				w.WriteHeader(http.StatusInternalServerError)
