@@ -313,6 +313,51 @@ func NewInstance(mongoURL, eosURL, bpAccount, bpPrivkey, contractOwnerM, contrac
 			data, _ := json.Marshal(ret)
 			io.WriteString(w, string(data))
 		})
+		mux.HandleFunc("/calculate_profit", func(w http.ResponseWriter, r *http.Request) {
+			mineridstr := r.Form.Get("minerid")
+			if mineridstr == "" {
+				w.WriteHeader(http.StatusInternalServerError)
+				io.WriteString(w, fmt.Sprintln("矿机ID不存在！"))
+				return
+			}
+			minerid, err := strconv.Atoi(mineridstr)
+			if err != nil {
+				w.WriteHeader(http.StatusInternalServerError)
+				io.WriteString(w, fmt.Sprintf("解析矿机ID失败：%s\n", err.Error()))
+				return
+			}
+			flagStr := r.Form.Get("flag")
+			if flagStr == "" {
+				w.WriteHeader(http.StatusInternalServerError)
+				io.WriteString(w, "计算收益参数不存在！\n")
+				return
+			}
+			flag, err := strconv.ParseBool(flagStr)
+			if err != nil {
+				w.WriteHeader(http.StatusInternalServerError)
+				io.WriteString(w, fmt.Sprintf("解析计算收益参数失败：%s\n", err.Error()))
+				return
+			}
+			collection := dao.client.Database(YottaDB).Collection(NodeTab)
+			node := new(Node)
+			err = collection.FindOne(context.Background(), bson.M{"_id": minerid}).Decode(node)
+			if err != nil {
+				w.WriteHeader(http.StatusInternalServerError)
+				io.WriteString(w, fmt.Sprintf("解析矿机失败：%s\n", err.Error()))
+				return
+			}
+			err = dao.eostx.CalculateProfit(node.ProfitAcc, uint64(minerid), flag)
+			if err != nil {
+				w.WriteHeader(http.StatusInternalServerError)
+				io.WriteString(w, fmt.Sprintln("调用BP接口失败！"))
+				return
+			}
+			if flag {
+				io.WriteString(w, fmt.Sprintf("开始为矿机%d计算收益\n", minerid))
+			} else {
+				io.WriteString(w, fmt.Sprintf("停止为矿机%d计算收益\n", minerid))
+			}
+		})
 		mux.HandleFunc("/test_productivespace", func(w http.ResponseWriter, r *http.Request) {
 			r.ParseForm()
 			mineridstr := r.Form.Get("minerid")
