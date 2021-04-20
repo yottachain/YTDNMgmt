@@ -350,7 +350,7 @@ func NewInstance(mongoURL, eosURL, bpAccount, bpPrivkey, contractOwnerM, contrac
 			trxid, err := dao.eostx.CalculateProfit(node.ProfitAcc, uint64(minerid), flag)
 			if err != nil {
 				w.WriteHeader(http.StatusInternalServerError)
-				io.WriteString(w, fmt.Sprintln("调用BP接口失败！"))
+				io.WriteString(w, fmt.Sprintf("调用BP接口失败: %s\n", err.Error()))
 				return
 			}
 			io.WriteString(w, trxid)
@@ -1012,6 +1012,16 @@ func (self *NodeDaoImpl) UpdateNodeStatus(node *Node) (*Node, error) {
 			if err != nil {
 				log.Printf("nodemgmt: UpdateNodeStatus: error when adding space for node %d: %s\n", n.ID, err.Error())
 				self.IncrProductiveSpace(n.ID, -1*assignable)
+				n.Addrs = filteredAddrs
+				if n.Uspaces == nil {
+					n.Uspaces = make(map[string]int64)
+				}
+				if b, err := proto.Marshal(n.Convert()); err != nil {
+					log.Printf("nodemgmt: UpdateNodeStatus: marshal node %d failed: %s\n", n.ID, err)
+				} else {
+					log.Println("nodemgmt: UpdateNodeStatus: publish information of node", n.ID)
+					self.syncService.Publish("sync", b)
+				}
 				return nil, NewReportError(-12, err)
 			}
 			n.ProductiveSpace += assignable

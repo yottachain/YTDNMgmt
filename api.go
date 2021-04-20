@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	proto "github.com/golang/protobuf/proto"
 	"go.mongodb.org/mongo-driver/bson"
 )
 
@@ -213,6 +214,18 @@ func (self *NodeDaoImpl) ChangeMinerPool(trx string) error {
 		log.Printf("nodemgmt: ChangeMinerPool: added assignable space on BP %d\n", assignable)
 	}
 	log.Printf("nodemgmt: ChangeMinerPool: node %d is added to pool %s\n", minerID, poolID)
+	node = new(Node)
+	err = collection.FindOne(context.Background(), bson.M{"_id": minerID}).Decode(node)
+	if err != nil {
+		log.Printf("nodemgmt: ChangeMinerPool: error when decoding node: %d %s\n", minerID, err.Error())
+		return fmt.Errorf("error when decoding miner %d: %w", minerID, err)
+	}
+	if b, err := proto.Marshal(node.Convert()); err != nil {
+		log.Printf("nodemgmt: ChangeMinerPool: marshal node %d failed: %s\n", node.ID, err)
+	} else {
+		log.Println("nodemgmt: ChangeMinerPool: publish information of node", node.ID)
+		self.syncService.Publish("sync", b)
+	}
 	return nil
 }
 
@@ -241,6 +254,18 @@ func (self *NodeDaoImpl) ChangeAdminAcc(trx string) error {
 		return err
 	}
 	log.Printf("nodemgmt: ChangeAdmin: node %d has changed admin: %s\n", minerID, newAdmin)
+	node := new(Node)
+	err = collection.FindOne(context.Background(), bson.M{"_id": minerID}).Decode(node)
+	if err != nil {
+		log.Printf("nodemgmt: ChangeAdmin: error when decoding node: %d %s\n", minerID, err.Error())
+		return fmt.Errorf("error when decoding miner %d: %w", minerID, err)
+	}
+	if b, err := proto.Marshal(node.Convert()); err != nil {
+		log.Printf("nodemgmt: ChangeAdmin: marshal node %d failed: %s\n", node.ID, err)
+	} else {
+		log.Println("nodemgmt: ChangeAdmin: publish information of node", node.ID)
+		self.syncService.Publish("sync", b)
+	}
 	return nil
 }
 
@@ -269,6 +294,18 @@ func (self *NodeDaoImpl) ChangeProfitAcc(trx string) error {
 		return err
 	}
 	log.Printf("nodemgmt: ChangeProfitAcc: node %d has changed profit account: %s\n", minerID, newProfit)
+	node := new(Node)
+	err = collection.FindOne(context.Background(), bson.M{"_id": minerID}).Decode(node)
+	if err != nil {
+		log.Printf("nodemgmt: ChangeProfitAcc: error when decoding node: %d %s\n", minerID, err.Error())
+		return fmt.Errorf("error when decoding miner %d: %w", minerID, err)
+	}
+	if b, err := proto.Marshal(node.Convert()); err != nil {
+		log.Printf("nodemgmt: ChangeProfitAcc: marshal node %d failed: %s\n", node.ID, err)
+	} else {
+		log.Println("nodemgmt: ChangeProfitAcc: publish information of node", node.ID)
+		self.syncService.Publish("sync", b)
+	}
 	return nil
 }
 
@@ -301,6 +338,18 @@ func (self *NodeDaoImpl) ChangePoolID(trx string) error {
 		return err
 	}
 	log.Printf("nodemgmt: ChangePoolID: node %d has changed pool ID: %s\n", minerID, newPoolID)
+	node := new(Node)
+	err = collection.FindOne(context.Background(), bson.M{"_id": minerID}).Decode(node)
+	if err != nil {
+		log.Printf("nodemgmt: ChangePoolID: error when decoding node: %d %s\n", minerID, err.Error())
+		return fmt.Errorf("error when decoding miner %d: %w", minerID, err)
+	}
+	if b, err := proto.Marshal(node.Convert()); err != nil {
+		log.Printf("nodemgmt: ChangePoolID: marshal node %d failed: %s\n", node.ID, err)
+	} else {
+		log.Println("nodemgmt: ChangePoolID: publish information of node", node.ID)
+		self.syncService.Publish("sync", b)
+	}
 	return nil
 }
 
@@ -376,5 +425,17 @@ func (self *NodeDaoImpl) ChangeAssignedSpace(trx string) error {
 		return err
 	}
 	log.Printf("nodemgmt: ChangeAssignedSpace: node %d has changed assigned space: %d\n", minerID, newAssignedSpace)
+	node := new(Node)
+	err = collection.FindOne(context.Background(), bson.M{"_id": minerID}).Decode(node)
+	if err != nil {
+		log.Printf("nodemgmt: ChangeAssignedSpace: error when decoding node: %d %s\n", minerID, err.Error())
+		return fmt.Errorf("error when decoding miner %d: %w", minerID, err)
+	}
+	if b, err := proto.Marshal(node.Convert()); err != nil {
+		log.Printf("nodemgmt: ChangeAssignedSpace: marshal node %d failed: %s\n", node.ID, err)
+	} else {
+		log.Println("nodemgmt: ChangeAssignedSpace: publish information of node", node.ID)
+		self.syncService.Publish("sync", b)
+	}
 	return nil
 }
