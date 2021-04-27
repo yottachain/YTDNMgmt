@@ -404,6 +404,46 @@ func NewInstance(mongoURL, eosURL, bpAccount, bpPrivkey, contractOwnerM, contrac
 			}
 			io.WriteString(w, fmt.Sprintln("预采购空间成功"))
 		})
+		mux.HandleFunc("/decrease_uspace", func(w http.ResponseWriter, r *http.Request) {
+			r.ParseForm()
+			mineridstr := r.Form.Get("minerid")
+			if mineridstr == "" {
+				w.WriteHeader(http.StatusInternalServerError)
+				io.WriteString(w, fmt.Sprintln("矿机ID不存在！"))
+				return
+			}
+			minerid, err := strconv.Atoi(mineridstr)
+			if err != nil {
+				w.WriteHeader(http.StatusInternalServerError)
+				io.WriteString(w, fmt.Sprintf("解析矿机ID失败：%s\n", err.Error()))
+				return
+			}
+			valuestr := r.Form.Get("value")
+			if valuestr == "" {
+				w.WriteHeader(http.StatusInternalServerError)
+				io.WriteString(w, fmt.Sprintln("删除量不存在！"))
+				return
+			}
+			value, err := strconv.Atoi(valuestr)
+			if err != nil {
+				w.WriteHeader(http.StatusInternalServerError)
+				io.WriteString(w, fmt.Sprintf("解析删除量失败：%s\n", err.Error()))
+				return
+			}
+			if minerid%int(incr) != int(index) {
+				w.WriteHeader(http.StatusInternalServerError)
+				io.WriteString(w, fmt.Sprintf("矿机ID不属于当前SN：%s\n", err.Error()))
+				return
+			}
+			collection := dao.client.Database(YottaDB).Collection(NodeTab)
+			_, err = collection.UpdateOne(context.Background(), bson.M{"_id": minerid}, bson.M{"$inc": bson.M{"uspaces.del": value * -1}})
+			if err != nil {
+				w.WriteHeader(http.StatusInternalServerError)
+				io.WriteString(w, fmt.Sprintf("更新uspace失败：%s\n", err.Error()))
+				return
+			}
+			io.WriteString(w, fmt.Sprintln("更新uspace成功"))
+		})
 		server := &http.Server{
 			Addr:    ":12345",
 			Handler: mux,
@@ -834,7 +874,7 @@ func (self *NodeDaoImpl) UpdateNodeStatus(node *Node) (*Node, error) {
 	for _, v := range n.Uspaces {
 		sum += v
 	}
-	usedSpace := Max(sum, n.UsedSpace)
+	usedSpace := sum //Max(sum, n.UsedSpace)
 	// calculate w1
 	leftSpace := float64(Min(n.AssignedSpace, n.Quota, node.MaxDataSpace) - n.UsedSpace)
 	w11 := math.Atan(leftSpace/10000) * 1.6 / math.Pi
