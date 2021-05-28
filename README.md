@@ -78,6 +78,12 @@ misc:
   bp-sync-interval: 60
   #IP数据库的位置
   ipdb-path: "/app/ytsn/yotta.ipdb"
+  #执行惩罚的超时时间段
+  punish-time: "3600,7200,10800"
+  #每个惩罚时段对应的惩罚比例
+  punish-percent: "10,10,50"
+  #超时惩罚时间阈值，超时该时间以上会开始惩罚
+  punish-time-gap: 3600
   #矿机空间限制
   data-space-threshold: 13107200
 ```

@@ -444,6 +444,43 @@ func NewInstance(mongoURL, eosURL, bpAccount, bpPrivkey, contractOwnerM, contrac
 			}
 			io.WriteString(w, fmt.Sprintln("更新uspace成功"))
 		})
+		mux.HandleFunc("/punish", func(w http.ResponseWriter, r *http.Request) {
+			r.ParseForm()
+			msg := &PunishMsg{}
+			defer func() {
+				jsonStr, err := json.Marshal(msg)
+				if err != nil {
+					jsonStr = []byte(fmt.Sprintf("{\"code\":11, \"trxID\":\"\", \"before\":0, \"after\":0, \"total\":0, \"error\":\"%s\"}", err.Error()))
+				}
+				io.WriteString(w, string(jsonStr))
+			}()
+			mineridstr := r.Form.Get("minerid")
+			if mineridstr == "" {
+				msg.Code = 9
+				msg.Error = "miner ID is not exists"
+				return
+			}
+			minerid, err := strconv.Atoi(mineridstr)
+			if err != nil {
+				msg.Code = 10
+				msg.Error = "miner ID can't be converted to int"
+				return
+			}
+			percentstr := r.Form.Get("percent")
+			if percentstr == "" {
+				msg.Code = 9
+				msg.Error = "percent is not exists"
+				return
+			}
+			percent, err := strconv.Atoi(percentstr)
+			if err != nil {
+				msg.Code = 10
+				msg.Error = "percent can't be converted to int"
+				return
+			}
+			msg = dao.punish2(int32(minerid), int64(percent))
+			return
+		})
 		server := &http.Server{
 			Addr:    ":12345",
 			Handler: mux,
@@ -688,7 +725,7 @@ func (self *NodeDaoImpl) punish(nodeID int32, percent int64) (int64, error) {
 		punishAsset.Amount = eos.Int64(punishFee)
 		retLeft = int64(leftAsset.Amount - punishAsset.Amount)
 	}
-	err = self.eostx.DeducePledge(uint64(nodeID), &punishAsset)
+	_, err = self.eostx.DeducePledge(uint64(nodeID), &punishAsset)
 	if err != nil {
 		log.Printf("nodemgmt: punish: error when punishing %f YTA of miner %d: %s\n", float64(punishFee)/10000, nodeID, err.Error())
 		return 0, err
@@ -704,6 +741,82 @@ func (self *NodeDaoImpl) punish(nodeID int32, percent int64) (int64, error) {
 		return 0, err
 	}
 	return retLeft, nil
+}
+
+type PunishMsg struct {
+	Code   int32  `json:"code"`
+	TrxID  string `json:"trxID"`
+	Before int64  `json:"before"`
+	After  int64  `json:"after"`
+	Total  int64  `json:"total"`
+	Error  string `json:"error"`
+}
+
+//交易Hash、扣除前抵押币个数、扣除后抵押币个数、总抵押个数
+func (self *NodeDaoImpl) punish2(nodeID int32, percent int64) *PunishMsg {
+	log.Printf("nodemgmt: punish: punishing %d deposit of miner %d\n", percent, nodeID)
+	if nodeID <= 0 || nodeID%int32(incr) != index {
+		return &PunishMsg{Code: 1, TrxID: "", Before: 0, After: 0, Total: 0, Error: fmt.Sprintf("node %d do not belong to current SN %d", nodeID, index)}
+	}
+	if percent > 100 || percent <= 0 {
+		return &PunishMsg{Code: 2, TrxID: "", Before: 0, After: 0, Total: 0, Error: "format of punishment percent is invalid"}
+	}
+	collection := self.client.Database(YottaDB).Collection(NodeTab)
+	node := new(Node)
+	err := collection.FindOne(context.Background(), bson.M{"_id": nodeID}).Decode(node)
+	if err != nil {
+		if err == mongo.ErrNoDocuments {
+			return &PunishMsg{Code: 3, TrxID: "", Before: 0, After: 0, Total: 0, Error: err.Error()}
+		} else {
+			return &PunishMsg{Code: 8, TrxID: "", Before: 0, After: 0, Total: 0, Error: err.Error()}
+		}
+	}
+	rate, err := self.eostx.GetExchangeRate()
+	if err != nil {
+		return &PunishMsg{Code: 4, TrxID: "", Before: 0, After: 0, Total: 0, Error: err.Error()}
+	}
+	pledgeData, err := self.eostx.GetPledgeData(uint64(nodeID))
+	if err != nil {
+		return &PunishMsg{Code: 5, TrxID: "", Before: 0, After: 0, Total: 0, Error: err.Error()}
+	}
+	totalAsset := pledgeData.Total
+	leftAsset := pledgeData.Deposit
+	punishAsset := pledgeData.Deposit
+	if leftAsset.Amount == 0 {
+		return &PunishMsg{Code: 6, TrxID: "", Before: 0, After: 0, Total: 0, Error: fmt.Sprintf("no deposit of node %d left", nodeID)}
+	}
+	var retLeft int64 = 0
+	punishFee := int64(totalAsset.Amount) * percent / 100
+	if punishFee < int64(punishAsset.Amount) {
+		punishAsset.Amount = eos.Int64(punishFee)
+		retLeft = int64(leftAsset.Amount - punishAsset.Amount)
+	}
+	trxID, err := self.eostx.DeducePledge(uint64(nodeID), &punishAsset)
+	if err != nil {
+		log.Printf("nodemgmt: punish: error when punishing %f YTA of miner %d: %s\n", float64(punishFee)/10000, nodeID, err.Error())
+		return &PunishMsg{Code: 7, TrxID: "", Before: int64(leftAsset.Amount), After: retLeft, Total: int64(totalAsset.Amount), Error: err.Error()}
+	}
+	log.Printf("nodemgmt: punish: punishing %f YTA of miner %d\n", float64(punishFee)/10000, nodeID)
+	newAssignedSpace := retLeft * 65536 * int64(rate) / 1000000
+	if newAssignedSpace < 0 {
+		newAssignedSpace = 0
+	}
+	opts := new(options.FindOneAndUpdateOptions)
+	opts = opts.SetReturnDocument(options.After)
+	result := collection.FindOneAndUpdate(context.Background(), bson.M{"_id": nodeID}, bson.M{"$set": bson.M{"assignedSpace": newAssignedSpace}}, opts)
+	updatedNode := new(Node)
+	err = result.Decode(updatedNode)
+	if err != nil {
+		log.Printf("nodemgmt: ChangeFiling: error when decoding node %d: %s\n", nodeID, err.Error())
+	}
+	if b, err := proto.Marshal(updatedNode.Convert()); err != nil {
+		log.Printf("nodemgmt: ChangeFiling: marshal node %d failed: %s\n", updatedNode.ID, err)
+	} else {
+		if self.syncService != nil {
+			self.syncService.Publish("sync", b)
+		}
+	}
+	return &PunishMsg{Code: 0, TrxID: trxID, Before: int64(leftAsset.Amount), After: retLeft, Total: int64(totalAsset.Amount), Error: ""}
 }
 
 func (self *NodeDaoImpl) updateUspace(msg *pb.UpdateUspaceMessage) {
@@ -1518,7 +1631,7 @@ func (self *NodeDaoImpl) MinerQuit(id int32, percent int32) (string, error) {
 		if punishAmount < int64(punishAsset.Amount) {
 			punishAsset.Amount = eos.Int64(punishAmount)
 		}
-		err = self.eostx.DeducePledge(uint64(node.ID), &punishAsset)
+		_, err = self.eostx.DeducePledge(uint64(node.ID), &punishAsset)
 		if err != nil {
 			return "", err
 		}
@@ -1587,7 +1700,7 @@ func (self *NodeDaoImpl) BatchMinerQuit(id, percent int32) (string, error) {
 	if punishAmount < int64(punishAsset.Amount) {
 		punishAsset.Amount = eos.Int64(punishAmount)
 	}
-	err = self.eostx.DeducePledge(uint64(node.ID), &punishAsset)
+	_, err = self.eostx.DeducePledge(uint64(node.ID), &punishAsset)
 	if err != nil {
 		return "", err
 	}

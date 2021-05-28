@@ -184,23 +184,23 @@ func (eostx *EosTX) GetMinerInfo(minerid uint64) (*MinerInfo, error) {
 }
 
 //DeducePledge invalid miner need to pay forfeit
-func (eostx *EosTX) DeducePledge(minerID uint64, count *eos.Asset) error {
+func (eostx *EosTX) DeducePledge(minerID uint64, count *eos.Asset) (string, error) {
 	eostx.RLock()
 	defer eostx.RUnlock()
 	data, err := eostx.GetPledgeData(minerID)
 	if err != nil {
-		return err
+		return "", err
 	}
-	err = eostx.payForfeit(data.AccountName, minerID, count)
+	trxID, err := eostx.payForfeit(data.AccountName, minerID, count)
 	if err != nil {
-		return err
+		return "", err
 	}
 	// err = eostx.drawForfeit(data.AccountName)
 	// if err != nil {
 	// 	err = eostx.cutVote(data.AccountName)
 	// 	return err
 	// }
-	return nil
+	return trxID, nil
 }
 
 //GetPoolInfoByPoolID fetch pool owner by pool ID
@@ -236,7 +236,7 @@ func (eostx *EosTX) GetPoolInfoByPoolID(poolID string) (*PoolInfo, error) {
 	return &rows[0], nil
 }
 
-func (eostx *EosTX) payForfeit(user string, minerID uint64, count *eos.Asset) error {
+func (eostx *EosTX) payForfeit(user string, minerID uint64, count *eos.Asset) (string, error) {
 	eostx.RLock()
 	defer eostx.RUnlock()
 	action := &eos.Action{
@@ -249,20 +249,20 @@ func (eostx *EosTX) payForfeit(user string, minerID uint64, count *eos.Asset) er
 	}
 	txOpts := &eos.TxOptions{}
 	if err := txOpts.FillFromChain(eostx.API); err != nil {
-		return fmt.Errorf("filling tx opts: %s", err)
+		return "", fmt.Errorf("filling tx opts: %s", err)
 	}
 
 	tx := eos.NewTransaction([]*eos.Action{action}, txOpts)
 	_, packedTx, err := eostx.API.SignTransaction(tx, txOpts.ChainID, eos.CompressionNone)
 	if err != nil {
-		return fmt.Errorf("sign transaction: %s", err)
+		return "", fmt.Errorf("sign transaction: %s", err)
 	}
 
-	_, err = eostx.API.PushTransaction(packedTx)
+	resp, err := eostx.API.PushTransaction(packedTx)
 	if err != nil {
-		return fmt.Errorf("push transaction: %s", err)
+		return "", fmt.Errorf("push transaction: %s", err)
 	}
-	return nil
+	return resp.TransactionID, nil
 }
 
 func (eostx *EosTX) drawForfeit(user string) error {
