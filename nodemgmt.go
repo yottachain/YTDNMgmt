@@ -472,13 +472,14 @@ func NewInstance(mongoURL, eosURL, bpAccount, bpPrivkey, contractOwnerM, contrac
 				msg.Error = "percent is not exists"
 				return
 			}
-			percent, err := strconv.Atoi(percentstr)
+			percent, err := strconv.ParseFloat(percentstr, 64)
+			//percent, err := strconv.Atoi(percentstr)
 			if err != nil {
 				msg.Code = 10
-				msg.Error = "percent can't be converted to int"
+				msg.Error = "percent can't be converted to float64"
 				return
 			}
-			msg = dao.punish2(int32(minerid), int64(percent))
+			msg = dao.punish2(int32(minerid), percent)
 			return
 		})
 		server := &http.Server{
@@ -753,8 +754,8 @@ type PunishMsg struct {
 }
 
 //交易Hash、扣除前抵押币个数、扣除后抵押币个数、总抵押个数
-func (self *NodeDaoImpl) punish2(nodeID int32, percent int64) *PunishMsg {
-	log.Printf("nodemgmt: punish: punishing %d deposit of miner %d\n", percent, nodeID)
+func (self *NodeDaoImpl) punish2(nodeID int32, percent float64) *PunishMsg {
+	log.Printf("nodemgmt: punish: punishing %f%% deposit of miner %d\n", percent, nodeID)
 	if nodeID <= 0 || nodeID%int32(incr) != index {
 		return &PunishMsg{Code: 1, TrxID: "", Before: 0, After: 0, Total: 0, Error: fmt.Sprintf("node %d do not belong to current SN %d", nodeID, index)}
 	}
@@ -786,7 +787,7 @@ func (self *NodeDaoImpl) punish2(nodeID int32, percent int64) *PunishMsg {
 		return &PunishMsg{Code: 6, TrxID: "", Before: 0, After: 0, Total: 0, Error: fmt.Sprintf("no deposit of node %d left", nodeID)}
 	}
 	var retLeft int64 = 0
-	punishFee := int64(totalAsset.Amount) * percent / 100
+	punishFee := int64(float64(totalAsset.Amount) * percent / 100)
 	if punishFee < int64(punishAsset.Amount) {
 		punishAsset.Amount = eos.Int64(punishFee)
 		retLeft = int64(leftAsset.Amount - punishAsset.Amount)
