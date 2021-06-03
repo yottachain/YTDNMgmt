@@ -784,7 +784,7 @@ func (self *NodeDaoImpl) punish2(nodeID int32, percent float64) *PunishMsg {
 	leftAsset := pledgeData.Deposit
 	punishAsset := pledgeData.Deposit
 	if leftAsset.Amount == 0 {
-		return &PunishMsg{Code: 6, TrxID: "", Before: 0, After: 0, Total: 0, Error: fmt.Sprintf("no deposit of node %d left", nodeID)}
+		return &PunishMsg{Code: 6, TrxID: "", Before: 0, After: 0, Total: int64(totalAsset.Amount), Error: fmt.Sprintf("no deposit of node %d left", nodeID)}
 	}
 	var retLeft int64 = 0
 	punishFee := int64(float64(totalAsset.Amount) * percent / 100)
