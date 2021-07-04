@@ -482,6 +482,28 @@ func NewInstance(mongoURL, eosURL, bpAccount, bpPrivkey, contractOwnerM, contrac
 			msg = dao.punish2(int32(minerid), percent)
 			return
 		})
+		mux.HandleFunc("/get_pledge", func(w http.ResponseWriter, r *http.Request) {
+			r.ParseForm()
+			mineridstr := r.Form.Get("minerid")
+			if mineridstr == "" {
+				w.WriteHeader(http.StatusInternalServerError)
+				io.WriteString(w, fmt.Sprintln("矿机ID不存在！"))
+				return
+			}
+			minerid, err := strconv.Atoi(mineridstr)
+			if err != nil {
+				w.WriteHeader(http.StatusInternalServerError)
+				io.WriteString(w, fmt.Sprintf("解析矿机ID失败：%s\n", err.Error()))
+				return
+			}
+			val, err := dao.GetPledge(int32(minerid))
+			if err != nil {
+				w.WriteHeader(http.StatusInternalServerError)
+				io.WriteString(w, fmt.Sprintf("获取抵押币数量失败：%s\n", err.Error()))
+				return
+			}
+			io.WriteString(w, fmt.Sprintf("%d", val))
+		})
 		server := &http.Server{
 			Addr:    ":12345",
 			Handler: mux,
@@ -1865,4 +1887,16 @@ func (self *NodeDaoImpl) BulkPunish(punishTimes []int64, punishPercent []int32, 
 		ret = append(ret, m)
 	}
 	return ret, nil
+}
+
+//GetPledge get pledge count of
+func (self *NodeDaoImpl) GetPledge(id int32) (int64, error) {
+	if id%int32(incr) != index {
+		return 0, errors.New("miner do not belong to current SN")
+	}
+	pledgeData, err := self.eostx.GetPledgeData(uint64(id))
+	if err != nil {
+		return 0, err
+	}
+	return int64(pledgeData.Deposit.Amount), nil
 }
