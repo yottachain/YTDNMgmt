@@ -809,7 +809,11 @@ func (self *NodeDaoImpl) punish2(nodeID int32, percent float64) *PunishMsg {
 		return &PunishMsg{Code: 6, TrxID: "", Before: 0, After: 0, Total: int64(totalAsset.Amount), Error: fmt.Sprintf("no deposit of node %d left", nodeID)}
 	}
 	var retLeft int64 = 0
-	punishFee := int64(float64(totalAsset.Amount) * percent / 100)
+	//punishFee := int64(float64(totalAsset.Amount) * percent / 100)
+	punishFee := node.UsedSpace * 1000000 * int64(percent) / int64(rate) / 6553600
+	if punishFee == 0 {
+		return &PunishMsg{Code: 0, TrxID: "", Before: int64(leftAsset.Amount), After: int64(leftAsset.Amount), Total: int64(totalAsset.Amount), Error: ""}
+	}
 	if punishFee < int64(punishAsset.Amount) {
 		punishAsset.Amount = eos.Int64(punishFee)
 		retLeft = int64(leftAsset.Amount - punishAsset.Amount)
