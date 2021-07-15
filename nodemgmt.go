@@ -10,6 +10,7 @@ import (
 	"math"
 	"math/rand"
 	"net/http"
+	"os"
 	"sort"
 	"strconv"
 	"strings"
@@ -44,6 +45,7 @@ type NodeDaoImpl struct {
 	ns          *NodesSelector
 	bpID        int32
 	master      int32
+	disableBP   bool
 	syncService *nodesync.Service
 	Config      *Config
 }
@@ -54,6 +56,10 @@ var index int32 = -1
 
 //NewInstance create a new instance of NodeDaoImpl
 func NewInstance(mongoURL, eosURL, bpAccount, bpPrivkey, contractOwnerM, contractOwnerD, shadowAccount string, bpID int32, isMaster int32, config *Config) (*NodeDaoImpl, error) {
+	disableBP := false
+	if os.Getenv("DISABLE_BP") == "true" {
+		disableBP = true
+	}
 	if config.Misc.EnableTest {
 		YottaDB = fmt.Sprintf("%s%d", YottaDB, bpID)
 	}
@@ -63,7 +69,7 @@ func NewInstance(mongoURL, eosURL, bpAccount, bpPrivkey, contractOwnerM, contrac
 		return nil, err
 	}
 	log.Printf("nodemgmt: NewInstance: create mongodb client: %s\n", mongoURL)
-	etx, err := eostx.NewInstance(eosURL, bpAccount, bpPrivkey, contractOwnerM, contractOwnerD, shadowAccount)
+	etx, err := eostx.NewInstance(eosURL, bpAccount, bpPrivkey, contractOwnerM, contractOwnerD, shadowAccount, disableBP)
 	if err != nil {
 		log.Printf("nodemgmt: NewInstance: error when creating eos client failed: %s %s\n", eosURL, err.Error())
 		return nil, err
@@ -81,7 +87,7 @@ func NewInstance(mongoURL, eosURL, bpAccount, bpPrivkey, contractOwnerM, contrac
 		return nil, err
 	}
 	log.Println("nodemgmt: NewInstance: create host2")
-	dao := &NodeDaoImpl{client: client, eostx: etx, host1: host1, host2: host2, ns: &NodesSelector{Config: config.Misc}, bpID: bpID, master: isMaster}
+	dao := &NodeDaoImpl{client: client, eostx: etx, host1: host1, host2: host2, ns: &NodesSelector{Config: config.Misc}, bpID: bpID, master: isMaster, disableBP: disableBP}
 	log.Printf("nodemgmt: NewInstance: master status is %d\n", isMaster)
 	//dao.StartRecheck()
 	dao.ns.Start(context.Background(), dao)
@@ -135,6 +141,10 @@ func NewInstance(mongoURL, eosURL, bpAccount, bpPrivkey, contractOwnerM, contrac
 	go func() {
 		mux := http.NewServeMux()
 		mux.HandleFunc("/quit", func(w http.ResponseWriter, r *http.Request) {
+			if dao.disableBP {
+				io.WriteString(w, "无BP模式下无法执行该操作")
+				return
+			}
 			r.ParseForm()
 			mineridstr := r.Form.Get("minerid")
 			if mineridstr == "" {
@@ -163,6 +173,10 @@ func NewInstance(mongoURL, eosURL, bpAccount, bpPrivkey, contractOwnerM, contrac
 			io.WriteString(w, fmt.Sprintf("扣抵押成功：%s\n", s))
 		})
 		mux.HandleFunc("/batchquit", func(w http.ResponseWriter, r *http.Request) {
+			if dao.disableBP {
+				io.WriteString(w, "无BP模式下无法执行该操作")
+				return
+			}
 			r.ParseForm()
 			mineridstr := r.Form.Get("minerid")
 			if mineridstr == "" {
@@ -300,6 +314,10 @@ func NewInstance(mongoURL, eosURL, bpAccount, bpPrivkey, contractOwnerM, contrac
 			io.WriteString(w, fmt.Sprintln("修改报备状态成功"))
 		})
 		mux.HandleFunc("/bulk_punish", func(w http.ResponseWriter, r *http.Request) {
+			if dao.disableBP {
+				io.WriteString(w, "无BP模式下无法执行该操作")
+				return
+			}
 			if len(punishTime) == 0 || len(punishPercent) == 0 {
 				io.WriteString(w, "[]")
 				return
@@ -314,6 +332,10 @@ func NewInstance(mongoURL, eosURL, bpAccount, bpPrivkey, contractOwnerM, contrac
 			io.WriteString(w, string(data))
 		})
 		mux.HandleFunc("/calculate_profit", func(w http.ResponseWriter, r *http.Request) {
+			if dao.disableBP {
+				io.WriteString(w, "无BP模式下无法执行该操作")
+				return
+			}
 			r.ParseForm()
 			mineridstr := r.Form.Get("minerid")
 			if mineridstr == "" {
@@ -356,6 +378,10 @@ func NewInstance(mongoURL, eosURL, bpAccount, bpPrivkey, contractOwnerM, contrac
 			io.WriteString(w, trxid)
 		})
 		mux.HandleFunc("/test_productivespace", func(w http.ResponseWriter, r *http.Request) {
+			if dao.disableBP {
+				io.WriteString(w, "无BP模式下无法执行该操作")
+				return
+			}
 			r.ParseForm()
 			mineridstr := r.Form.Get("minerid")
 			if mineridstr == "" {
@@ -445,6 +471,10 @@ func NewInstance(mongoURL, eosURL, bpAccount, bpPrivkey, contractOwnerM, contrac
 			io.WriteString(w, fmt.Sprintln("更新uspace成功"))
 		})
 		mux.HandleFunc("/punish", func(w http.ResponseWriter, r *http.Request) {
+			if dao.disableBP {
+				io.WriteString(w, "无BP模式下无法执行该操作")
+				return
+			}
 			r.ParseForm()
 			msg := &PunishMsg{}
 			defer func() {
@@ -483,6 +513,10 @@ func NewInstance(mongoURL, eosURL, bpAccount, bpPrivkey, contractOwnerM, contrac
 			return
 		})
 		mux.HandleFunc("/get_pledge", func(w http.ResponseWriter, r *http.Request) {
+			if dao.disableBP {
+				io.WriteString(w, "无BP模式下无法执行该操作")
+				return
+			}
 			r.ParseForm()
 			mineridstr := r.Form.Get("minerid")
 			if mineridstr == "" {
@@ -703,7 +737,7 @@ func NewInstance(mongoURL, eosURL, bpAccount, bpPrivkey, contractOwnerM, contrac
 			}
 		}
 	}
-	syncService, err := nodesync.StartSync(etx, config.AuraMQ.BindAddr, config.AuraMQ.RouterBufferSize, config.AuraMQ.SubscriberBufferSize, config.AuraMQ.ReadBufferSize, config.AuraMQ.WriteBufferSize, config.AuraMQ.PingWait, config.AuraMQ.ReadWait, config.AuraMQ.WriteWait, config.AuraMQ.MinerSyncTopic, int(config.SNID), config.AuraMQ.AllSNURLs, config.AuraMQ.AllowedAccounts, callback, shadowAccount, bpPrivkey, &dao.master)
+	syncService, err := nodesync.StartSync(etx, config.AuraMQ.BindAddr, config.AuraMQ.RouterBufferSize, config.AuraMQ.SubscriberBufferSize, config.AuraMQ.ReadBufferSize, config.AuraMQ.WriteBufferSize, config.AuraMQ.PingWait, config.AuraMQ.ReadWait, config.AuraMQ.WriteWait, config.AuraMQ.MinerSyncTopic, int(config.SNID), config.AuraMQ.AllSNURLs, config.AuraMQ.AllowedAccounts, callback, shadowAccount, bpPrivkey, &dao.master, disableBP)
 	if err != nil {
 		log.Fatalln("nodemgmt: NewInstance: fatal error when creating sync service:", err)
 	}
@@ -724,6 +758,9 @@ func NewInstance(mongoURL, eosURL, bpAccount, bpPrivkey, contractOwnerM, contrac
 }
 
 func (self *NodeDaoImpl) punish(nodeID int32, percent int64) (int64, error) {
+	if self.disableBP {
+		return 0, errors.New("no BP, nothing returned")
+	}
 	log.Printf("nodemgmt: punish: punishing %d deposit of miner %d\n", percent, nodeID)
 	rate, err := self.eostx.GetExchangeRate()
 	if err != nil {
@@ -777,6 +814,9 @@ type PunishMsg struct {
 
 //交易Hash、扣除前抵押币个数、扣除后抵押币个数、总抵押个数
 func (self *NodeDaoImpl) punish2(nodeID int32, percent float64) *PunishMsg {
+	if self.disableBP {
+		return &PunishMsg{Code: 999, TrxID: "", Before: 0, After: 0, Total: 0, Error: "no BP, nothing returned"}
+	}
 	log.Printf("nodemgmt: punish: punishing %f%% deposit of miner %d\n", percent, nodeID)
 	if nodeID <= 0 || nodeID%int32(incr) != index {
 		return &PunishMsg{Code: 1, TrxID: "", Before: 0, After: 0, Total: 0, Error: fmt.Sprintf("node %d do not belong to current SN %d", nodeID, index)}
@@ -956,7 +996,7 @@ func (self *NodeDaoImpl) UpdateNodeStatus(node *Node) (*Node, error) {
 
 	var assignedSpaceBP int64 = -1
 	var productiveSpaceBP int64 = -1
-	if rand.Int63n(int64(self.Config.Misc.BPSyncInterval)*100) < 100 {
+	if !self.disableBP && rand.Int63n(int64(self.Config.Misc.BPSyncInterval)*100) < 100 {
 		rate, err := self.eostx.GetExchangeRate()
 		if err != nil {
 			log.Printf("nodemgmt: UpdateNodeStatus: error when fetching exchange rate of miner %d from BP: %s\n", node.ID, err.Error())
@@ -996,7 +1036,7 @@ func (self *NodeDaoImpl) UpdateNodeStatus(node *Node) (*Node, error) {
 		log.Printf("nodemgmt: UpdateNodeStatus: error when checking public address of node %d: %s\n", n.ID, err.Error())
 		return nil, NewReportError(-5, err)
 	}
-	if n.PoolID != "" && n.PoolOwner == "" {
+	if !self.disableBP && n.PoolID != "" && n.PoolOwner == "" {
 		poolInfo, err := self.eostx.GetPoolInfoByPoolID(n.PoolID)
 		if err != nil {
 			log.Printf("nodemgmt: UpdateNodeStatus: error when get pool owner %d: %s\n", n.ID, err.Error())
@@ -1621,6 +1661,9 @@ func (self *NodeDaoImpl) Statistics() (*NodeStat, error) {
 
 //MinerQuit quit miner
 func (self *NodeDaoImpl) MinerQuit(id int32, percent int32) (string, error) {
+	if self.disableBP {
+		return "", errors.New("no BP, nothing returned")
+	}
 	collection := self.client.Database(YottaDB).Collection(NodeTab)
 	collectionDel := self.client.Database(YottaDB).Collection(NodeDelTab)
 	collectionLog := self.client.Database(YottaDB).Collection(NodeLogTab)
@@ -1697,6 +1740,9 @@ func (self *NodeDaoImpl) MinerQuit(id int32, percent int32) (string, error) {
 
 //BatchMinerQuit quit miner
 func (self *NodeDaoImpl) BatchMinerQuit(id, percent int32) (string, error) {
+	if self.disableBP {
+		return "", errors.New("no BP, nothing returned")
+	}
 	if id%int32(incr) != index {
 		log.Printf("nodemgmt: MinerQuit: warning: node %d do not belong to current SN\n", id)
 		return "", errors.New("miner do not belong to this SN")
@@ -1835,6 +1881,9 @@ func (self *NodeDaoImpl) ChangeFiling(id int32, filing bool) error {
 
 //BulkPunish punish miners
 func (self *NodeDaoImpl) BulkPunish(punishTimes []int64, punishPercent []int32, punishTimeGap int64) ([]map[string]int64, error) {
+	if self.disableBP {
+		return nil, errors.New("no BP, nothing returned")
+	}
 	collection := self.client.Database(YottaDB).Collection(NodeTab)
 	cond := bson.M{"_id": bson.M{"$mod": bson.A{incr, index}}, "status": 1, "filing": false, "timestamp": bson.M{"$lt": time.Now().Unix() - 24*3600}, "punishTime": bson.M{"$lt": time.Now().Unix() - punishTimeGap}}
 	nodes := make([]*Node, 0)
@@ -1895,6 +1944,9 @@ func (self *NodeDaoImpl) BulkPunish(punishTimes []int64, punishPercent []int32, 
 
 //GetPledge get pledge count of
 func (self *NodeDaoImpl) GetPledge(id int32) (int64, error) {
+	if self.disableBP {
+		return 0, errors.New("no BP, nothing returned")
+	}
 	if id%int32(incr) != index {
 		return 0, errors.New("miner do not belong to current SN")
 	}

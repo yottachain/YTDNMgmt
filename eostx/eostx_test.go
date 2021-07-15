@@ -13,7 +13,7 @@ import (
 var etx *EosTX
 
 func TestMain(m *testing.M) {
-	etx, _ = NewInstance("http://47.94.166.95:8888", "username1234", "5JcDH48njDbUQLu1R8SWwKsfWLnqBpWXDDiCgxFC3hioDuwLhVx", "hddpool12345", "hdddeposit12", "username1234")
+	etx, _ = NewInstance("http://47.94.166.95:8888", "username1234", "5JcDH48njDbUQLu1R8SWwKsfWLnqBpWXDDiCgxFC3hioDuwLhVx", "hddpool12345", "hdddeposit12", "username1234", false)
 	os.Exit(m.Run())
 }
 

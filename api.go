@@ -125,6 +125,11 @@ func (self *NodeDaoImpl) PreRegisterNode(trx string) error {
 	node.Timestamp = time.Now().Unix()
 	node.Version = 0
 	node.ManualWeight = 100
+	if self.disableBP {
+		node.PoolID = "testpool"
+		node.PoolOwner = "poolowner123"
+		node.Quota = node.AssignedSpace
+	}
 	collection = self.client.Database(YottaDB).Collection(NodeTab)
 	_, err = collection.InsertOne(context.Background(), node)
 	if err != nil {
@@ -145,6 +150,9 @@ func (self *NodeDaoImpl) PreRegisterNode(trx string) error {
 
 //ChangeMinerPool add miner to a pool
 func (self *NodeDaoImpl) ChangeMinerPool(trx string) error {
+	if self.disableBP {
+		return errors.New("System is under non-BP mode")
+	}
 	signedTrx, poolData, err := self.eostx.ChangeMinerPoolTrx(trx)
 	if err != nil {
 		log.Printf("nodemgmt: ChangeMinerPool: error when signing raw transaction: %s\n", err.Error())
@@ -231,6 +239,9 @@ func (self *NodeDaoImpl) ChangeMinerPool(trx string) error {
 
 //ChangeAdminAcc change admin account of miner
 func (self *NodeDaoImpl) ChangeAdminAcc(trx string) error {
+	if self.disableBP {
+		return errors.New("System is under non-BP mode")
+	}
 	signedTrx, adminData, err := self.eostx.ChangeAdminAccTrx(trx)
 	if err != nil {
 		log.Printf("nodemgmt: ChangeAdmin: error when sending sign transaction: %s\n", err.Error())
@@ -271,6 +282,9 @@ func (self *NodeDaoImpl) ChangeAdminAcc(trx string) error {
 
 //ChangeProfitAcc change profit account of miner
 func (self *NodeDaoImpl) ChangeProfitAcc(trx string) error {
+	if self.disableBP {
+		return errors.New("System is under non-BP mode")
+	}
 	signedTrx, profitData, err := self.eostx.ChangeProfitAccTrx(trx)
 	if err != nil {
 		log.Printf("nodemgmt: ChangeProfitAcc: error when sending sign transaction: %s\n", err.Error())
@@ -311,6 +325,9 @@ func (self *NodeDaoImpl) ChangeProfitAcc(trx string) error {
 
 //ChangePoolID change pool ID of miner
 func (self *NodeDaoImpl) ChangePoolID(trx string) error {
+	if self.disableBP {
+		return errors.New("System is under non-BP mode")
+	}
 	signedTrx, poolData, err := self.eostx.ChangePoolIDTrx(trx)
 	if err != nil {
 		log.Printf("nodemgmt: ChangePoolID: error when sending sign transaction: %s\n", err.Error())
@@ -355,6 +372,9 @@ func (self *NodeDaoImpl) ChangePoolID(trx string) error {
 
 //ChangeDepAcc change dep account of miner
 func (self *NodeDaoImpl) ChangeDepAcc(trx string) error {
+	if self.disableBP {
+		return errors.New("System is under non-BP mode")
+	}
 	signedTrx, newDepAcc, err := self.eostx.ChangeDepAccTrx(trx)
 	if err != nil {
 		log.Printf("nodemgmt: ChangeDepAcc: error when sending sign transaction: %s\n", err.Error())
@@ -371,6 +391,9 @@ func (self *NodeDaoImpl) ChangeDepAcc(trx string) error {
 
 //ChangeDeposit change dep account of miner
 func (self *NodeDaoImpl) ChangeDeposit(trx string) error {
+	if self.disableBP {
+		return errors.New("System is under non-BP mode")
+	}
 	signedTrx, newDeposit, err := self.eostx.ChangeDepositTrx(trx)
 	if err != nil {
 		log.Printf("nodemgmt: ChangeDeposit: error when sending sign transaction: %s\n", err.Error())
@@ -402,6 +425,9 @@ func (self *NodeDaoImpl) ChangeDeposit(trx string) error {
 
 //ChangeAssignedSpace change pool ID of miner
 func (self *NodeDaoImpl) ChangeAssignedSpace(trx string) error {
+	if self.disableBP {
+		return errors.New("System is under non-BP mode")
+	}
 	signedTrx, newSpaceData, err := self.eostx.ChangeAssignedSpaceTrx(trx)
 	if err != nil {
 		log.Printf("nodemgmt: ChangeAssignedSpace: error when sending sign transaction: %s\n", err.Error())

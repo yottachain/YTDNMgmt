@@ -32,6 +32,7 @@ type EosTX struct {
 	ContractOwnerD string
 	ShadowAccount  string
 	PrivateKey     string
+	disableBP      bool
 	sync.RWMutex
 }
 

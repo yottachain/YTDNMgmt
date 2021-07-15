@@ -25,10 +25,11 @@ type Service struct {
 	client     auramq.Client
 	accountMap map[string]string
 	master     *int32
+	disableBP  bool
 }
 
 //StartSync start syncing
-func StartSync(etx *eostx.EosTX, bindAddr string, routerBufferSize, subscriberBufferSize, readBufferSize, writerBufferSize, pingWait, readWait, writeWait int, topic string, snID int, urls, allowedAccounts []string, callback func(msg *msg.Message), shadowAccount, shadowPrivateKey string, isMaster *int32) (*Service, error) {
+func StartSync(etx *eostx.EosTX, bindAddr string, routerBufferSize, subscriberBufferSize, readBufferSize, writerBufferSize, pingWait, readWait, writeWait int, topic string, snID int, urls, allowedAccounts []string, callback func(msg *msg.Message), shadowAccount, shadowPrivateKey string, isMaster *int32, disableBP bool) (*Service, error) {
 	accountMap := make(map[string]string)
 	for _, acc := range allowedAccounts {
 		pk, err := etx.GetPublicKey(acc, "active")
@@ -44,6 +45,7 @@ func StartSync(etx *eostx.EosTX, bindAddr string, routerBufferSize, subscriberBu
 	syncService := new(Service)
 	syncService.master = isMaster
 	syncService.accountMap = accountMap
+	syncService.disableBP = disableBP
 
 	router := auramq.NewRouter(routerBufferSize)
 	go router.Run()
@@ -102,6 +104,9 @@ func StartSync(etx *eostx.EosTX, bindAddr string, routerBufferSize, subscriberBu
 }
 
 func (s *Service) auth(cred *msg.AuthReq) bool {
+	if s.disableBP {
+		return true
+	}
 	signMsg := new(pb.SignMessage)
 	err := proto.Unmarshal(cred.Credential, signMsg)
 	if err != nil {

@@ -14,7 +14,10 @@ import (
 )
 
 // NewInstance create a new eostx instance contans connect url, contract owner and it's private key
-func NewInstance(url, bpAccount, privateKey, contractOwnerM, contractOwnerD, shadowAccount string) (*EosTX, error) {
+func NewInstance(url, bpAccount, privateKey, contractOwnerM, contractOwnerD, shadowAccount string, disableBP bool) (*EosTX, error) {
+	if disableBP {
+		return &EosTX{disableBP: true}, nil
+	}
 	api := eos.New(url)
 	keyBag := &eos.KeyBag{}
 	err := keyBag.ImportPrivateKey(privateKey)
@@ -27,11 +30,14 @@ func NewInstance(url, bpAccount, privateKey, contractOwnerM, contractOwnerD, sha
 		pubkey, _ := ecc.NewPublicKey(fmt.Sprintf("%s%s", "YTA", publickey))
 		return []ecc.PublicKey{pubkey}, nil
 	})
-	return &EosTX{API: api, BpAccount: bpAccount, ContractOwnerM: contractOwnerM, ContractOwnerD: contractOwnerD, ShadowAccount: shadowAccount, PrivateKey: privateKey}, nil
+	return &EosTX{API: api, BpAccount: bpAccount, ContractOwnerM: contractOwnerM, ContractOwnerD: contractOwnerD, ShadowAccount: shadowAccount, PrivateKey: privateKey, disableBP: false}, nil
 }
 
 //GetPublicKey by account name and permission name
 func (eostx *EosTX) GetPublicKey(accountName string, perm string) (string, error) {
+	if eostx.disableBP {
+		return "YTA6j63z4UwL1XRveaK9AG3iTZ4s9at1QQHY4Xbmcvd2qqzZzVjBd", nil
+	}
 	accountResp, err := eostx.API.GetAccount(eos.AN(accountName))
 	if err != nil {
 		return "", fmt.Errorf("get account info: %s", err)
@@ -46,6 +52,9 @@ func (eostx *EosTX) GetPublicKey(accountName string, perm string) (string, error
 
 //ChangeEosURL change EOS URL to another one
 func (eostx *EosTX) ChangeEosURL(eosURL string) {
+	if eostx.disableBP {
+		return
+	}
 	eostx.Lock()
 	defer eostx.Unlock()
 	api := eos.New(eosURL)
@@ -62,6 +71,9 @@ func (eostx *EosTX) ChangeEosURL(eosURL string) {
 
 //AddSpace call contract to add profit to a miner assigned by minerID
 func (eostx *EosTX) AddSpace(owner string, minerID, space uint64) error {
+	if eostx.disableBP {
+		return nil
+	}
 	eostx.RLock()
 	defer eostx.RUnlock()
 	action := &eos.Action{
@@ -92,6 +104,9 @@ func (eostx *EosTX) AddSpace(owner string, minerID, space uint64) error {
 
 //GetExchangeRate get exchange rate between YTA and storage space
 func (eostx *EosTX) GetExchangeRate() (int32, error) {
+	if eostx.disableBP {
+		return 100, nil
+	}
 	eostx.RLock()
 	defer eostx.RUnlock()
 	req := eos.GetTableRowsRequest{
@@ -121,6 +136,9 @@ func (eostx *EosTX) GetExchangeRate() (int32, error) {
 
 //GetPledgeData get pledge data of one miner
 func (eostx *EosTX) GetPledgeData(minerid uint64) (*PledgeData, error) {
+	if eostx.disableBP {
+		return nil, errors.New("no BP, nothing returned")
+	}
 	eostx.RLock()
 	defer eostx.RUnlock()
 	req := eos.GetTableRowsRequest{
@@ -154,6 +172,9 @@ func (eostx *EosTX) GetPledgeData(minerid uint64) (*PledgeData, error) {
 
 //GetMinerInfo get miner info
 func (eostx *EosTX) GetMinerInfo(minerid uint64) (*MinerInfo, error) {
+	if eostx.disableBP {
+		return nil, nil
+	}
 	req := eos.GetTableRowsRequest{
 		Code:       eostx.ContractOwnerM,
 		Scope:      eostx.ContractOwnerM,
@@ -185,6 +206,9 @@ func (eostx *EosTX) GetMinerInfo(minerid uint64) (*MinerInfo, error) {
 
 //DeducePledge invalid miner need to pay forfeit
 func (eostx *EosTX) DeducePledge(minerID uint64, count *eos.Asset) (string, error) {
+	if eostx.disableBP {
+		return "", errors.New("no BP, nothing returned")
+	}
 	eostx.RLock()
 	defer eostx.RUnlock()
 	data, err := eostx.GetPledgeData(minerID)
@@ -205,6 +229,9 @@ func (eostx *EosTX) DeducePledge(minerID uint64, count *eos.Asset) (string, erro
 
 //GetPoolInfoByPoolID fetch pool owner by pool ID
 func (eostx *EosTX) GetPoolInfoByPoolID(poolID string) (*PoolInfo, error) {
+	if eostx.disableBP {
+		return nil, errors.New("no BP, nothing returned")
+	}
 	eostx.RLock()
 	defer eostx.RUnlock()
 	req := eos.GetTableRowsRequest{
@@ -237,6 +264,9 @@ func (eostx *EosTX) GetPoolInfoByPoolID(poolID string) (*PoolInfo, error) {
 }
 
 func (eostx *EosTX) payForfeit(user string, minerID uint64, count *eos.Asset) (string, error) {
+	if eostx.disableBP {
+		return "", errors.New("no BP, nothing returned")
+	}
 	eostx.RLock()
 	defer eostx.RUnlock()
 	action := &eos.Action{
@@ -266,6 +296,9 @@ func (eostx *EosTX) payForfeit(user string, minerID uint64, count *eos.Asset) (s
 }
 
 func (eostx *EosTX) drawForfeit(user string) error {
+	if eostx.disableBP {
+		return errors.New("no BP, nothing returned")
+	}
 	eostx.RLock()
 	defer eostx.RUnlock()
 	action := &eos.Action{
@@ -295,6 +328,9 @@ func (eostx *EosTX) drawForfeit(user string) error {
 }
 
 func (eostx *EosTX) cutVote(user string) error {
+	if eostx.disableBP {
+		return errors.New("no BP, nothing returned")
+	}
 	eostx.RLock()
 	defer eostx.RUnlock()
 	action := &eos.Action{
@@ -325,6 +361,9 @@ func (eostx *EosTX) cutVote(user string) error {
 
 //CalculateProfit whether continuing calculating profit for a miner
 func (eostx *EosTX) CalculateProfit(owner string, minerID uint64, flag bool) (string, error) {
+	if eostx.disableBP {
+		return "", errors.New("no BP, nothing returned")
+	}
 	eostx.RLock()
 	defer eostx.RUnlock()
 	var actionName string
@@ -608,6 +647,9 @@ func (eostx *EosTX) ChangeAssignedSpaceTrx(trx string) (*eos.SignedTransaction, 
 
 //SendTrx send transaction to BP
 func (eostx *EosTX) SendTrx(signedTx *eos.SignedTransaction) error {
+	if eostx.disableBP {
+		return nil
+	}
 	eostx.RLock()
 	defer eostx.RUnlock()
 	packedTx, err := signedTx.Pack(eos.CompressionNone)
