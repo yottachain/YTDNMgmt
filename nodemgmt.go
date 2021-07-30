@@ -405,7 +405,7 @@ func NewInstance(mongoURL, eosURL, bpAccount, bpPrivkey, contractOwnerM, contrac
 			}
 
 			if node.UsedSpace+dao.Config.Misc.PrePurchaseThreshold > node.ProductiveSpace {
-				assignable := Min(node.AssignedSpace, node.Quota, node.MaxDataSpace) - node.ProductiveSpace
+				assignable := Min(node.AssignedSpace, node.Quota, node.MaxDataSpace, node.AllocatedSpace) - node.ProductiveSpace
 				if assignable <= 0 {
 					io.WriteString(w, fmt.Sprintln("可分配的空间已耗尽"))
 					return
@@ -934,6 +934,9 @@ func (self *NodeDaoImpl) UpdateNodeStatus(node *Node) (*Node, error) {
 		log.Printf("max dataspace of node %d not reach data space threshold: %d\n", node.ID, node.MaxDataSpace)
 		return nil, NewReportError(-9, fmt.Errorf("max dataspace of node %d not reach data space threshold: %d", node.ID, node.MaxDataSpace))
 	}
+	if node.AllocatedSpace == 0 {
+		node.AllocatedSpace = node.MaxDataSpace
+	}
 	collection := self.client.Database(YottaDB).Collection(NodeTab)
 	n := new(Node)
 	err := collection.FindOne(context.Background(), bson.M{"_id": node.ID}).Decode(n)
@@ -1056,7 +1059,7 @@ func (self *NodeDaoImpl) UpdateNodeStatus(node *Node) (*Node, error) {
 	}
 	usedSpace := sum //Max(sum, n.UsedSpace)
 	// calculate w1
-	leftSpace := float64(Min(n.AssignedSpace, n.Quota, node.MaxDataSpace) - n.UsedSpace)
+	leftSpace := float64(Min(n.AssignedSpace, n.Quota, node.MaxDataSpace, node.AllocatedSpace) - n.UsedSpace)
 	w11 := math.Atan(leftSpace/10000) * 1.6 / math.Pi
 	w12 := 0.8
 	if n.CPU >= 90 {
@@ -1182,7 +1185,7 @@ func (self *NodeDaoImpl) UpdateNodeStatus(node *Node) (*Node, error) {
 		weight = 0
 	}
 
-	update := bson.M{"$set": bson.M{"usedSpace": usedSpace, "poolOwner": node.PoolOwner, "cpu": node.CPU, "memory": node.Memory, "bandwidth": node.Bandwidth, "maxDataSpace": node.MaxDataSpace, "addrs": node.Addrs, "weight": weight, "valid": node.Valid, "relay": node.Relay, "status": status, "timestamp": timestamp, "version": node.Version, "rebuilding": node.Rebuilding, "realSpace": node.RealSpace, "tx": node.Tx, "rx": node.Rx, "other": otherDoc, "hashID": node.HashID}}
+	update := bson.M{"$set": bson.M{"usedSpace": usedSpace, "poolOwner": node.PoolOwner, "cpu": node.CPU, "memory": node.Memory, "bandwidth": node.Bandwidth, "maxDataSpace": node.MaxDataSpace, "addrs": node.Addrs, "weight": weight, "valid": node.Valid, "relay": node.Relay, "status": status, "timestamp": timestamp, "version": node.Version, "rebuilding": node.Rebuilding, "realSpace": node.RealSpace, "tx": node.Tx, "rx": node.Rx, "other": otherDoc, "hashID": node.HashID, "allocatedSpace": node.AllocatedSpace}}
 	if assignedSpaceBP != -1 {
 		s, ok := update["$set"].(bson.M)
 		if ok {
@@ -1216,7 +1219,7 @@ func (self *NodeDaoImpl) UpdateNodeStatus(node *Node) (*Node, error) {
 	}
 
 	if usedSpace+self.Config.Misc.PrePurchaseThreshold > n.ProductiveSpace {
-		assignable := Min(n.AssignedSpace, n.Quota, n.MaxDataSpace) - n.ProductiveSpace
+		assignable := Min(n.AssignedSpace, n.Quota, n.MaxDataSpace, n.AllocatedSpace) - n.ProductiveSpace
 		if assignable <= 0 {
 			log.Printf("nodemgmt: UpdateNodeStatus: warning: node %d has no left space for allocating\n", n.ID)
 		} else {
@@ -1336,14 +1339,14 @@ func (self *NodeDaoImpl) SyncNode(node *Node) error {
 	if node.Uspaces == nil {
 		node.Uspaces = make(map[string]int64)
 	}
-	_, err := collection.InsertOne(context.Background(), bson.M{"_id": node.ID, "nodeid": node.NodeID, "pubkey": node.PubKey, "owner": node.Owner, "profitAcc": node.ProfitAcc, "poolID": node.PoolID, "poolOwner": node.PoolOwner, "quota": node.Quota, "addrs": node.Addrs, "cpu": node.CPU, "memory": node.Memory, "bandwidth": node.Bandwidth, "maxDataSpace": node.MaxDataSpace, "assignedSpace": node.AssignedSpace, "productiveSpace": node.ProductiveSpace, "usedSpace": node.UsedSpace, "uspaces": node.Uspaces, "manualWeight": node.ManualWeight, "weight": node.Weight, "valid": node.Valid, "relay": node.Relay, "status": node.Status, "timestamp": node.Timestamp, "version": node.Version, "rebuilding": node.Rebuilding, "realSpace": node.RealSpace, "tx": node.Tx, "rx": node.Rx, "other": otherDoc, "unreadable": node.Unreadable, "hashID": node.HashID, "blCount": node.BlCount, "filing": node.Filing})
+	_, err := collection.InsertOne(context.Background(), bson.M{"_id": node.ID, "nodeid": node.NodeID, "pubkey": node.PubKey, "owner": node.Owner, "profitAcc": node.ProfitAcc, "poolID": node.PoolID, "poolOwner": node.PoolOwner, "quota": node.Quota, "addrs": node.Addrs, "cpu": node.CPU, "memory": node.Memory, "bandwidth": node.Bandwidth, "maxDataSpace": node.MaxDataSpace, "assignedSpace": node.AssignedSpace, "productiveSpace": node.ProductiveSpace, "usedSpace": node.UsedSpace, "uspaces": node.Uspaces, "manualWeight": node.ManualWeight, "weight": node.Weight, "valid": node.Valid, "relay": node.Relay, "status": node.Status, "timestamp": node.Timestamp, "version": node.Version, "rebuilding": node.Rebuilding, "realSpace": node.RealSpace, "tx": node.Tx, "rx": node.Rx, "other": otherDoc, "unreadable": node.Unreadable, "hashID": node.HashID, "blCount": node.BlCount, "filing": node.Filing, "allocatedSpace": node.AllocatedSpace})
 	if err != nil {
 		errstr := err.Error()
 		if !strings.ContainsAny(errstr, "duplicate key error") {
 			log.Printf("nodemgmt: SyncNode: error when inserting node %d to database: %s\n", node.ID, err.Error())
 			return err
 		} else {
-			cond := bson.M{"nodeid": node.NodeID, "pubkey": node.PubKey, "owner": node.Owner, "profitAcc": node.ProfitAcc, "poolID": node.PoolID, "poolOwner": node.PoolOwner, "quota": node.Quota, "addrs": node.Addrs, "cpu": node.CPU, "memory": node.Memory, "bandwidth": node.Bandwidth, "maxDataSpace": node.MaxDataSpace, "assignedSpace": node.AssignedSpace, "productiveSpace": node.ProductiveSpace, "usedSpace": node.UsedSpace, "manualWeight": node.ManualWeight, "weight": node.Weight, "valid": node.Valid, "relay": node.Relay, "status": node.Status, "timestamp": node.Timestamp, "version": node.Version, "rebuilding": node.Rebuilding, "realSpace": node.RealSpace, "tx": node.Tx, "rx": node.Rx, "unreadable": node.Unreadable, "hashID": node.HashID, "blCount": node.BlCount, "filing": node.Filing}
+			cond := bson.M{"nodeid": node.NodeID, "pubkey": node.PubKey, "owner": node.Owner, "profitAcc": node.ProfitAcc, "poolID": node.PoolID, "poolOwner": node.PoolOwner, "quota": node.Quota, "addrs": node.Addrs, "cpu": node.CPU, "memory": node.Memory, "bandwidth": node.Bandwidth, "maxDataSpace": node.MaxDataSpace, "assignedSpace": node.AssignedSpace, "productiveSpace": node.ProductiveSpace, "usedSpace": node.UsedSpace, "manualWeight": node.ManualWeight, "weight": node.Weight, "valid": node.Valid, "relay": node.Relay, "status": node.Status, "timestamp": node.Timestamp, "version": node.Version, "rebuilding": node.Rebuilding, "realSpace": node.RealSpace, "tx": node.Tx, "rx": node.Rx, "unreadable": node.Unreadable, "hashID": node.HashID, "blCount": node.BlCount, "filing": node.Filing, "allocatedSpace": node.AllocatedSpace}
 			if otherDoc != nil && len(otherDoc) > 0 {
 				cond["other"] = otherDoc
 			}
@@ -1693,7 +1696,7 @@ func (self *NodeDaoImpl) MinerQuit(id int32, percent int32) (string, error) {
 		log.Printf("nodemgmt: MinerQuit: error when decoding information of miner %d: %s\n", id, err.Error())
 		return "", err
 	}
-	resp := ""
+	resp := fmt.Sprintf("punish 0YTA deposit of node %d\n", node.ID)
 	if node.UsedSpace == 0 {
 		log.Printf("UsedSpace of miner %d is 0\n", node.ID)
 	} else {
@@ -1701,20 +1704,22 @@ func (self *NodeDaoImpl) MinerQuit(id int32, percent int32) (string, error) {
 		if punishAmount < int64(punishAsset.Amount) {
 			punishAsset.Amount = eos.Int64(punishAmount)
 		}
-		_, err = self.eostx.DeducePledge(uint64(node.ID), &punishAsset)
-		if err != nil {
-			return "", err
+		if punishAsset.Amount > 0 {
+			_, err = self.eostx.DeducePledge(uint64(node.ID), &punishAsset)
+			if err != nil {
+				return "", err
+			}
+			assignedSpace := node.AssignedSpace - node.UsedSpace*int64(percent)/100
+			if assignedSpace < 0 {
+				assignedSpace = node.AssignedSpace
+			}
+			_, err = collection.UpdateOne(context.Background(), bson.M{"_id": id}, bson.M{"$set": bson.M{"assignedSpace": assignedSpace}})
+			if err != nil {
+				log.Printf("spotcheck: MinerQuit: warning when punishing %dYTA deposit of node %d: %s\n", punishAsset.Amount/10000, node.ID, err.Error())
+			}
+			resp = fmt.Sprintf("punish %dYTA deposit of node %d\n", punishAsset.Amount/10000, node.ID)
+			log.Printf("spotcheck: MinerQuit: %s", resp)
 		}
-		assignedSpace := node.AssignedSpace - node.UsedSpace*int64(percent)/100
-		if assignedSpace < 0 {
-			assignedSpace = node.AssignedSpace
-		}
-		_, err = collection.UpdateOne(context.Background(), bson.M{"_id": id}, bson.M{"$set": bson.M{"assignedSpace": assignedSpace}})
-		if err != nil {
-			log.Printf("spotcheck: MinerQuit: warning when punishing %dYTA deposit of node %d: %s\n", punishAsset.Amount/10000, node.ID, err.Error())
-		}
-		resp = fmt.Sprintf("punish %dYTA deposit of node %d\n", punishAsset.Amount/10000, node.ID)
-		log.Printf("spotcheck: MinerQuit: %s", resp)
 	}
 	_, err = collectionDel.InsertOne(context.Background(), node)
 	if err != nil {

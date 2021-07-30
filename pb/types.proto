@@ -88,6 +88,7 @@ message NodeMsg {
   string hash = 31;              //hash identity
   int32 blCount = 32;            //count of inserted into black list
   bool filing = 33;              //filing miner will not be punished
+  int64 allocatedSpace = 34;      //allocate space of miner
 }
 
 // SuperNode message
