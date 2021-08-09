@@ -404,30 +404,30 @@ func NewInstance(mongoURL, eosURL, bpAccount, bpPrivkey, contractOwnerM, contrac
 				return
 			}
 
-			if node.UsedSpace+dao.Config.Misc.PrePurchaseThreshold > node.ProductiveSpace {
-				assignable := Min(node.AssignedSpace, node.Quota, node.MaxDataSpace, node.AllocatedSpace) - node.ProductiveSpace
-				if assignable <= 0 {
-					io.WriteString(w, fmt.Sprintln("可分配的空间已耗尽"))
-					return
-				}
-				if assignable >= dao.Config.Misc.PrePurchaseAmount {
-					assignable = dao.Config.Misc.PrePurchaseAmount
-				}
-				err = dao.IncrProductiveSpace(node.ID, assignable)
-				if err != nil {
-					io.WriteString(w, fmt.Sprintf("修改数据库失败: %s\n", err.Error()))
-					return
-				}
-				err = dao.eostx.AddSpace(node.ProfitAcc, uint64(node.ID), uint64(assignable))
-				if err != nil {
-					io.WriteString(w, fmt.Sprintf("增加采购空间失败: %s\n", err.Error()))
-					dao.IncrProductiveSpace(node.ID, -1*assignable)
-					return
-				}
-			} else {
-				io.WriteString(w, fmt.Sprintln("已分配空间暂时够用，无需分配"))
+			//if node.UsedSpace+dao.Config.Misc.PrePurchaseThreshold > node.ProductiveSpace {
+			assignable := Min(node.AssignedSpace, node.Quota, node.MaxDataSpace, node.AllocatedSpace) - node.ProductiveSpace
+			if assignable <= 0 {
+				io.WriteString(w, fmt.Sprintln("可分配的空间已耗尽"))
 				return
 			}
+			if assignable >= dao.Config.Misc.PrePurchaseAmount {
+				assignable = dao.Config.Misc.PrePurchaseAmount
+			}
+			err = dao.IncrProductiveSpace(node.ID, assignable)
+			if err != nil {
+				io.WriteString(w, fmt.Sprintf("修改数据库失败: %s\n", err.Error()))
+				return
+			}
+			err = dao.eostx.AddSpace(node.ProfitAcc, uint64(node.ID), uint64(assignable))
+			if err != nil {
+				io.WriteString(w, fmt.Sprintf("增加采购空间失败: %s\n", err.Error()))
+				dao.IncrProductiveSpace(node.ID, -1*assignable)
+				return
+			}
+			//} else {
+			//	io.WriteString(w, fmt.Sprintln("已分配空间暂时够用，无需分配"))
+			//	return
+			//}
 			io.WriteString(w, fmt.Sprintln("预采购空间成功"))
 		})
 		mux.HandleFunc("/decrease_uspace", func(w http.ResponseWriter, r *http.Request) {
@@ -509,7 +509,8 @@ func NewInstance(mongoURL, eosURL, bpAccount, bpPrivkey, contractOwnerM, contrac
 				msg.Error = "percent can't be converted to float64"
 				return
 			}
-			msg = dao.punish2(int32(minerid), percent)
+			remarkstr := r.Form.Get("remark")
+			msg = dao.punish2(int32(minerid), percent, remarkstr)
 			return
 		})
 		mux.HandleFunc("/get_pledge", func(w http.ResponseWriter, r *http.Request) {
@@ -785,7 +786,7 @@ func (self *NodeDaoImpl) punish(nodeID int32, percent int64) (int64, error) {
 		punishAsset.Amount = eos.Int64(punishFee)
 		retLeft = int64(leftAsset.Amount - punishAsset.Amount)
 	}
-	_, err = self.eostx.DeducePledge(uint64(nodeID), &punishAsset)
+	_, err = self.eostx.DeducePledge(uint64(nodeID), &punishAsset, "")
 	if err != nil {
 		log.Printf("nodemgmt: punish: error when punishing %f YTA of miner %d: %s\n", float64(punishFee)/10000, nodeID, err.Error())
 		return 0, err
@@ -813,7 +814,7 @@ type PunishMsg struct {
 }
 
 //交易Hash、扣除前抵押币个数、扣除后抵押币个数、总抵押个数
-func (self *NodeDaoImpl) punish2(nodeID int32, percent float64) *PunishMsg {
+func (self *NodeDaoImpl) punish2(nodeID int32, percent float64, remark string) *PunishMsg {
 	if self.disableBP {
 		return &PunishMsg{Code: 999, TrxID: "", Before: 0, After: 0, Total: 0, Error: "no BP, nothing returned"}
 	}
@@ -858,7 +859,7 @@ func (self *NodeDaoImpl) punish2(nodeID int32, percent float64) *PunishMsg {
 		punishAsset.Amount = eos.Int64(punishFee)
 		retLeft = int64(leftAsset.Amount - punishAsset.Amount)
 	}
-	trxID, err := self.eostx.DeducePledge(uint64(nodeID), &punishAsset)
+	trxID, err := self.eostx.DeducePledge(uint64(nodeID), &punishAsset, remark)
 	if err != nil {
 		log.Printf("nodemgmt: punish: error when punishing %f YTA of miner %d: %s\n", float64(punishFee)/10000, nodeID, err.Error())
 		return &PunishMsg{Code: 7, TrxID: "", Before: int64(leftAsset.Amount), After: retLeft, Total: int64(totalAsset.Amount), Error: err.Error()}
@@ -1250,6 +1251,31 @@ func (self *NodeDaoImpl) UpdateNodeStatus(node *Node) (*Node, error) {
 			n.ProductiveSpace += assignable
 			log.Printf("nodemgmt: UpdateNodeStatus: pre-purchase productive space of node %d: %d\n", n.ID, assignable)
 		}
+	} else if n.ProductiveSpace-usedSpace > 655360 {
+		decspace := (n.ProductiveSpace-usedSpace)/65536*65536 - 65536
+		err = self.IncrProductiveSpace(n.ID, -1*decspace)
+		if err != nil {
+			log.Printf("nodemgmt: UpdateNodeStatus: error when decreasing productive space for node %d: %s\n", n.ID, err.Error())
+			return nil, NewReportError(-11, err)
+		}
+		err = self.eostx.DecreaseSpace(n.ProfitAcc, uint64(n.ID), uint64(decspace))
+		if err != nil {
+			log.Printf("nodemgmt: UpdateNodeStatus: error when decreasinging space for node %d: %s\n", n.ID, err.Error())
+			self.IncrProductiveSpace(n.ID, decspace)
+			n.Addrs = filteredAddrs
+			if n.Uspaces == nil {
+				n.Uspaces = make(map[string]int64)
+			}
+			if b, err := proto.Marshal(n.Convert()); err != nil {
+				log.Printf("nodemgmt: UpdateNodeStatus: marshal node %d failed: %s\n", n.ID, err)
+			} else {
+				log.Println("nodemgmt: UpdateNodeStatus: publish information of node", n.ID)
+				self.syncService.Publish("sync", b)
+			}
+			return nil, NewReportError(-12, err)
+		}
+		n.ProductiveSpace -= decspace
+		log.Printf("nodemgmt: UpdateNodeStatus: decrease productive space of node %d: %d\n", n.ID, decspace)
 	}
 	n.Addrs = filteredAddrs
 	if n.Uspaces == nil {
@@ -1705,7 +1731,7 @@ func (self *NodeDaoImpl) MinerQuit(id int32, percent int32) (string, error) {
 			punishAsset.Amount = eos.Int64(punishAmount)
 		}
 		if punishAsset.Amount > 0 {
-			_, err = self.eostx.DeducePledge(uint64(node.ID), &punishAsset)
+			_, err = self.eostx.DeducePledge(uint64(node.ID), &punishAsset, "")
 			if err != nil {
 				return "", err
 			}
@@ -1778,7 +1804,7 @@ func (self *NodeDaoImpl) BatchMinerQuit(id, percent int32) (string, error) {
 	if punishAmount < int64(punishAsset.Amount) {
 		punishAsset.Amount = eos.Int64(punishAmount)
 	}
-	_, err = self.eostx.DeducePledge(uint64(node.ID), &punishAsset)
+	_, err = self.eostx.DeducePledge(uint64(node.ID), &punishAsset, "")
 	if err != nil {
 		return "", err
 	}
