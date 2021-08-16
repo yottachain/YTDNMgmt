@@ -850,6 +850,9 @@ func (self *NodeDaoImpl) punish2(nodeID int32, percent float64, remark string) *
 	if percent > 100 || percent <= 0 {
 		return &PunishMsg{Code: 2, TrxID: "", Before: 0, After: 0, Total: 0, Error: "format of punishment percent is invalid"}
 	}
+	if len(remark) > 256 {
+		return &PunishMsg{Code: 9, TrxID: "", Before: 0, After: 0, Total: 0, Error: "remark too long"}
+	}
 	collection := self.client.Database(YottaDB).Collection(NodeTab)
 	node := new(Node)
 	err := collection.FindOne(context.Background(), bson.M{"_id": nodeID}).Decode(node)
