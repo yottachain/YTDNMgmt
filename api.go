@@ -6,11 +6,14 @@ import (
 	"fmt"
 	"log"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	proto "github.com/golang/protobuf/proto"
 	"go.mongodb.org/mongo-driver/bson"
 )
+
+var EnableReg int32 = 1
 
 //NewNodeID get newest id of node
 func (self *NodeDaoImpl) NewNodeID() (int32, error) {
@@ -64,6 +67,9 @@ func (self *NodeDaoImpl) CallAPI(trx string, apiName string) error {
 
 //PreRegisterNode register node on chain and pledge YTA for assignable space
 func (self *NodeDaoImpl) PreRegisterNode(trx string) error {
+	if atomic.LoadInt32(&EnableReg) == 0 {
+		return errors.New("register disabled")
+	}
 	rate, err := self.eostx.GetExchangeRate()
 	if err != nil {
 		log.Printf("nodemgmt: PreRegisterNode: error when fetching exchange rate from BP: %s\n", err.Error())

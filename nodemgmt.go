@@ -539,6 +539,31 @@ func NewInstance(mongoURL, eosURL, bpAccount, bpPrivkey, contractOwnerM, contrac
 			}
 			io.WriteString(w, fmt.Sprintf("%d", val))
 		})
+		mux.HandleFunc("/enable_register", func(w http.ResponseWriter, r *http.Request) {
+			if dao.disableBP {
+				io.WriteString(w, "无BP模式下无法执行该操作")
+				return
+			}
+			r.ParseForm()
+			enablestr := r.Form.Get("enable")
+			if enablestr == "" {
+				w.WriteHeader(http.StatusInternalServerError)
+				io.WriteString(w, fmt.Sprintln("参数不能为空！"))
+				return
+			}
+			enable, err := strconv.ParseBool(enablestr)
+			if err != nil {
+				w.WriteHeader(http.StatusInternalServerError)
+				io.WriteString(w, fmt.Sprintf("解析参数失败：%s\n", err.Error()))
+				return
+			}
+			if enable {
+				atomic.StoreInt32(&EnableReg, 1)
+			} else {
+				atomic.StoreInt32(&EnableReg, 0)
+			}
+			io.WriteString(w, fmt.Sprintf("修改注册开关为: %t", enable))
+		})
 		server := &http.Server{
 			Addr:    ":12345",
 			Handler: mux,
