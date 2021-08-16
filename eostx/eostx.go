@@ -304,11 +304,11 @@ func (eostx *EosTX) payForfeit(user string, minerID uint64, count *eos.Asset, re
 	defer eostx.RUnlock()
 	action := &eos.Action{
 		Account: eos.AN(eostx.ContractOwnerD),
-		Name:    eos.ActN("payforfeit"),
+		Name:    eos.ActN("mforfeit"),
 		Authorization: []eos.PermissionLevel{
 			{Actor: eos.AN(eostx.ShadowAccount), Permission: eos.PN("active")},
 		},
-		ActionData: eos.NewActionData(PayForfeit{User: eos.AN(user), MinerID: minerID, Quant: *count, AccType: 2, Caller: eos.AN(eostx.BpAccount)}),
+		ActionData: eos.NewActionData(PayForfeit{User: eos.AN(user), MinerID: minerID, Quant: *count, Remark: remark, AccType: 2, Caller: eos.AN(eostx.BpAccount)}),
 	}
 	txOpts := &eos.TxOptions{}
 	if err := txOpts.FillFromChain(eostx.API); err != nil {

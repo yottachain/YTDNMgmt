@@ -90,6 +90,7 @@ type PayForfeit struct {
 	User    eos.AccountName `json:"user"`
 	MinerID uint64          `json:"minerid"`
 	Quant   eos.Asset       `json:"quant"`
+	Remark  string          `json:"memo"`
 	AccType uint8           `json:"acc_type"`
 	Caller  eos.AccountName `json:"caller"`
 }
