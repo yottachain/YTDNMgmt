@@ -17,6 +17,9 @@ var EnableReg int32 = 1
 
 //NewNodeID get newest id of node
 func (self *NodeDaoImpl) NewNodeID() (int32, error) {
+	if atomic.LoadInt32(&EnableReg) == 0 {
+		return 0, errors.New("register disabled")
+	}
 	collection := self.client.Database(YottaDB).Collection(SequenceTab)
 	_, err := collection.InsertOne(context.Background(), bson.M{"_id": NodeIdxType, "seq": index})
 	if err != nil {
