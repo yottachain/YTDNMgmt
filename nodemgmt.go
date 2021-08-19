@@ -69,6 +69,21 @@ func NewInstance(mongoURL, eosURL, bpAccount, bpPrivkey, contractOwnerM, contrac
 		return nil, err
 	}
 	log.Printf("nodemgmt: NewInstance: create mongodb client: %s\n", mongoURL)
+	enableRegisterConfig := new(EnableRegisterConfig)
+	err = client.Database(YottaDB).Collection(ConfigTab).FindOne(context.Background(), bson.M{"_id": "enable_register"}).Decode(enableRegisterConfig)
+	if err != nil {
+		if err == mongo.ErrNoDocuments {
+			EnableReg = 1
+		} else {
+			log.Println("nodemgmt: NewInstance: read enable-register failed")
+		}
+	} else {
+		if enableRegisterConfig.Value {
+			EnableReg = 1
+		} else {
+			EnableReg = 0
+		}
+	}
 	etx, err := eostx.NewInstance(eosURL, bpAccount, bpPrivkey, contractOwnerM, contractOwnerD, shadowAccount, disableBP)
 	if err != nil {
 		log.Printf("nodemgmt: NewInstance: error when creating eos client failed: %s %s\n", eosURL, err.Error())
@@ -557,12 +572,19 @@ func NewInstance(mongoURL, eosURL, bpAccount, bpPrivkey, contractOwnerM, contrac
 				io.WriteString(w, fmt.Sprintf("解析参数失败：%s\n", err.Error()))
 				return
 			}
+			upsert := true
 			if enable {
 				atomic.StoreInt32(&EnableReg, 1)
 			} else {
 				atomic.StoreInt32(&EnableReg, 0)
+				upsert = false
 			}
-			io.WriteString(w, fmt.Sprintf("修改注册开关为: %t", enable))
+			_, err = dao.client.Database(YottaDB).Collection(ConfigTab).ReplaceOne(context.Background(), bson.M{"_id": "enable_register"}, bson.M{"_id": "enable_register", "value": true}, &options.ReplaceOptions{Upsert: &upsert})
+			if err != nil {
+				io.WriteString(w, fmt.Sprintf("修改注册开关为%t失败：%s", enable, err.Error()))
+			} else {
+				io.WriteString(w, fmt.Sprintf("修改注册开关为: %t", enable))
+			}
 		})
 		server := &http.Server{
 			Addr:    ":12345",

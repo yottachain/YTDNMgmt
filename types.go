@@ -211,6 +211,7 @@ var (
 	SpaceSumTab   = "SpaceSum"
 	NodeDelTab    = "NodeDel"
 	NodeLogTab    = "NodeLog"
+	ConfigTab     = "Config"
 )
 
 //index type of node and supernode collection
@@ -444,4 +445,9 @@ func (e *ReportError) Unwrap() error {
 
 func NewReportError(errCode int32, err error) *ReportError {
 	return &ReportError{ErrCode: errCode, Err: err}
+}
+
+type EnableRegisterConfig struct {
+	ID    string `bson:"_id"`
+	Value bool   `bson:"value"`
 }
