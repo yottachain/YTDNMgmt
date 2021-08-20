@@ -577,9 +577,8 @@ func NewInstance(mongoURL, eosURL, bpAccount, bpPrivkey, contractOwnerM, contrac
 				atomic.StoreInt32(&EnableReg, 1)
 			} else {
 				atomic.StoreInt32(&EnableReg, 0)
-				upsert = false
 			}
-			_, err = dao.client.Database(YottaDB).Collection(ConfigTab).ReplaceOne(context.Background(), bson.M{"_id": "enable_register"}, bson.M{"_id": "enable_register", "value": true}, &options.ReplaceOptions{Upsert: &upsert})
+			_, err = dao.client.Database(YottaDB).Collection(ConfigTab).ReplaceOne(context.Background(), bson.M{"_id": "enable_register"}, bson.M{"_id": "enable_register", "value": enable}, &options.ReplaceOptions{Upsert: &upsert})
 			if err != nil {
 				io.WriteString(w, fmt.Sprintf("修改注册开关为%t失败：%s", enable, err.Error()))
 			} else {
