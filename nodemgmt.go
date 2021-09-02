@@ -900,7 +900,7 @@ func (self *NodeDaoImpl) punish2(nodeID int32, percent float64, remark string) *
 	}
 	var retLeft int64 = 0
 	//punishFee := int64(float64(totalAsset.Amount) * percent / 100)
-	punishFee := node.UsedSpace * 1000000 * int64(percent) / int64(rate) / 6553600
+	punishFee := int64(float64(node.UsedSpace*1000000) * percent / float64(rate) / 6553600)
 	if punishFee == 0 {
 		return &PunishMsg{Code: 0, TrxID: "", Before: int64(leftAsset.Amount), After: int64(leftAsset.Amount), Total: int64(totalAsset.Amount), Error: ""}
 	}
