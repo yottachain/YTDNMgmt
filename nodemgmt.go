@@ -421,7 +421,7 @@ func NewInstance(mongoURL, eosURL, bpAccount, bpPrivkey, contractOwnerM, contrac
 
 			//if node.UsedSpace+dao.Config.Misc.PrePurchaseThreshold > node.ProductiveSpace {
 			assignable := Min(node.AssignedSpace, node.Quota, node.MaxDataSpace, node.AllocatedSpace) - node.ProductiveSpace
-			if assignable <= 0 {
+			if assignable < dao.Config.Misc.PrePurchaseAmount {
 				io.WriteString(w, fmt.Sprintln("可分配的空间已耗尽"))
 				return
 			}
@@ -1270,7 +1270,7 @@ func (self *NodeDaoImpl) UpdateNodeStatus(node *Node) (*Node, error) {
 
 	if usedSpace+self.Config.Misc.PrePurchaseThreshold > n.ProductiveSpace {
 		assignable := Min(n.AssignedSpace, n.Quota, n.MaxDataSpace, n.AllocatedSpace) - n.ProductiveSpace
-		if assignable <= 0 {
+		if assignable < self.Config.Misc.PrePurchaseAmount {
 			log.Printf("nodemgmt: UpdateNodeStatus: warning: node %d has no left space for allocating\n", n.ID)
 		} else {
 			if assignable >= self.Config.Misc.PrePurchaseAmount {
