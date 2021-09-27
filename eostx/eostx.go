@@ -223,8 +223,42 @@ func (eostx *EosTX) GetMinerInfo(minerid uint64) (*MinerInfo, error) {
 	if err != nil {
 		return nil, fmt.Errorf("get table row failed：get exchange rate")
 	}
-	if resp.More == true {
+	if resp.More {
 		return nil, fmt.Errorf("more than one rows returned：get exchange rate")
+	}
+	rows := make([]MinerInfo, 0)
+	err = json.Unmarshal(resp.Rows, &rows)
+	if err != nil {
+		return nil, err
+	}
+	if len(rows) == 0 {
+		return nil, fmt.Errorf("no matched row found, minerid: %s", req.Scope)
+	}
+	return &rows[0], nil
+}
+
+//GetMinerInfo get miner info
+func (eostx *EosTX) GetMinerInfo2(minerid uint64) (*MinerInfo, error) {
+	if eostx.disableBP {
+		return nil, nil
+	}
+	req := eos.GetTableRowsRequest{
+		Code:       eostx.ContractOwnerM,
+		Scope:      eostx.ContractOwnerM,
+		Table:      "miner",
+		LowerBound: fmt.Sprintf("%d", minerid),
+		UpperBound: fmt.Sprintf("%d", minerid),
+		Limit:      1,
+		KeyType:    "i64",
+		Index:      "1",
+		JSON:       true,
+	}
+	resp, err := eostx.API.GetTableRows(req)
+	if err != nil {
+		return nil, fmt.Errorf("get table row failed：get miner info 2")
+	}
+	if resp.More {
+		return nil, fmt.Errorf("more than one rows returned：get miner info 2")
 	}
 	rows := make([]MinerInfo, 0)
 	err = json.Unmarshal(resp.Rows, &rows)
@@ -431,6 +465,39 @@ func (eostx *EosTX) CalculateProfit(owner string, minerID uint64, flag bool) (st
 	return resp.TransactionID, nil
 }
 
+//ChangeLevel change level of miner
+func (eostx *EosTX) ChangeLevel(minerID uint64, level uint32) (string, error) {
+	if eostx.disableBP {
+		return "", errors.New("no BP, nothing returned")
+	}
+	eostx.RLock()
+	defer eostx.RUnlock()
+	action := &eos.Action{
+		Account: eos.AN(eostx.ContractOwnerM),
+		Name:    eos.ActN("mlevel"),
+		Authorization: []eos.PermissionLevel{
+			{Actor: eos.AN(eostx.ShadowAccount), Permission: eos.PN("active")},
+		},
+		ActionData: eos.NewActionData(MLevel{MinerID: minerID, Level: level, Caller: eos.AN(eostx.BpAccount)}),
+	}
+	txOpts := &eos.TxOptions{}
+	if err := txOpts.FillFromChain(eostx.API); err != nil {
+		return "", fmt.Errorf("filling tx opts: %s", err)
+	}
+
+	tx := eos.NewTransaction([]*eos.Action{action}, txOpts)
+	_, packedTx, err := eostx.API.SignTransaction(tx, txOpts.ChainID, eos.CompressionNone)
+	if err != nil {
+		return "", fmt.Errorf("sign transaction: %s", err)
+	}
+
+	resp, err := eostx.API.PushTransaction(packedTx)
+	if err != nil {
+		return "", fmt.Errorf("push transaction: %s", err)
+	}
+	return resp.TransactionID, nil
+}
+
 //PreRegisterTrx extract all neccessary parameters from transaction
 func (eostx *EosTX) PreRegisterTrx(trx string) (*eos.SignedTransaction, *RegMiner, error) {
 	if trx == "" {
@@ -459,6 +526,41 @@ func (eostx *EosTX) PreRegisterTrx(trx string) (*eos.SignedTransaction, *RegMine
 	}
 	decoder := eos.NewDecoder(actionBytes)
 	data := new(RegMiner)
+	err = decoder.Decode(data)
+	if err != nil {
+		return nil, nil, err
+	}
+	return signedTrx, data, nil
+}
+
+//PreRegisterTrx2 extract all neccessary parameters from transaction
+func (eostx *EosTX) PreRegisterTrx2(trx string) (*eos.SignedTransaction, *RegMiner2, error) {
+	if trx == "" {
+		return nil, nil, errors.New("input transaction can not be null")
+	}
+	var packedTrx *eos.PackedTransaction
+	err := json.Unmarshal([]byte(trx), &packedTrx)
+	if err != nil {
+		return nil, nil, err
+	}
+	signedTrx, err := packedTrx.Unpack()
+	if err != nil {
+		return nil, nil, err
+	}
+	if len(signedTrx.Actions) != 1 {
+		return nil, nil, errors.New("need at least one action")
+	}
+	var actionBytes []byte
+	if signedTrx.Actions[0].ActionData.Data != nil {
+		actionBytes, err = hex.DecodeString(string([]byte(signedTrx.Actions[0].ActionData.Data.(string))))
+		if err != nil {
+			return nil, nil, err
+		}
+	} else {
+		actionBytes = []byte(signedTrx.Actions[0].ActionData.HexData)
+	}
+	decoder := eos.NewDecoder(actionBytes)
+	data := new(RegMiner2)
 	err = decoder.Decode(data)
 	if err != nil {
 		return nil, nil, err

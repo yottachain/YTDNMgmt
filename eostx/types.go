@@ -44,6 +44,18 @@ type RegMiner struct {
 	Extra     string          `json:"extra"`
 }
 
+type RegMiner2 struct {
+	MinerID     uint64          `json:"minerid"`
+	Owner       eos.AccountName `json:"adminacc"`
+	DepAcc      eos.AccountName `json:"dep_acc"`
+	PoolID      eos.AccountName `json:"pool_id"`
+	MinerProfit eos.AccountName `json:"minerowner"`
+	MaxSpace    uint64          `json:"max_space"`
+	DepAmount   eos.Asset       `json:"dep_amount"`
+	IsCalc      bool            `json:"is_calc"`
+	Extra       string          `json:"extra"`
+}
+
 type ChangeMinerPool struct {
 	MinerID     uint64          `json:"minerid"`
 	PoolID      eos.AccountName `json:"pool_id"`
@@ -77,6 +89,7 @@ type MinerInfo struct {
 	PoolID    eos.AccountName `json:"pool_id"`
 	MaxSpace  FlexString      `json:"max_space"`
 	SpaceLeft FlexString      `json:"space_left"`
+	Space     FlexString      `json:"space"`
 }
 
 type PoolInfo struct {
@@ -104,6 +117,12 @@ type DrawForfeit struct {
 type MActive struct {
 	Owner   eos.AccountName `json:"owner"`
 	MinerID uint64          `json:"minerid"`
+	Caller  eos.AccountName `json:"caller"`
+}
+
+type MLevel struct {
+	MinerID uint64          `json:"minerid"`
+	Level   uint32          `json:"level"`
 	Caller  eos.AccountName `json:"caller"`
 }
 

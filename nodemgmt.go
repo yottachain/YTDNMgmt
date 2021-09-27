@@ -392,6 +392,49 @@ func NewInstance(mongoURL, eosURL, bpAccount, bpPrivkey, contractOwnerM, contrac
 			}
 			io.WriteString(w, trxid)
 		})
+		mux.HandleFunc("/change_level", func(w http.ResponseWriter, r *http.Request) {
+			if dao.disableBP {
+				io.WriteString(w, "无BP模式下无法执行该操作")
+				return
+			}
+			r.ParseForm()
+			mineridstr := r.Form.Get("minerid")
+			if mineridstr == "" {
+				w.WriteHeader(http.StatusInternalServerError)
+				io.WriteString(w, fmt.Sprintln("矿机ID不存在！"))
+				return
+			}
+			minerid, err := strconv.Atoi(mineridstr)
+			if err != nil {
+				w.WriteHeader(http.StatusInternalServerError)
+				io.WriteString(w, fmt.Sprintf("解析矿机ID失败：%s\n", err.Error()))
+				return
+			}
+			levelStr := r.Form.Get("level")
+			if levelStr == "" {
+				w.WriteHeader(http.StatusInternalServerError)
+				io.WriteString(w, "评级参数不存在！\n")
+				return
+			}
+			level, err := strconv.Atoi(levelStr)
+			if err != nil {
+				w.WriteHeader(http.StatusInternalServerError)
+				io.WriteString(w, fmt.Sprintf("解析评级参数失败：%s\n", err.Error()))
+				return
+			}
+			if level < 1 || level > 500 {
+				w.WriteHeader(http.StatusInternalServerError)
+				io.WriteString(w, fmt.Sprintf("评级参数越界：%d\n", level))
+				return
+			}
+			trxid, err := dao.eostx.ChangeLevel(uint64(minerid), uint32(math.Log2(float64(level))*10000))
+			if err != nil {
+				w.WriteHeader(http.StatusInternalServerError)
+				io.WriteString(w, fmt.Sprintf("调用BP接口失败: %s\n", err.Error()))
+				return
+			}
+			io.WriteString(w, trxid)
+		})
 		mux.HandleFunc("/test_productivespace", func(w http.ResponseWriter, r *http.Request) {
 			if dao.disableBP {
 				io.WriteString(w, "无BP模式下无法执行该操作")
@@ -1010,7 +1053,25 @@ func (self *NodeDaoImpl) UpdateNodeStatus(node *Node) (*Node, error) {
 		return nil, NewReportError(-4, fmt.Errorf("node %d has not been added to a pool", n.ID))
 	}
 	if n.AssignedSpace == 0 {
-		log.Printf("nodemgmt: UpdateNodeStatus: warning: node %d has not been pledged or punished all deposit\n", n.ID)
+		// log.Printf("nodemgmt: UpdateNodeStatus: warning: node %d has not been pledged or punished all deposit\n", n.ID)
+		rate, err := self.eostx.GetExchangeRate()
+		if err != nil {
+			log.Printf("nodemgmt: UpdateNodeStatus: error when fetching exchange rate of miner %d from BP: %s\n", node.ID, err.Error())
+		} else {
+			pledgeData, err := self.eostx.GetPledgeData(uint64(node.ID))
+			if err != nil {
+				log.Printf("nodemgmt: UpdateNodeStatus: error when fetching pledge data of miner %d from BP: %s\n", node.ID, err.Error())
+			} else {
+				assignedSpace := int64(pledgeData.Deposit.Amount) * 65536 * int64(rate) / 1000000
+				log.Printf("nodemgmt: UpdateNodeStatus: sync assigned space of miner %d from BP: %d -> %d\n", node.ID, n.AssignedSpace, assignedSpace)
+				_, err = collection.UpdateOne(context.Background(), bson.M{"_id": node.ID}, bson.M{"$set": bson.M{"assignedSpace": assignedSpace}})
+				if err != nil {
+					log.Printf("nodemgmt: UpdateNodeStatus: error when fetching assignedSpace of miner %d from BP: %s\n", node.ID, err.Error())
+					return nil, NewReportError(-13, fmt.Errorf("sync assigned space of node %d failed", n.ID))
+				}
+				n.AssignedSpace = assignedSpace
+			}
+		}
 	}
 	// else if n.Status == 2 && n.Valid == 1 {
 	// 	errNode := new(SpotCheckRecord)
@@ -1063,21 +1124,37 @@ func (self *NodeDaoImpl) UpdateNodeStatus(node *Node) (*Node, error) {
 				n.AssignedSpace = assignedSpaceBP
 			}
 		}
-		minerInfo, err := self.eostx.GetMinerInfo(uint64(node.ID))
-		if err != nil {
-			log.Printf("nodemgmt: UpdateNodeStatus: error when fetching miner info of miner %d from BP: %s\n", node.ID, err.Error())
-		}
-		maxspace, err := strconv.ParseInt(string(minerInfo.MaxSpace), 10, 64)
-		if err != nil {
-			log.Printf("nodemgmt: UpdateNodeStatus: error when parsing max space(%s) of miner %d from BP: %s\n", string(minerInfo.MaxSpace), node.ID, err.Error())
-		} else {
-			spaceleft, err := strconv.ParseInt(string(minerInfo.SpaceLeft), 10, 64)
+		if !self.ns.Config.ContractUpgraded {
+			minerInfo, err := self.eostx.GetMinerInfo(uint64(node.ID))
 			if err != nil {
-				log.Printf("nodemgmt: UpdateNodeStatus: error when parsing space left(%s) of miner %d from BP: %s\n", string(minerInfo.SpaceLeft), node.ID, err.Error())
+				log.Printf("nodemgmt: UpdateNodeStatus: error when fetching miner info of miner %d from BP: %s\n", node.ID, err.Error())
+			}
+			maxspace, err := strconv.ParseInt(string(minerInfo.MaxSpace), 10, 64)
+			if err != nil {
+				log.Printf("nodemgmt: UpdateNodeStatus: error when parsing max space(%s) of miner %d from BP: %s\n", string(minerInfo.MaxSpace), node.ID, err.Error())
 			} else {
-				productiveSpaceBP = maxspace - spaceleft
-				log.Printf("nodemgmt: UpdateNodeStatus: sync productive space of miner %d from BP: %d -> %d\n", node.ID, n.ProductiveSpace, productiveSpaceBP)
-				n.ProductiveSpace = productiveSpaceBP
+				spaceleft, err := strconv.ParseInt(string(minerInfo.SpaceLeft), 10, 64)
+				if err != nil {
+					log.Printf("nodemgmt: UpdateNodeStatus: error when parsing space left(%s) of miner %d from BP: %s\n", string(minerInfo.SpaceLeft), node.ID, err.Error())
+				} else {
+					productiveSpaceBP = maxspace - spaceleft
+					log.Printf("nodemgmt: UpdateNodeStatus: sync productive space of miner %d from BP: %d -> %d\n", node.ID, n.ProductiveSpace, productiveSpaceBP)
+					n.ProductiveSpace = productiveSpaceBP
+				}
+			}
+		} else {
+			minerInfo, err := self.eostx.GetMinerInfo2(uint64(node.ID))
+			if err != nil {
+				log.Printf("nodemgmt: UpdateNodeStatus: error when fetching miner info 2 of miner %d from BP: %s\n", node.ID, err.Error())
+			} else {
+				space, err := strconv.ParseInt(string(minerInfo.Space), 10, 64)
+				if err != nil {
+					log.Printf("nodemgmt: UpdateNodeStatus: error when parsing space (%s) of miner %d from BP: %s\n", string(minerInfo.Space), node.ID, err.Error())
+				} else {
+					productiveSpaceBP = space
+					log.Printf("nodemgmt: UpdateNodeStatus: sync productive space of miner %d from BP: %d -> %d\n", node.ID, n.ProductiveSpace, productiveSpaceBP)
+					n.ProductiveSpace = productiveSpaceBP
+				}
 			}
 		}
 	}

@@ -46,7 +46,11 @@ func (self *NodeDaoImpl) CallAPI(trx string, apiName string) error {
 	}
 	switch apiName {
 	case "PreRegisterNode":
-		err = self.PreRegisterNode(trx)
+		if !self.ns.Config.ContractUpgraded {
+			err = self.PreRegisterNode(trx)
+		} else {
+			err = self.PreRegisterNode2(trx)
+		}
 	case "ChangeMinerPool":
 		err = self.ChangeMinerPool(trx)
 	case "ChangeAdminAcc":
@@ -106,15 +110,15 @@ func (self *NodeDaoImpl) PreRegisterNode(trx string) error {
 		log.Printf("nodemgmt: PreRegisterNode: error: %s\n", "current ID is not equal to minerID")
 		return errors.New("node ID is invalid, please retry")
 	}
+	collection := self.client.Database(YottaDB).Collection(SequenceTab)
+	result, err := collection.UpdateOne(context.Background(), bson.M{"_id": NodeIdxType, "seq": minerID - int32(incr)}, bson.M{"$set": bson.M{"seq": minerID}})
+	if err != nil || (result.MatchedCount != 1 && result.ModifiedCount != 1) {
+		log.Printf("nodemgmt: PreRegisterNode: error when updating sequence of Node: %d %s\n", minerID, err.Error())
+		return err
+	}
 	err = self.eostx.SendTrx(signedTrx)
 	if err != nil {
 		log.Printf("nodemgmt: PreRegisterNode: error when sending transaction: %s\n", err.Error())
-		return err
-	}
-	collection := self.client.Database(YottaDB).Collection(SequenceTab)
-	_, err = collection.UpdateOne(context.Background(), bson.M{"_id": NodeIdxType}, bson.M{"$set": bson.M{"seq": minerID}})
-	if err != nil {
-		log.Printf("nodemgmt: PreRegisterNode: error when updating sequence of Node: %d %s\n", minerID, err.Error())
 		return err
 	}
 	node := new(Node)
@@ -154,6 +158,127 @@ func (self *NodeDaoImpl) PreRegisterNode(trx string) error {
 		log.Printf("nodemgmt: PreRegisterNode: adding node log of miner %d\n", node.ID)
 	}
 	log.Printf("nodemgmt: PreRegisterNode: new node registered: ID->%d, nodeID->%s, pubkey->%s, owner->%s, proficAcc->%s, assignedSpace->%d\n", node.ID, node.NodeID, node.PubKey, node.Owner, node.ProfitAcc, node.AssignedSpace)
+	return nil
+}
+
+//PreRegisterNode2 register node on chain and pledge YTA for assignable space
+func (self *NodeDaoImpl) PreRegisterNode2(trx string) error {
+	if atomic.LoadInt32(&EnableReg) == 0 {
+		return errors.New("register disabled")
+	}
+	rate, err := self.eostx.GetExchangeRate()
+	if err != nil {
+		log.Printf("nodemgmt: PreRegisterNode: error when fetching exchange rate from BP: %s\n", err.Error())
+		return err
+	}
+	signedTrx, regData, err := self.eostx.PreRegisterTrx2(trx)
+	if err != nil {
+		log.Printf("nodemgmt: PreRegisterNode: error when sending sign transaction: %s\n", err.Error())
+		return err
+	}
+	pledgeAmount := int64(regData.DepAmount.Amount)
+	if regData.IsCalc {
+		pledgeAmount = 0
+	}
+	adminAccount := string(regData.Owner)
+	profitAccount := string(regData.Owner)
+	minerID := int32(regData.MinerID)
+	pubkey := regData.Extra
+	poolID := string(regData.PoolID)
+	minerProfit := string(regData.MinerProfit)
+	quota := regData.MaxSpace
+	if adminAccount == "" || profitAccount == "" || minerID == 0 || minerID%int32(incr) != index || pubkey == "" || poolID == "" || minerProfit == "" {
+		log.Printf("nodemgmt: PreRegisterNode: error when parsing parameters from raw transaction: %s\n", "please check adminAccount, profitAccount, minerID, public key, pool ID and miner profit account")
+		return errors.New("bad parameters in PreRegisterNode transaction")
+	}
+	log.Printf("nodemgmt: PreRegisterNode: parsing transaction: %v\n", regData)
+	nodeid, err := IDFromPublicKey(pubkey)
+	if err != nil {
+		log.Printf("nodemgmt: PreRegisterNode: error when generating ID from public key: %s\n", err.Error())
+		return err
+	}
+	poolInfo, err := self.eostx.GetPoolInfoByPoolID(poolID)
+	if err != nil {
+		log.Printf("nodemgmt: PreRegisterNode: error when get pool owner: %d %s\n", minerID, err.Error())
+		return fmt.Errorf("error when get pool owner of miner %d: %w", minerID, err)
+	}
+	currID, err := self.NewNodeID()
+	if err != nil {
+		log.Printf("nodemgmt: PreRegisterNode: error when calculating new node ID: %s\n", err.Error())
+		return err
+	}
+	if currID != minerID {
+		log.Printf("nodemgmt: PreRegisterNode: error: %s\n", "current ID is not equal to minerID")
+		return errors.New("node ID is invalid, please retry")
+	}
+	collection := self.client.Database(YottaDB).Collection(SequenceTab)
+	result, err := collection.UpdateOne(context.Background(), bson.M{"_id": NodeIdxType, "seq": minerID - int32(incr)}, bson.M{"$set": bson.M{"seq": minerID}})
+	if err != nil || (result.MatchedCount != 1 && result.ModifiedCount != 1) {
+		log.Printf("nodemgmt: PreRegisterNode: error when updating sequence of Node: %d %s\n", minerID, err.Error())
+		return err
+	}
+	err = self.eostx.SendTrx(signedTrx)
+	if err != nil {
+		log.Printf("nodemgmt: PreRegisterNode: error when sending transaction: %s\n", err.Error())
+		return err
+	}
+	node := new(Node)
+	node.ID = minerID
+	node.NodeID = nodeid
+	node.PubKey = pubkey
+	node.Owner = adminAccount
+	node.ProfitAcc = minerProfit
+	node.PoolID = poolID
+	node.PoolOwner = string(poolInfo.Owner)
+	node.Quota = int64(quota)
+	node.AssignedSpace = pledgeAmount * 65536 * int64(rate) / 1000000 //TODO: 1YTA=1G 后需调整
+	node.Uspaces = make(map[string]int64)
+	node.Valid = 0
+	node.Relay = 0
+	node.Status = 0
+	node.Timestamp = time.Now().Unix()
+	node.Version = 0
+	node.ManualWeight = 100
+	if self.disableBP {
+		node.PoolID = "testpool"
+		node.PoolOwner = "poolowner123"
+		node.Quota = node.AssignedSpace
+	}
+	collection = self.client.Database(YottaDB).Collection(NodeTab)
+	_, err = collection.InsertOne(context.Background(), node)
+	if err != nil {
+		log.Printf("nodemgmt: PreRegisterNode: error when inserting node to database: %d %s\n", minerID, err.Error())
+		return err
+	}
+	collectionLog := self.client.Database(YottaDB).Collection(NodeLogTab)
+	nodelog := NewNodeLog(self.bpID, node.ID, -1, node.Status, "new")
+	_, err = collectionLog.InsertOne(context.Background(), nodelog)
+	if err != nil {
+		log.Printf("nodemgmt: PreRegisterNode: warning when add node log of miner %d: %s\n", node.ID, err.Error())
+	} else {
+		log.Printf("nodemgmt: PreRegisterNode: adding node log of miner %d\n", node.ID)
+	}
+	log.Printf("nodemgmt: PreRegisterNode: new node registered: ID->%d, nodeID->%s, pubkey->%s, owner->%s, proficAcc->%s, assignedSpace->%d\n", node.ID, node.NodeID, node.PubKey, node.Owner, node.ProfitAcc, node.AssignedSpace)
+	err = self.IncrProductiveSpace(node.ID, self.Config.Misc.PrePurchaseAmount)
+	if err != nil {
+		log.Printf("nodemgmt: PreRegisterNode: error when increasing productive space: %s\n", err.Error())
+		return fmt.Errorf("error when increasing productive space of miner %d: %w", minerID, err)
+	}
+	log.Printf("nodemgmt: PreRegisterNode: increased productive space: %d\n", self.Config.Misc.PrePurchaseAmount)
+	err = self.eostx.AddSpace(node.ProfitAcc, uint64(node.ID), uint64(self.Config.Misc.PrePurchaseAmount))
+	if err != nil {
+		log.Printf("nodemgmt: PreRegisterNode: error when adding productive space on BP: %s\n", err.Error())
+		self.IncrProductiveSpace(node.ID, -1*self.Config.Misc.PrePurchaseAmount)
+		return fmt.Errorf("error when adding productive space of miner %d: %w", minerID, err)
+	}
+	node.ProductiveSpace += self.Config.Misc.PrePurchaseAmount
+	log.Printf("nodemgmt: PreRegisterNode: added assignable space on BP %d\n", self.Config.Misc.PrePurchaseAmount)
+	if b, err := proto.Marshal(node.Convert()); err != nil {
+		log.Printf("nodemgmt: PreRegisterNode: marshal node %d failed: %s\n", node.ID, err)
+	} else {
+		log.Println("nodemgmt: PreRegisterNode: publish information of node", node.ID)
+		self.syncService.Publish("sync", b)
+	}
 	return nil
 }
 

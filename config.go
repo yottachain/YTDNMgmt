@@ -65,6 +65,7 @@ const (
 	MiscPunishTimeGapField                     = "misc.punish-time-gap"
 	MiscDataSpaceThresholdField                = "misc.data-space-threshold"
 	MiscRedundantSpaceField                    = "misc.redundant-space"
+	MiscContractUpgraded                       = "misc.contract-upgraded"
 )
 
 //Config system configuration
@@ -132,6 +133,7 @@ type MiscConfig struct {
 	PunishTimeGap                     int64  `mapstructure:"punish-time-gap"`
 	DataSpaceThreshold                int64  `mapstructure:"data-space-threshold"`
 	RedundantSpace                    int64  `mapstructure:"redundant-space"`
+	ContractUpgraded                  bool   `mapstructure:"contract-upgraded"`
 }
 
 //InitConfig decode config file
@@ -178,6 +180,7 @@ func InitConfig(eosURL, bpAccount, bpPrivkey, contractOwnerM, contractOwnerD, sh
 	viper.SetDefault(MiscPunishTimeGapField, 3600*20)
 	viper.SetDefault(MiscDataSpaceThresholdField, 67108864)
 	viper.SetDefault(MiscRedundantSpaceField, 655360)
+	viper.SetDefault(MiscContractUpgraded, false)
 
 	viper.AddConfigPath(configDir)
 	viper.AddConfigPath(".")
