@@ -1030,6 +1030,7 @@ func (self *NodeDaoImpl) UpdateNodeStatus(node *Node) (*Node, error) {
 	if node.AllocatedSpace == 0 {
 		node.AllocatedSpace = node.MaxDataSpace
 	}
+	log.Printf("nodemgmt: UpdateNodeStatus: receive addrs of miner %d: %v\n", node.ID, node.Addrs)
 	collection := self.client.Database(YottaDB).Collection(NodeTab)
 	n := new(Node)
 	err := collection.FindOne(context.Background(), bson.M{"_id": node.ID}).Decode(n)
