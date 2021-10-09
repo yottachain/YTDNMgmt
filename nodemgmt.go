@@ -392,6 +392,32 @@ func NewInstance(mongoURL, eosURL, bpAccount, bpPrivkey, contractOwnerM, contrac
 			}
 			io.WriteString(w, trxid)
 		})
+		mux.HandleFunc("/get_level", func(w http.ResponseWriter, r *http.Request) {
+			if dao.disableBP {
+				io.WriteString(w, "无BP模式下无法执行该操作")
+				return
+			}
+			r.ParseForm()
+			mineridstr := r.Form.Get("minerid")
+			if mineridstr == "" {
+				w.WriteHeader(http.StatusInternalServerError)
+				io.WriteString(w, fmt.Sprintln("矿机ID不存在！"))
+				return
+			}
+			minerid, err := strconv.Atoi(mineridstr)
+			if err != nil {
+				w.WriteHeader(http.StatusInternalServerError)
+				io.WriteString(w, fmt.Sprintf("解析矿机ID失败：%s\n", err.Error()))
+				return
+			}
+			minerinfo, err := dao.eostx.GetMinerInfo2(uint64(minerid))
+			if err != nil {
+				w.WriteHeader(http.StatusInternalServerError)
+				io.WriteString(w, fmt.Sprintf("获取评级信息失败: %s\n", err.Error()))
+				return
+			}
+			io.WriteString(w, fmt.Sprintf("%d", minerinfo.Level))
+		})
 		mux.HandleFunc("/change_level", func(w http.ResponseWriter, r *http.Request) {
 			if dao.disableBP {
 				io.WriteString(w, "无BP模式下无法执行该操作")

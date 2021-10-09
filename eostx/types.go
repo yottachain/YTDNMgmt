@@ -90,6 +90,7 @@ type MinerInfo struct {
 	MaxSpace  FlexString      `json:"max_space"`
 	SpaceLeft FlexString      `json:"space_left"`
 	Space     FlexString      `json:"space"`
+	Level     uint32          `json:"level"`
 }
 
 type PoolInfo struct {
