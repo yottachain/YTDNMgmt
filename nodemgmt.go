@@ -416,7 +416,7 @@ func NewInstance(mongoURL, eosURL, bpAccount, bpPrivkey, contractOwnerM, contrac
 				io.WriteString(w, fmt.Sprintf("获取评级信息失败: %s\n", err.Error()))
 				return
 			}
-			io.WriteString(w, fmt.Sprintf("%d", minerinfo.Level))
+			io.WriteString(w, fmt.Sprintf("%d", int64(math.Ceil(math.Pow(2, float64(minerinfo.Level)/10000)))))
 		})
 		mux.HandleFunc("/change_level", func(w http.ResponseWriter, r *http.Request) {
 			if dao.disableBP {
