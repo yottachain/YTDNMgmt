@@ -831,11 +831,11 @@ func NewInstance(mongoURL, eosURL, bpAccount, bpPrivkey, contractOwnerM, contrac
 					collection := dao.client.Database(YottaDB).Collection(NodeTab)
 					opts := new(options.FindOneAndUpdateOptions)
 					opts = opts.SetReturnDocument(options.After)
-					result := collection.FindOneAndUpdate(context.Background(), bson.M{"_id": pmsg.NodeID}, bson.M{"$set": bson.M{"status": 3}}, opts)
+					result := collection.FindOneAndUpdate(context.Background(), bson.M{"_id": pmsg.NodeID}, bson.M{"$set": bson.M{"status": 99}}, opts)
 					updatedNode := new(Node)
 					err = result.Decode(updatedNode)
 					if err != nil {
-						log.Printf("nodemgmt: synccallback: error when updating status of node %d to 3: %s\n", pmsg.NodeID, err.Error())
+						log.Printf("nodemgmt: synccallback: error when updating status of node %d to 99: %s\n", pmsg.NodeID, err.Error())
 						return
 					}
 					if b, err := proto.Marshal(updatedNode.Convert()); err != nil {

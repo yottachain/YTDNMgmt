@@ -154,7 +154,7 @@ func (s *NodesSelector) refreshPoolWeight(nodeMgr *NodeDaoImpl) error {
 	collectionPW := nodeMgr.client.Database(YottaDB).Collection(PoolWeightTab)
 	collectionSS := nodeMgr.client.Database(YottaDB).Collection(SpaceSumTab)
 	pipeline1 := mongo.Pipeline{
-		{{"$match", bson.D{{"status", bson.D{{"$lt", 3}}}}}},
+		{{"$match", bson.D{{"status", bson.D{{"$lt", 99}}}}}},
 		{{"$project", bson.D{{"usedSpace", 1}}}},
 		{{"$group", bson.D{{"_id", ""}, {"totalSpace", bson.D{{"$sum", "$usedSpace"}}}}}},
 	}
@@ -198,8 +198,8 @@ func (s *NodesSelector) refreshPoolWeight(nodeMgr *NodeDaoImpl) error {
 
 	errTime := now - s.Config.PoolErrorMinerTimeThreshold //int64(spotcheckInterval)*60 - int64(punishPhase1)*punishGapUnit
 	pipeline3 := mongo.Pipeline{
-		{{"$match", bson.D{{"poolOwner", bson.D{{"$ne", ""}}}, {"status", bson.D{{"$lt", 3}}}}}},
-		{{"$project", bson.D{{"poolOwner", 1}, {"usedSpace", 1}, {"err", bson.D{{"$cond", bson.D{{"if", bson.D{{"$or", bson.A{bson.D{{"$eq", bson.A{"$status", 2}}}, bson.D{{"$lt", bson.A{"$timestamp", errTime}}}}}}}, {"then", 1}, {"else", 0}}}}}}}},
+		{{"$match", bson.D{{"poolOwner", bson.D{{"$ne", ""}}}, {"status", bson.D{{"$lt", 99}}}}}},
+		{{"$project", bson.D{{"poolOwner", 1}, {"usedSpace", 1}, {"err", bson.D{{"$cond", bson.D{{"if", bson.D{{"$or", bson.A{bson.D{{"$eq", bson.A{"$status", 99}}}, bson.D{{"$lt", bson.A{"$timestamp", errTime}}}}}}}, {"then", 1}, {"else", 0}}}}}}}},
 		{{"$group", bson.D{{"_id", "$poolOwner"}, {"poolTotalSpace", bson.D{{"$sum", "$usedSpace"}}}, {"poolTotalCount", bson.D{{"$sum", 1}}}, {"poolErrorCount", bson.D{{"$sum", "$err"}}}}}},
 	}
 	cur, err = collection.Aggregate(context.Background(), pipeline3)
