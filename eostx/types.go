@@ -127,6 +127,12 @@ type MLevel struct {
 	Caller  eos.AccountName `json:"caller"`
 }
 
+type MRSpace struct {
+	MinerID   uint64          `json:"minerid"`
+	RealSpace uint64          `json:"real_space"`
+	Caller    eos.AccountName `json:"caller"`
+}
+
 type ChangeAdminAcc struct {
 	MinerID     uint64          `json:"minerid"`
 	NewAdminAcc eos.AccountName `json:"new_adminacc"`

@@ -90,6 +90,8 @@ type Node struct {
 	PunishTime int64 `bson:"punishTime"`
 	//AllocatedSpace
 	AllocatedSpace int64 `bson:"allocatedSpace"`
+	//AvailableSpace
+	AvailableSpace int64 `bson:"availableSpace"`
 }
 
 //NewNode create a node struct
@@ -260,6 +262,7 @@ func (node *Node) Convert() *pb.NodeMsg {
 		BlCount:         node.BlCount,
 		Filing:          node.Filing,
 		AllocatedSpace:  node.AllocatedSpace,
+		AvailableSpace:  node.AvailableSpace,
 	}
 }
 
@@ -299,6 +302,7 @@ func (node *Node) Fillby(msg *pb.NodeMsg) {
 	node.BlCount = msg.BlCount
 	node.Filing = msg.Filing
 	node.AllocatedSpace = msg.AllocatedSpace
+	node.AvailableSpace = msg.AvailableSpace
 }
 
 // ConvertNodesToNodesMsg convert list of Node to list of NodeMsg

@@ -89,6 +89,7 @@ message NodeMsg {
   int32 blCount = 32;            //count of inserted into black list
   bool filing = 33;              //filing miner will not be punished
   int64 allocatedSpace = 34;      //allocate space of miner
+  int64 availableSpace = 35;      //available space of miner
 }
 
 // SuperNode message

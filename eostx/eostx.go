@@ -498,6 +498,39 @@ func (eostx *EosTX) ChangeLevel(minerID uint64, level uint32) (string, error) {
 	return resp.TransactionID, nil
 }
 
+//ChangeRealSpace change real space of miner
+func (eostx *EosTX) ChangeRealSpace(minerID uint64, realSpace uint64) (string, error) {
+	if eostx.disableBP {
+		return "", errors.New("no BP, nothing returned")
+	}
+	eostx.RLock()
+	defer eostx.RUnlock()
+	action := &eos.Action{
+		Account: eos.AN(eostx.ContractOwnerM),
+		Name:    eos.ActN("mrspace"),
+		Authorization: []eos.PermissionLevel{
+			{Actor: eos.AN(eostx.ShadowAccount), Permission: eos.PN("active")},
+		},
+		ActionData: eos.NewActionData(MRSpace{MinerID: minerID, RealSpace: realSpace, Caller: eos.AN(eostx.BpAccount)}),
+	}
+	txOpts := &eos.TxOptions{}
+	if err := txOpts.FillFromChain(eostx.API); err != nil {
+		return "", fmt.Errorf("filling tx opts: %s", err)
+	}
+
+	tx := eos.NewTransaction([]*eos.Action{action}, txOpts)
+	_, packedTx, err := eostx.API.SignTransaction(tx, txOpts.ChainID, eos.CompressionNone)
+	if err != nil {
+		return "", fmt.Errorf("sign transaction: %s", err)
+	}
+
+	resp, err := eostx.API.PushTransaction(packedTx)
+	if err != nil {
+		return "", fmt.Errorf("push transaction: %s", err)
+	}
+	return resp.TransactionID, nil
+}
+
 //PreRegisterTrx extract all neccessary parameters from transaction
 func (eostx *EosTX) PreRegisterTrx(trx string) (*eos.SignedTransaction, *RegMiner, error) {
 	if trx == "" {
