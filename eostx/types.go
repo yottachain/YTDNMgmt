@@ -165,5 +165,12 @@ type ChangeAssignedSpace struct {
 	MaxSpace uint64 `json:"max_space"`
 }
 
+type MincDeposit struct {
+	MinerID   uint64    `json:"minerid"`
+	Space     uint64    `json:"space"`
+	DepAmount eos.Asset `json:"dep_amount"`
+	IsCalc    bool      `json:"is_calc"`
+}
+
 // YTASymbol represents the standard YTA symbol on the chain.
 var YTASymbol = eos.Symbol{Precision: 4, Symbol: "YTA"}

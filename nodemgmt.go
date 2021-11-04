@@ -1175,7 +1175,8 @@ func (self *NodeDaoImpl) UpdateNodeStatus(node *Node) (*Node, error) {
 
 	var assignedSpaceBP int64 = -1
 	var productiveSpaceBP int64 = -1
-	if !self.disableBP && rand.Int63n(int64(self.Config.Misc.BPSyncInterval)*100) < 100 {
+	var quotaBP int64 = -1
+	if !self.disableBP && (n.ForceSync || rand.Int63n(int64(self.Config.Misc.BPSyncInterval)*100) < 100) {
 		rate, err := self.eostx.GetExchangeRate()
 		if err != nil {
 			log.Printf("nodemgmt: UpdateNodeStatus: error when fetching exchange rate of miner %d from BP: %s\n", node.ID, err.Error())
@@ -1198,6 +1199,7 @@ func (self *NodeDaoImpl) UpdateNodeStatus(node *Node) (*Node, error) {
 			if err != nil {
 				log.Printf("nodemgmt: UpdateNodeStatus: error when parsing max space(%s) of miner %d from BP: %s\n", string(minerInfo.MaxSpace), node.ID, err.Error())
 			} else {
+				quotaBP = maxspace
 				spaceleft, err := strconv.ParseInt(string(minerInfo.SpaceLeft), 10, 64)
 				if err != nil {
 					log.Printf("nodemgmt: UpdateNodeStatus: error when parsing space left(%s) of miner %d from BP: %s\n", string(minerInfo.SpaceLeft), node.ID, err.Error())
@@ -1221,7 +1223,21 @@ func (self *NodeDaoImpl) UpdateNodeStatus(node *Node) (*Node, error) {
 					n.ProductiveSpace = productiveSpaceBP
 				}
 			}
+			maxspace, err := strconv.ParseInt(string(minerInfo.MaxSpace), 10, 64)
+			if err != nil {
+				log.Printf("nodemgmt: UpdateNodeStatus: error when parsing max space(%s) of miner %d from BP: %s\n", string(minerInfo.MaxSpace), node.ID, err.Error())
+			} else {
+				quotaBP = maxspace
+			}
 		}
+		// if node.ForceSync {
+		// 	_, err = collection.UpdateOne(context.Background(), bson.M{"_id": node.ID}, bson.M{"$set": bson.M{"forceSync": false}})
+		// 	if err != nil {
+		// 		log.Printf("nodemgmt: UpdateNodeStatus: error when updating foreSync status of Node %d: %s\n", node.ID, err.Error())
+		// 	} else {
+		// 		node.ForceSync = false
+		// 	}
+		// }
 	}
 
 	node.Valid = n.Valid
@@ -1376,16 +1392,8 @@ func (self *NodeDaoImpl) UpdateNodeStatus(node *Node) (*Node, error) {
 	} else {
 		weight = 0
 	}
-	if node.AvailableSpace != n.AvailableSpace {
-		txid, err := self.eostx.ChangeRealSpace(uint64(n.ID), uint64(node.AvailableSpace))
-		if err != nil {
-			log.Printf("nodemgmt: UpdateNodeStatus: error when changing real space for node %d: %s\n", n.ID, err.Error())
-		} else {
-			log.Printf("nodemgmt: UpdateNodeStatus: changing real space for node %d: %s\n", n.ID, txid)
-		}
-	}
 
-	update := bson.M{"$set": bson.M{"usedSpace": usedSpace, "poolOwner": node.PoolOwner, "cpu": node.CPU, "memory": node.Memory, "bandwidth": node.Bandwidth, "maxDataSpace": node.MaxDataSpace, "addrs": node.Addrs, "weight": weight, "valid": node.Valid, "relay": node.Relay, "status": status, "timestamp": timestamp, "version": node.Version, "rebuilding": node.Rebuilding, "realSpace": node.RealSpace, "tx": node.Tx, "rx": node.Rx, "other": otherDoc, "hashID": node.HashID, "allocatedSpace": node.AllocatedSpace, "availableSpace": node.AvailableSpace}}
+	update := bson.M{"$set": bson.M{"usedSpace": usedSpace, "poolOwner": node.PoolOwner, "cpu": node.CPU, "memory": node.Memory, "bandwidth": node.Bandwidth, "maxDataSpace": node.MaxDataSpace, "addrs": node.Addrs, "weight": weight, "valid": node.Valid, "relay": node.Relay, "status": status, "timestamp": timestamp, "version": node.Version, "rebuilding": node.Rebuilding, "realSpace": node.RealSpace, "tx": node.Tx, "rx": node.Rx, "other": otherDoc, "hashID": node.HashID, "allocatedSpace": node.AllocatedSpace, "forceSync": false}}
 	if assignedSpaceBP != -1 {
 		s, ok := update["$set"].(bson.M)
 		if ok {
@@ -1401,6 +1409,30 @@ func (self *NodeDaoImpl) UpdateNodeStatus(node *Node) (*Node, error) {
 		} else {
 			log.Printf("nodemgmt: UpdateNodeStatus: warning when set productive space update condition of node %d\n", n.ID)
 		}
+	}
+	if quotaBP != -1 {
+		s, ok := update["$set"].(bson.M)
+		if ok {
+			s["quota"] = quotaBP
+		} else {
+			log.Printf("nodemgmt: UpdateNodeStatus: warning when set quota update condition of node %d\n", n.ID)
+		}
+	}
+	if node.AvailableSpace != n.AvailableSpace {
+		txid, err := self.eostx.ChangeRealSpace(uint64(n.ID), uint64(node.AvailableSpace))
+		if err != nil {
+			log.Printf("nodemgmt: UpdateNodeStatus: error when changing real space for node %d: %s\n", n.ID, err.Error())
+			node.AvailableSpace = n.AvailableSpace
+		} else {
+			log.Printf("nodemgmt: UpdateNodeStatus: changing real space for node %d: %s\n", n.ID, txid)
+			s, ok := update["$set"].(bson.M)
+			if ok {
+				s["availableSpace"] = node.AvailableSpace
+			} else {
+				log.Printf("nodemgmt: UpdateNodeStatus: warning when set availableSpace update condition of node %d\n", n.ID)
+			}
+		}
+
 	}
 	log.Printf("nodemgmt: UpdateNodeStatus: update condition of node %d: %v\n", n.ID, update)
 	result := collection.FindOneAndUpdate(context.Background(), bson.M{"_id": node.ID}, update, opts)

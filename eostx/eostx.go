@@ -153,7 +153,7 @@ func (eostx *EosTX) GetExchangeRate() (int32, error) {
 	if err != nil {
 		return 0, fmt.Errorf("get table row failed：get exchange rate")
 	}
-	if resp.More == true {
+	if resp.More {
 		return 0, fmt.Errorf("more than one rows returned：get exchange rate")
 	}
 	rows := make([]map[string]int32, 0)
@@ -189,7 +189,7 @@ func (eostx *EosTX) GetPledgeData(minerid uint64) (*PledgeData, error) {
 	if err != nil {
 		return nil, fmt.Errorf("get table row failed, minerid: %d", minerid)
 	}
-	if resp.More == true {
+	if resp.More {
 		return nil, fmt.Errorf("more than one rows returned, minerid: %d", minerid)
 	}
 	rows := make([]PledgeData, 0)
@@ -612,6 +612,9 @@ func (eostx *EosTX) ChangeMinerPoolTrx(trx string) (*eos.SignedTransaction, *Cha
 		return nil, nil, err
 	}
 	signedTrx, err := packedTrx.Unpack()
+	if err != nil {
+		return nil, nil, err
+	}
 	var actionBytes []byte
 	if signedTrx.Actions[0].ActionData.Data != nil {
 		actionBytes, err = hex.DecodeString(string([]byte(signedTrx.Actions[0].ActionData.Data.(string))))
@@ -641,6 +644,9 @@ func (eostx *EosTX) ChangeAdminAccTrx(trx string) (*eos.SignedTransaction, *Chan
 		return nil, nil, err
 	}
 	signedTrx, err := packedTrx.Unpack()
+	if err != nil {
+		return nil, nil, err
+	}
 	var actionBytes []byte
 	if signedTrx.Actions[0].ActionData.Data != nil {
 		actionBytes, err = hex.DecodeString(string([]byte(signedTrx.Actions[0].ActionData.Data.(string))))
@@ -670,6 +676,9 @@ func (eostx *EosTX) ChangeProfitAccTrx(trx string) (*eos.SignedTransaction, *Cha
 		return nil, nil, err
 	}
 	signedTrx, err := packedTrx.Unpack()
+	if err != nil {
+		return nil, nil, err
+	}
 	var actionBytes []byte
 	if signedTrx.Actions[0].ActionData.Data != nil {
 		actionBytes, err = hex.DecodeString(string([]byte(signedTrx.Actions[0].ActionData.Data.(string))))
@@ -795,6 +804,9 @@ func (eostx *EosTX) ChangeAssignedSpaceTrx(trx string) (*eos.SignedTransaction, 
 		return nil, nil, err
 	}
 	signedTrx, err := packedTrx.Unpack()
+	if err != nil {
+		return nil, nil, err
+	}
 	var actionBytes []byte
 	if signedTrx.Actions[0].ActionData.Data != nil {
 		actionBytes, err = hex.DecodeString(string([]byte(signedTrx.Actions[0].ActionData.Data.(string))))
@@ -806,6 +818,38 @@ func (eostx *EosTX) ChangeAssignedSpaceTrx(trx string) (*eos.SignedTransaction, 
 	}
 	decoder := eos.NewDecoder(actionBytes)
 	data := new(ChangeAssignedSpace)
+	err = decoder.Decode(data)
+	if err != nil {
+		return nil, nil, err
+	}
+	return signedTrx, data, nil
+}
+
+//MincDepositTrx extract all neccessary parameters from mincdeposit transaction
+func (eostx *EosTX) IncreaseDepositTrx(trx string) (*eos.SignedTransaction, *MincDeposit, error) {
+	if trx == "" {
+		return nil, nil, errors.New("input transaction can not be null")
+	}
+	var packedTrx *eos.PackedTransaction
+	err := json.Unmarshal([]byte(trx), &packedTrx)
+	if err != nil {
+		return nil, nil, err
+	}
+	signedTrx, err := packedTrx.Unpack()
+	if err != nil {
+		return nil, nil, err
+	}
+	var actionBytes []byte
+	if signedTrx.Actions[0].ActionData.Data != nil {
+		actionBytes, err = hex.DecodeString(string([]byte(signedTrx.Actions[0].ActionData.Data.(string))))
+		if err != nil {
+			return nil, nil, err
+		}
+	} else {
+		actionBytes = []byte(signedTrx.Actions[0].ActionData.HexData)
+	}
+	decoder := eos.NewDecoder(actionBytes)
+	data := new(MincDeposit)
 	err = decoder.Decode(data)
 	if err != nil {
 		return nil, nil, err

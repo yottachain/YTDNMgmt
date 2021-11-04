@@ -92,6 +92,8 @@ type Node struct {
 	AllocatedSpace int64 `bson:"allocatedSpace"`
 	//AvailableSpace
 	AvailableSpace int64 `bson:"availableSpace"`
+	//ForceSync
+	ForceSync bool `bson:"forceSync"`
 }
 
 //NewNode create a node struct

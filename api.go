@@ -65,6 +65,8 @@ func (self *NodeDaoImpl) CallAPI(trx string, apiName string) error {
 		err = self.ChangeDepAcc(trx)
 	case "ChangeDeposit":
 		err = self.ChangeDeposit(trx)
+	case "IncreaseDeposit":
+		err = self.IncreaseDeposit(trx)
 	}
 	if err != nil {
 		return err
@@ -84,7 +86,7 @@ func (self *NodeDaoImpl) PreRegisterNode(trx string) error {
 	}
 	signedTrx, regData, err := self.eostx.PreRegisterTrx(trx)
 	if err != nil {
-		log.Printf("nodemgmt: PreRegisterNode: error when sending sign transaction: %s\n", err.Error())
+		log.Printf("nodemgmt: PreRegisterNode: error when extracting transaction: %s\n", err.Error())
 		return err
 	}
 	pledgeAmount := int64(regData.DepAmount.Amount)
@@ -173,7 +175,7 @@ func (self *NodeDaoImpl) PreRegisterNode2(trx string) error {
 	}
 	signedTrx, regData, err := self.eostx.PreRegisterTrx2(trx)
 	if err != nil {
-		log.Printf("nodemgmt: PreRegisterNode: error when sending sign transaction: %s\n", err.Error())
+		log.Printf("nodemgmt: PreRegisterNode: error when extracting transaction: %s\n", err.Error())
 		return err
 	}
 	pledgeAmount := int64(regData.DepAmount.Amount)
@@ -239,6 +241,7 @@ func (self *NodeDaoImpl) PreRegisterNode2(trx string) error {
 	node.Timestamp = time.Now().Unix()
 	node.Version = 0
 	node.ManualWeight = 100
+	node.ForceSync = true
 	if self.disableBP {
 		node.PoolID = "testpool"
 		node.PoolOwner = "poolowner123"
@@ -289,7 +292,7 @@ func (self *NodeDaoImpl) ChangeMinerPool(trx string) error {
 	}
 	signedTrx, poolData, err := self.eostx.ChangeMinerPoolTrx(trx)
 	if err != nil {
-		log.Printf("nodemgmt: ChangeMinerPool: error when signing raw transaction: %s\n", err.Error())
+		log.Printf("nodemgmt: ChangeMinerPool: error when extracting transaction: %s\n", err.Error())
 		return err
 	}
 	minerID := int32(poolData.MinerID)
@@ -321,7 +324,7 @@ func (self *NodeDaoImpl) ChangeMinerPool(trx string) error {
 	if node.Status == 0 && node.ProductiveSpace == 0 {
 		afterReg = true
 	}
-	_, err = collection.UpdateOne(context.Background(), bson.M{"_id": minerID}, bson.M{"$set": bson.M{"poolID": poolID, "poolOwner": poolInfo.Owner, "profitAcc": minerProfit, "quota": quota}})
+	_, err = collection.UpdateOne(context.Background(), bson.M{"_id": minerID}, bson.M{"$set": bson.M{"poolID": poolID, "poolOwner": poolInfo.Owner, "profitAcc": minerProfit, "quota": quota, "forceSync": true}})
 	if err != nil {
 		log.Printf("nodemgmt: ChangeMinerPool: error when updating poolID->%s, profitAcc->%s, quota->%d: %s\n", poolID, minerProfit, quota, err.Error())
 		return fmt.Errorf("error when updating poolID->%s, profitAcc->%s, quota->%d of miner %d: %w", poolID, minerProfit, quota, minerID, err)
@@ -378,7 +381,7 @@ func (self *NodeDaoImpl) ChangeAdminAcc(trx string) error {
 	}
 	signedTrx, adminData, err := self.eostx.ChangeAdminAccTrx(trx)
 	if err != nil {
-		log.Printf("nodemgmt: ChangeAdmin: error when sending sign transaction: %s\n", err.Error())
+		log.Printf("nodemgmt: ChangeAdmin: error when extracting transaction: %s\n", err.Error())
 		return err
 	}
 	minerID := int64(adminData.MinerID)
@@ -421,7 +424,7 @@ func (self *NodeDaoImpl) ChangeProfitAcc(trx string) error {
 	}
 	signedTrx, profitData, err := self.eostx.ChangeProfitAccTrx(trx)
 	if err != nil {
-		log.Printf("nodemgmt: ChangeProfitAcc: error when sending sign transaction: %s\n", err.Error())
+		log.Printf("nodemgmt: ChangeProfitAcc: error when extracting transaction: %s\n", err.Error())
 		return err
 	}
 	minerID := int64(profitData.MinerID)
@@ -464,7 +467,7 @@ func (self *NodeDaoImpl) ChangePoolID(trx string) error {
 	}
 	signedTrx, poolData, err := self.eostx.ChangePoolIDTrx(trx)
 	if err != nil {
-		log.Printf("nodemgmt: ChangePoolID: error when sending sign transaction: %s\n", err.Error())
+		log.Printf("nodemgmt: ChangePoolID: error when extracting transaction: %s\n", err.Error())
 		return err
 	}
 	minerID := int64(poolData.MinerID)
@@ -511,7 +514,7 @@ func (self *NodeDaoImpl) ChangeDepAcc(trx string) error {
 	}
 	signedTrx, newDepAcc, err := self.eostx.ChangeDepAccTrx(trx)
 	if err != nil {
-		log.Printf("nodemgmt: ChangeDepAcc: error when sending sign transaction: %s\n", err.Error())
+		log.Printf("nodemgmt: ChangeDepAcc: error when extracting transaction: %s\n", err.Error())
 		return err
 	}
 	err = self.eostx.SendTrx(signedTrx)
@@ -523,14 +526,14 @@ func (self *NodeDaoImpl) ChangeDepAcc(trx string) error {
 	return nil
 }
 
-//ChangeDeposit change dep account of miner
+//ChangeDeposit change deposit of miner
 func (self *NodeDaoImpl) ChangeDeposit(trx string) error {
 	if self.disableBP {
 		return errors.New("System is under non-BP mode")
 	}
 	signedTrx, newDeposit, err := self.eostx.ChangeDepositTrx(trx)
 	if err != nil {
-		log.Printf("nodemgmt: ChangeDeposit: error when sending sign transaction: %s\n", err.Error())
+		log.Printf("nodemgmt: ChangeDeposit: error when extracting transaction: %s\n", err.Error())
 		return err
 	}
 	rate, err := self.eostx.GetExchangeRate()
@@ -557,14 +560,14 @@ func (self *NodeDaoImpl) ChangeDeposit(trx string) error {
 	return nil
 }
 
-//ChangeAssignedSpace change pool ID of miner
+//ChangeAssignedSpace change assigned space of miner
 func (self *NodeDaoImpl) ChangeAssignedSpace(trx string) error {
 	if self.disableBP {
 		return errors.New("System is under non-BP mode")
 	}
 	signedTrx, newSpaceData, err := self.eostx.ChangeAssignedSpaceTrx(trx)
 	if err != nil {
-		log.Printf("nodemgmt: ChangeAssignedSpace: error when sending sign transaction: %s\n", err.Error())
+		log.Printf("nodemgmt: ChangeAssignedSpace: error when extracting transaction: %s\n", err.Error())
 		return err
 	}
 	minerID := int64(newSpaceData.MinerID)
@@ -597,5 +600,36 @@ func (self *NodeDaoImpl) ChangeAssignedSpace(trx string) error {
 		log.Println("nodemgmt: ChangeAssignedSpace: publish information of node", node.ID)
 		self.syncService.Publish("sync", b)
 	}
+	return nil
+}
+
+//IncreaseDeposit increase deposit of miner
+func (self *NodeDaoImpl) IncreaseDeposit(trx string) error {
+	if self.disableBP {
+		return errors.New("system is under non-BP mode")
+	}
+	signedTrx, newDeposit, err := self.eostx.IncreaseDepositTrx(trx)
+	if err != nil {
+		log.Printf("nodemgmt: IncreaseDeposit: error when extracting transaction: %s\n", err.Error())
+		return err
+	}
+	// rate, err := self.eostx.GetExchangeRate()
+	// if err != nil {
+	// 	log.Printf("nodemgmt: IncreaseDeposit: error when fetching exchange rate from BP: %s\n", err.Error())
+	// 	return err
+	// }
+	//delta := int64(newDeposit.DepAmount.Amount) * 65536 * int64(rate) / 1000000
+	err = self.eostx.SendTrx(signedTrx)
+	if err != nil {
+		log.Printf("nodemgmt: IncreaseDeposit: error when sending transaction: %s\n", err.Error())
+		return err
+	}
+	collection := self.client.Database(YottaDB).Collection(NodeTab)
+	_, err = collection.UpdateOne(context.Background(), bson.M{"_id": newDeposit.MinerID}, bson.M{"$set": bson.M{"forceSync": true}})
+	if err != nil {
+		log.Printf("nodemgmt: IncreaseDeposit: error when updating foreSync status of Node: %d %s\n", newDeposit.MinerID, err.Error())
+		return err
+	}
+	log.Printf("nodemgmt: IncreaseDeposit: node %d has changed status of forceSync to true\n", newDeposit.MinerID)
 	return nil
 }
