@@ -122,6 +122,9 @@ type NodeStat struct {
 	ActiveMiners    int64 `bson:"activeMiners"`
 	TotalMiners     int64 `bson:"totalMiners"`
 	MaxTotal        int64 `bson:"maxTotal"`
+	QuotaTotal      int64 `bson:"quotaTotal"`
+	AvailableTotal  int64 `bson:"availableTotal"`
+	AllocatedTotal  int64 `bson:"allocatedTotal"`
 	AssignedTotal   int64 `bson:"assignedTotal"`
 	ProductiveTotal int64 `bson:"productiveTotal"`
 	UsedTotal       int64 `bson:"usedTotal"`
