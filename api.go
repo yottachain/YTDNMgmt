@@ -87,17 +87,17 @@ func (self *NodeDaoImpl) PreRegisterNode(trx string) error {
 	if atomic.LoadInt32(&EnableReg) == 0 {
 		return errors.New("register disabled")
 	}
-	rate, err := self.eostx.GetExchangeRate()
-	if err != nil {
-		log.Printf("nodemgmt: PreRegisterNode: error when fetching exchange rate from BP: %s\n", err.Error())
-		return err
-	}
+	// rate, err := self.eostx.GetExchangeRate()
+	// if err != nil {
+	// 	log.Printf("nodemgmt: PreRegisterNode: error when fetching exchange rate from BP: %s\n", err.Error())
+	// 	return err
+	// }
 	signedTrx, regData, err := self.eostx.PreRegisterTrx(trx)
 	if err != nil {
 		log.Printf("nodemgmt: PreRegisterNode: error when extracting transaction: %s\n", err.Error())
 		return err
 	}
-	pledgeAmount := int64(regData.DepAmount.Amount)
+	//pledgeAmount := int64(regData.DepAmount.Amount)
 	adminAccount := string(regData.Owner)
 	profitAccount := string(regData.Owner)
 	minerID := int32(regData.MinerID)
@@ -140,7 +140,7 @@ func (self *NodeDaoImpl) PreRegisterNode(trx string) error {
 	node.PoolID = ""
 	node.PoolOwner = ""
 	node.Quota = 0
-	node.AssignedSpace = pledgeAmount * 65536 * int64(rate) / 1000000 //TODO: 1YTA=1G 后需调整
+	node.AssignedSpace = 0 //pledgeAmount * 65536 * int64(rate) / 1000000 //TODO: 1YTA=1G 后需调整
 	node.Uspaces = make(map[string]int64)
 	node.Valid = 0
 	node.Relay = 0
@@ -151,7 +151,8 @@ func (self *NodeDaoImpl) PreRegisterNode(trx string) error {
 	if self.disableBP {
 		node.PoolID = "testpool"
 		node.PoolOwner = "poolowner123"
-		node.Quota = node.AssignedSpace
+		node.Quota = 68719476736
+		node.AssignedSpace = 68719476736
 	}
 	collection = self.client.Database(YottaDB).Collection(NodeTab)
 	_, err = collection.InsertOne(context.Background(), node)
@@ -176,20 +177,20 @@ func (self *NodeDaoImpl) PreRegisterNode2(trx string) error {
 	if atomic.LoadInt32(&EnableReg) == 0 {
 		return errors.New("register disabled")
 	}
-	rate, err := self.eostx.GetExchangeRate()
-	if err != nil {
-		log.Printf("nodemgmt: PreRegisterNode2: error when fetching exchange rate from BP: %s\n", err.Error())
-		return err
-	}
+	// rate, err := self.eostx.GetExchangeRate()
+	// if err != nil {
+	// 	log.Printf("nodemgmt: PreRegisterNode2: error when fetching exchange rate from BP: %s\n", err.Error())
+	// 	return err
+	// }
 	signedTrx, regData, err := self.eostx.PreRegisterTrx2(trx)
 	if err != nil {
 		log.Printf("nodemgmt: PreRegisterNode2: error when extracting transaction: %s\n", err.Error())
 		return err
 	}
-	pledgeAmount := int64(regData.DepAmount.Amount)
-	if regData.IsCalc {
-		pledgeAmount = 0
-	}
+	// pledgeAmount := int64(regData.DepAmount.Amount)
+	// if regData.IsCalc {
+	// 	pledgeAmount = 0
+	// }
 	adminAccount := string(regData.Owner)
 	profitAccount := string(regData.Owner)
 	minerID := int32(regData.MinerID)
@@ -200,6 +201,9 @@ func (self *NodeDaoImpl) PreRegisterNode2(trx string) error {
 	if adminAccount == "" || profitAccount == "" || minerID == 0 || minerID%int32(incr) != index || pubkey == "" || poolID == "" || minerProfit == "" {
 		log.Printf("nodemgmt: PreRegisterNode2: error when parsing parameters from raw transaction: %s\n", "please check adminAccount, profitAccount, minerID, public key, pool ID and miner profit account")
 		return errors.New("bad parameters in PreRegisterNode transaction")
+	}
+	if quota < uint64(self.Config.Misc.DataSpaceThreshold) {
+		return fmt.Errorf("max space of miner %d can not reach minimum limit", minerID)
 	}
 	log.Printf("nodemgmt: PreRegisterNode2: parsing transaction: %v\n", regData)
 	nodeid, err := IDFromPublicKey(pubkey)
@@ -241,7 +245,7 @@ func (self *NodeDaoImpl) PreRegisterNode2(trx string) error {
 	node.PoolID = poolID
 	node.PoolOwner = string(poolInfo.Owner)
 	node.Quota = int64(quota)
-	node.AssignedSpace = pledgeAmount * 65536 * int64(rate) / 1000000 //TODO: 1YTA=1G 后需调整
+	node.AssignedSpace = int64(quota) //pledgeAmount * 65536 * int64(rate) / 1000000 //TODO: 1YTA=1G 后需调整
 	node.Uspaces = make(map[string]int64)
 	node.Valid = 0
 	node.Relay = 0
@@ -253,7 +257,8 @@ func (self *NodeDaoImpl) PreRegisterNode2(trx string) error {
 	if self.disableBP {
 		node.PoolID = "testpool"
 		node.PoolOwner = "poolowner123"
-		node.Quota = node.AssignedSpace
+		node.Quota = 68719476736
+		node.AssignedSpace = 68719476736
 	}
 	collection = self.client.Database(YottaDB).Collection(NodeTab)
 	_, err = collection.InsertOne(context.Background(), node)
@@ -307,6 +312,9 @@ func (self *NodeDaoImpl) ChangeMinerPool(trx string) error {
 	poolID := string(poolData.PoolID)
 	minerProfit := string(poolData.MinerProfit)
 	quota := poolData.MaxSpace
+	if quota < uint64(self.Config.Misc.DataSpaceThreshold) {
+		return fmt.Errorf("max space of miner %d is less than minimum limit", minerID)
+	}
 	poolInfo, err := self.eostx.GetPoolInfoByPoolID(poolID)
 	if err != nil {
 		log.Printf("nodemgmt: ChangeMinerPool: error when get pool owner: %d %s\n", minerID, err.Error())
@@ -332,7 +340,7 @@ func (self *NodeDaoImpl) ChangeMinerPool(trx string) error {
 	if node.Status == 0 && node.ProductiveSpace == 0 {
 		afterReg = true
 	}
-	_, err = collection.UpdateOne(context.Background(), bson.M{"_id": minerID}, bson.M{"$set": bson.M{"poolID": poolID, "poolOwner": poolInfo.Owner, "profitAcc": minerProfit, "quota": quota, "forceSync": true}})
+	_, err = collection.UpdateOne(context.Background(), bson.M{"_id": minerID}, bson.M{"$set": bson.M{"poolID": poolID, "poolOwner": poolInfo.Owner, "profitAcc": minerProfit, "quota": quota, "assignedSpace": quota, "forceSync": true}})
 	if err != nil {
 		log.Printf("nodemgmt: ChangeMinerPool: error when updating poolID->%s, profitAcc->%s, quota->%d: %s\n", poolID, minerProfit, quota, err.Error())
 		return fmt.Errorf("error when updating poolID->%s, profitAcc->%s, quota->%d of miner %d: %w", poolID, minerProfit, quota, minerID, err)
@@ -544,26 +552,26 @@ func (self *NodeDaoImpl) ChangeDeposit(trx string) error {
 		log.Printf("nodemgmt: ChangeDeposit: error when extracting transaction: %s\n", err.Error())
 		return err
 	}
-	rate, err := self.eostx.GetExchangeRate()
-	if err != nil {
-		log.Printf("nodemgmt: ChangeDeposit: error when fetching exchange rate from BP: %s\n", err.Error())
-		return err
-	}
-	delta := int64(newDeposit.Quant.Amount) * 65536 * int64(rate) / 1000000
+	// rate, err := self.eostx.GetExchangeRate()
+	// if err != nil {
+	// 	log.Printf("nodemgmt: ChangeDeposit: error when fetching exchange rate from BP: %s\n", err.Error())
+	// 	return err
+	// }
+	// delta := int64(newDeposit.Quant.Amount) * 65536 * int64(rate) / 1000000
 	err = self.eostx.SendTrx(signedTrx)
 	if err != nil {
 		log.Printf("nodemgmt: ChangeDeposit: error when sending transaction: %s\n", err.Error())
 		return err
 	}
-	collection := self.client.Database(YottaDB).Collection(NodeTab)
-	if !newDeposit.IsIncrease {
-		delta = delta * (-1)
-	}
-	_, err = collection.UpdateOne(context.Background(), bson.M{"_id": newDeposit.MinerID}, bson.M{"$inc": bson.M{"assignedSpace": delta}})
-	if err != nil {
-		log.Printf("nodemgmt: ChangeDeposit: error when updating assignedSpace of Node: %d %s\n", newDeposit.MinerID, err.Error())
-		return err
-	}
+	// collection := self.client.Database(YottaDB).Collection(NodeTab)
+	// if !newDeposit.IsIncrease {
+	// 	delta = delta * (-1)
+	// }
+	// _, err = collection.UpdateOne(context.Background(), bson.M{"_id": newDeposit.MinerID}, bson.M{"$inc": bson.M{"assignedSpace": delta}})
+	// if err != nil {
+	// 	log.Printf("nodemgmt: ChangeDeposit: error when updating assignedSpace of Node: %d %s\n", newDeposit.MinerID, err.Error())
+	// 	return err
+	// }
 	log.Printf("nodemgmt: ChangeDeposit: node %d has changed deposit: %d\n", newDeposit.MinerID, int64(newDeposit.Quant.Amount))
 	return nil
 }
@@ -571,7 +579,7 @@ func (self *NodeDaoImpl) ChangeDeposit(trx string) error {
 //ChangeAssignedSpace change assigned space of miner
 func (self *NodeDaoImpl) ChangeAssignedSpace(trx string) error {
 	if self.disableBP {
-		return errors.New("System is under non-BP mode")
+		return errors.New("system is under non-BP mode")
 	}
 	signedTrx, newSpaceData, err := self.eostx.ChangeAssignedSpaceTrx(trx)
 	if err != nil {
@@ -590,7 +598,7 @@ func (self *NodeDaoImpl) ChangeAssignedSpace(trx string) error {
 		return err
 	}
 	collection := self.client.Database(YottaDB).Collection(NodeTab)
-	_, err = collection.UpdateOne(context.Background(), bson.M{"_id": minerID}, bson.M{"$set": bson.M{"quota": newAssignedSpace}})
+	_, err = collection.UpdateOne(context.Background(), bson.M{"_id": minerID}, bson.M{"$set": bson.M{"quota": newAssignedSpace, "assignedSpace": newAssignedSpace}})
 	if err != nil {
 		log.Printf("nodemgmt: ChangeAssignedSpace: error when updating assigned space of Node: %d %s\n", minerID, err.Error())
 		return err

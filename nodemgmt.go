@@ -916,10 +916,10 @@ func (self *NodeDaoImpl) punish(nodeID int32, percent int64) (int64, error) {
 		return 0, errors.New("no BP, nothing returned")
 	}
 	log.Printf("nodemgmt: punish: punishing %d deposit of miner %d\n", percent, nodeID)
-	rate, err := self.eostx.GetExchangeRate()
-	if err != nil {
-		return 0, err
-	}
+	// rate, err := self.eostx.GetExchangeRate()
+	// if err != nil {
+	// 	return 0, err
+	// }
 	pledgeData, err := self.eostx.GetPledgeData(uint64(nodeID))
 	if err != nil {
 		log.Printf("nodemgmt: punish: error when get pledge data of miner %d: %s\n", nodeID, err.Error())
@@ -945,15 +945,15 @@ func (self *NodeDaoImpl) punish(nodeID int32, percent int64) (int64, error) {
 		return 0, err
 	}
 	log.Printf("nodemgmt: punish: punishing %f YTA of miner %d\n", float64(punishFee)/10000, nodeID)
-	newAssignedSpace := retLeft * 65536 * int64(rate) / 1000000
-	if newAssignedSpace < 0 {
-		newAssignedSpace = 0
-	}
-	collection := self.client.Database(YottaDB).Collection(NodeTab)
-	_, err = collection.UpdateOne(context.Background(), bson.M{"_id": nodeID}, bson.M{"$set": bson.M{"assignedSpace": newAssignedSpace}})
-	if err != nil {
-		return 0, err
-	}
+	// newAssignedSpace := retLeft * 65536 * int64(rate) / 1000000
+	// if newAssignedSpace < 0 {
+	// 	newAssignedSpace = 0
+	// }
+	// collection := self.client.Database(YottaDB).Collection(NodeTab)
+	// _, err = collection.UpdateOne(context.Background(), bson.M{"_id": nodeID}, bson.M{"$set": bson.M{"assignedSpace": newAssignedSpace}})
+	// if err != nil {
+	// 	return 0, err
+	// }
 	return retLeft, nil
 }
 
@@ -991,10 +991,10 @@ func (self *NodeDaoImpl) punish2(nodeID int32, percent float64, remark string) *
 			return &PunishMsg{Code: 8, TrxID: "", Before: 0, After: 0, Total: 0, Error: err.Error()}
 		}
 	}
-	rate, err := self.eostx.GetExchangeRate()
-	if err != nil {
-		return &PunishMsg{Code: 4, TrxID: "", Before: 0, After: 0, Total: 0, Error: err.Error()}
-	}
+	// rate, err := self.eostx.GetExchangeRate()
+	// if err != nil {
+	// 	return &PunishMsg{Code: 4, TrxID: "", Before: 0, After: 0, Total: 0, Error: err.Error()}
+	// }
 	pledgeData, err := self.eostx.GetPledgeData(uint64(nodeID))
 	if err != nil {
 		return &PunishMsg{Code: 5, TrxID: "", Before: 0, After: 0, Total: 0, Error: err.Error()}
@@ -1005,9 +1005,14 @@ func (self *NodeDaoImpl) punish2(nodeID int32, percent float64, remark string) *
 	if leftAsset.Amount == 0 {
 		return &PunishMsg{Code: 6, TrxID: "", Before: 0, After: 0, Total: int64(totalAsset.Amount), Error: fmt.Sprintf("no deposit of node %d left", nodeID)}
 	}
+	pcnt := float64(node.UsedSpace) / float64(node.AssignedSpace)
+	if pcnt > 1 {
+		pcnt = 1
+	}
 	var retLeft int64 = 0
 	//punishFee := int64(float64(totalAsset.Amount) * percent / 100)
-	punishFee := int64(float64(node.UsedSpace*1000000) * percent / float64(rate) / 6553600)
+	//punishFee := int64(float64(node.UsedSpace*1000000) * percent / float64(rate) / 6553600)
+	punishFee := int64(float64(totalAsset.Amount) * pcnt * percent / 100)
 	if punishFee == 0 {
 		return &PunishMsg{Code: 0, TrxID: "", Before: int64(leftAsset.Amount), After: int64(leftAsset.Amount), Total: int64(totalAsset.Amount), Error: ""}
 	}
@@ -1021,25 +1026,25 @@ func (self *NodeDaoImpl) punish2(nodeID int32, percent float64, remark string) *
 		return &PunishMsg{Code: 7, TrxID: "", Before: int64(leftAsset.Amount), After: retLeft, Total: int64(totalAsset.Amount), Error: err.Error()}
 	}
 	log.Printf("nodemgmt: punish: punishing %f YTA of miner %d\n", float64(punishFee)/10000, nodeID)
-	newAssignedSpace := retLeft * 65536 * int64(rate) / 1000000
-	if newAssignedSpace < 0 {
-		newAssignedSpace = 0
-	}
-	opts := new(options.FindOneAndUpdateOptions)
-	opts = opts.SetReturnDocument(options.After)
-	result := collection.FindOneAndUpdate(context.Background(), bson.M{"_id": nodeID}, bson.M{"$set": bson.M{"assignedSpace": newAssignedSpace}}, opts)
-	updatedNode := new(Node)
-	err = result.Decode(updatedNode)
-	if err != nil {
-		log.Printf("nodemgmt: ChangeFiling: error when decoding node %d: %s\n", nodeID, err.Error())
-	}
-	if b, err := proto.Marshal(updatedNode.Convert()); err != nil {
-		log.Printf("nodemgmt: ChangeFiling: marshal node %d failed: %s\n", updatedNode.ID, err)
-	} else {
-		if self.syncService != nil {
-			self.syncService.Publish("sync", b)
-		}
-	}
+	// newAssignedSpace := retLeft * 65536 * int64(rate) / 1000000
+	// if newAssignedSpace < 0 {
+	// 	newAssignedSpace = 0
+	// }
+	// opts := new(options.FindOneAndUpdateOptions)
+	// opts = opts.SetReturnDocument(options.After)
+	// result := collection.FindOneAndUpdate(context.Background(), bson.M{"_id": nodeID}, bson.M{"$set": bson.M{"assignedSpace": newAssignedSpace}}, opts)
+	// updatedNode := new(Node)
+	// err = result.Decode(updatedNode)
+	// if err != nil {
+	// 	log.Printf("nodemgmt: ChangeFiling: error when decoding node %d: %s\n", nodeID, err.Error())
+	// }
+	// if b, err := proto.Marshal(updatedNode.Convert()); err != nil {
+	// 	log.Printf("nodemgmt: ChangeFiling: marshal node %d failed: %s\n", updatedNode.ID, err)
+	// } else {
+	// 	if self.syncService != nil {
+	// 		self.syncService.Publish("sync", b)
+	// 	}
+	// }
 	return &PunishMsg{Code: 0, TrxID: trxID, Before: int64(leftAsset.Amount), After: retLeft, Total: int64(totalAsset.Amount), Error: ""}
 }
 
@@ -1113,31 +1118,31 @@ func (self *NodeDaoImpl) UpdateNodeStatus(node *Node) (*Node, error) {
 		return nil, NewReportError(-1, errors.New("hash ID not matched"))
 	}
 
-	if n.Quota == 0 {
+	if n.Quota == 0 || n.AssignedSpace == 0 {
 		log.Printf("nodemgmt: UpdateNodeStatus: warning: node %d has not been added to a pool\n", n.ID)
 		return nil, NewReportError(-4, fmt.Errorf("node %d has not been added to a pool", n.ID))
 	}
-	if n.AssignedSpace == 0 {
-		// log.Printf("nodemgmt: UpdateNodeStatus: warning: node %d has not been pledged or punished all deposit\n", n.ID)
-		rate, err := self.eostx.GetExchangeRate()
-		if err != nil {
-			log.Printf("nodemgmt: UpdateNodeStatus: error when fetching exchange rate of miner %d from BP: %s\n", node.ID, err.Error())
-		} else {
-			pledgeData, err := self.eostx.GetPledgeData(uint64(node.ID))
-			if err != nil {
-				log.Printf("nodemgmt: UpdateNodeStatus: error when fetching pledge data of miner %d from BP: %s\n", node.ID, err.Error())
-			} else {
-				assignedSpace := int64(pledgeData.Deposit.Amount) * 65536 * int64(rate) / 1000000
-				log.Printf("nodemgmt: UpdateNodeStatus: sync assigned space of miner %d from BP: %d -> %d\n", node.ID, n.AssignedSpace, assignedSpace)
-				_, err = collection.UpdateOne(context.Background(), bson.M{"_id": node.ID}, bson.M{"$set": bson.M{"assignedSpace": assignedSpace}})
-				if err != nil {
-					log.Printf("nodemgmt: UpdateNodeStatus: error when fetching assignedSpace of miner %d from BP: %s\n", node.ID, err.Error())
-					return nil, NewReportError(-13, fmt.Errorf("sync assigned space of node %d failed", n.ID))
-				}
-				n.AssignedSpace = assignedSpace
-			}
-		}
-	}
+	// if n.AssignedSpace == 0 {
+	// 	// log.Printf("nodemgmt: UpdateNodeStatus: warning: node %d has not been pledged or punished all deposit\n", n.ID)
+	// 	rate, err := self.eostx.GetExchangeRate()
+	// 	if err != nil {
+	// 		log.Printf("nodemgmt: UpdateNodeStatus: error when fetching exchange rate of miner %d from BP: %s\n", node.ID, err.Error())
+	// 	} else {
+	// 		pledgeData, err := self.eostx.GetPledgeData(uint64(node.ID))
+	// 		if err != nil {
+	// 			log.Printf("nodemgmt: UpdateNodeStatus: error when fetching pledge data of miner %d from BP: %s\n", node.ID, err.Error())
+	// 		} else {
+	// 			assignedSpace := int64(pledgeData.Deposit.Amount) * 65536 * int64(rate) / 1000000
+	// 			log.Printf("nodemgmt: UpdateNodeStatus: sync assigned space of miner %d from BP: %d -> %d\n", node.ID, n.AssignedSpace, assignedSpace)
+	// 			_, err = collection.UpdateOne(context.Background(), bson.M{"_id": node.ID}, bson.M{"$set": bson.M{"assignedSpace": assignedSpace}})
+	// 			if err != nil {
+	// 				log.Printf("nodemgmt: UpdateNodeStatus: error when fetching assignedSpace of miner %d from BP: %s\n", node.ID, err.Error())
+	// 				return nil, NewReportError(-13, fmt.Errorf("sync assigned space of node %d failed", n.ID))
+	// 			}
+	// 			n.AssignedSpace = assignedSpace
+	// 		}
+	// 	}
+	// }
 	// else if n.Status == 2 && n.Valid == 1 {
 	// 	errNode := new(SpotCheckRecord)
 	// 	collectionErr := self.client.Database(YottaDB).Collection(ErrorNodeTab)
@@ -1173,24 +1178,24 @@ func (self *NodeDaoImpl) UpdateNodeStatus(node *Node) (*Node, error) {
 	// 	}
 	// }
 
-	var assignedSpaceBP int64 = -1
+	//var assignedSpaceBP int64 = -1
 	var productiveSpaceBP int64 = -1
 	var quotaBP int64 = -1
 	var availableSpaceBP int64 = -1
 	if !self.disableBP && (n.ForceSync || rand.Int63n(int64(self.Config.Misc.BPSyncInterval)*100) < 100) {
-		rate, err := self.eostx.GetExchangeRate()
-		if err != nil {
-			log.Printf("nodemgmt: UpdateNodeStatus: error when fetching exchange rate of miner %d from BP: %s\n", node.ID, err.Error())
-		} else {
-			pledgeData, err := self.eostx.GetPledgeData(uint64(node.ID))
-			if err != nil {
-				log.Printf("nodemgmt: UpdateNodeStatus: error when fetching pledge data of miner %d from BP: %s\n", node.ID, err.Error())
-			} else {
-				assignedSpaceBP = int64(pledgeData.Deposit.Amount) * 65536 * int64(rate) / 1000000
-				log.Printf("nodemgmt: UpdateNodeStatus: sync assigned space of miner %d from BP: %d -> %d\n", node.ID, n.AssignedSpace, assignedSpaceBP)
-				n.AssignedSpace = assignedSpaceBP
-			}
-		}
+		// rate, err := self.eostx.GetExchangeRate()
+		// if err != nil {
+		// 	log.Printf("nodemgmt: UpdateNodeStatus: error when fetching exchange rate of miner %d from BP: %s\n", node.ID, err.Error())
+		// } else {
+		// 	pledgeData, err := self.eostx.GetPledgeData(uint64(node.ID))
+		// 	if err != nil {
+		// 		log.Printf("nodemgmt: UpdateNodeStatus: error when fetching pledge data of miner %d from BP: %s\n", node.ID, err.Error())
+		// 	} else {
+		// 		assignedSpaceBP = int64(pledgeData.Deposit.Amount) * 65536 * int64(rate) / 1000000
+		// 		log.Printf("nodemgmt: UpdateNodeStatus: sync assigned space of miner %d from BP: %d -> %d\n", node.ID, n.AssignedSpace, assignedSpaceBP)
+		// 		n.AssignedSpace = assignedSpaceBP
+		// 	}
+		// }
 		if !self.ns.Config.ContractUpgraded {
 			minerInfo, err := self.eostx.GetMinerInfo(uint64(node.ID))
 			if err != nil {
@@ -1401,14 +1406,14 @@ func (self *NodeDaoImpl) UpdateNodeStatus(node *Node) (*Node, error) {
 	}
 
 	update := bson.M{"$set": bson.M{"usedSpace": usedSpace, "poolOwner": node.PoolOwner, "cpu": node.CPU, "memory": node.Memory, "bandwidth": node.Bandwidth, "maxDataSpace": node.MaxDataSpace, "addrs": node.Addrs, "weight": weight, "valid": node.Valid, "relay": node.Relay, "status": status, "timestamp": timestamp, "version": node.Version, "rebuilding": node.Rebuilding, "realSpace": node.RealSpace, "tx": node.Tx, "rx": node.Rx, "other": otherDoc, "hashID": node.HashID, "allocatedSpace": node.AllocatedSpace, "forceSync": false}}
-	if assignedSpaceBP != -1 {
-		s, ok := update["$set"].(bson.M)
-		if ok {
-			s["assignedSpace"] = assignedSpaceBP
-		} else {
-			log.Printf("nodemgmt: UpdateNodeStatus: warning when set assigned space update condition of node %d\n", n.ID)
-		}
-	}
+	// if assignedSpaceBP != -1 {
+	// 	s, ok := update["$set"].(bson.M)
+	// 	if ok {
+	// 		s["assignedSpace"] = assignedSpaceBP
+	// 	} else {
+	// 		log.Printf("nodemgmt: UpdateNodeStatus: warning when set assigned space update condition of node %d\n", n.ID)
+	// 	}
+	// }
 	if productiveSpaceBP != -1 {
 		s, ok := update["$set"].(bson.M)
 		if ok {
@@ -1421,6 +1426,7 @@ func (self *NodeDaoImpl) UpdateNodeStatus(node *Node) (*Node, error) {
 		s, ok := update["$set"].(bson.M)
 		if ok {
 			s["quota"] = quotaBP
+			s["assignedSpace"] = quotaBP
 		} else {
 			log.Printf("nodemgmt: UpdateNodeStatus: warning when set quota update condition of node %d\n", n.ID)
 		}
@@ -1495,7 +1501,7 @@ func (self *NodeDaoImpl) UpdateNodeStatus(node *Node) (*Node, error) {
 					log.Printf("nodemgmt: UpdateNodeStatus: warning when set availableSpace update condition of node %d\n", n.ID)
 				}
 			}
-		} else if node.AvailableSpace < n.Quota && node.AvailableSpace != n.AvailableSpace {
+		} else if node.AvailableSpace > 0 && node.AvailableSpace < n.Quota && node.AvailableSpace != n.AvailableSpace {
 			txid, err := self.eostx.ChangeRealSpace(uint64(n.ID), uint64(node.AvailableSpace))
 			if err != nil {
 				log.Printf("nodemgmt: UpdateNodeStatus: error when changing real space for node %d: %s\n", n.ID, err.Error())
@@ -1508,8 +1514,8 @@ func (self *NodeDaoImpl) UpdateNodeStatus(node *Node) (*Node, error) {
 					log.Printf("nodemgmt: UpdateNodeStatus: warning when set availableSpace update condition of node %d\n", n.ID)
 				}
 			}
-		} else if node.AvailableSpace > n.Quota {
-			log.Printf("nodemgmt: UpdateNodeStatus: warning availableSpace is bigger than quota of node %d\n", n.ID)
+		} else if node.AvailableSpace == 0 || node.AvailableSpace > n.Quota {
+			log.Printf("nodemgmt: UpdateNodeStatus: warning availableSpace is equal to zero or bigger than quota of node %d\n", n.ID)
 		}
 	}
 	// if node.AvailableSpace != n.AvailableSpace {
@@ -2027,72 +2033,62 @@ func (self *NodeDaoImpl) MinerQuit(id int32, percent int32) (string, error) {
 	if id%int32(incr) != index {
 		_, err := collection.DeleteOne(context.Background(), bson.M{"_id": id})
 		if err != nil {
-			log.Printf("spotcheck: MinerQuit: warning when deleting miner %d from node table: %s\n", id, err.Error())
+			log.Printf("nodemgmt: MinerQuit: warning when deleting miner %d from node table: %s\n", id, err.Error())
 		}
 		log.Printf("nodemgmt: MinerQuit: warning: node %d do not belong to current SN\n", id)
 		return "", errors.New("miner do not belong to this SN")
 	}
-	rate, err := self.eostx.GetExchangeRate()
-	if err != nil {
-		log.Printf("nodemgmt: MinerQuit: error when fetching exchange rate from BP: %s\n", err.Error())
-		return "", err
-	}
-	pledgeData, err := self.eostx.GetPledgeData(uint64(id))
-	if err != nil {
-		return "", err
-	}
-	totalAsset := pledgeData.Total
-	punishAsset := pledgeData.Deposit
-	log.Printf("nodemgmt: MinerQuit: deposit of miner %d is %dYTA, total %dYTA\n", id, punishAsset.Amount/10000, totalAsset.Amount/10000)
+	var resp string = ""
 	node := new(Node)
-	err = collection.FindOne(context.Background(), bson.M{"_id": id}).Decode(node)
+	err := collection.FindOne(context.Background(), bson.M{"_id": id}).Decode(node)
 	if err != nil {
 		log.Printf("nodemgmt: MinerQuit: error when decoding information of miner %d: %s\n", id, err.Error())
 		return "", err
 	}
-	resp := fmt.Sprintf("punish 0YTA deposit of node %d\n", node.ID)
 	if node.UsedSpace == 0 {
 		log.Printf("UsedSpace of miner %d is 0\n", node.ID)
 	} else {
-		punishAmount := node.UsedSpace * 1000000 * int64(percent) / int64(rate) / 6553600
-		if punishAmount < int64(punishAsset.Amount) {
-			punishAsset.Amount = eos.Int64(punishAmount)
+		pledgeData, err := self.eostx.GetPledgeData(uint64(id))
+		if err != nil {
+			log.Printf("nodemgmt: MinerQuit: error when fetching exchange rate from BP: %s\n", err.Error())
+			return "", err
+		}
+		totalAsset := pledgeData.Total
+		//leftAsset := pledgeData.Deposit
+		punishAsset := pledgeData.Deposit
+		log.Printf("nodemgmt: MinerQuit: deposit of miner %d is %dYTA, total %dYTA\n", id, punishAsset.Amount/10000, totalAsset.Amount/10000)
+		pcnt := float64(node.UsedSpace) / float64(node.AssignedSpace)
+		punishFee := int64(float64(totalAsset.Amount) * pcnt * float64(percent) / 100)
+		if punishFee < int64(punishAsset.Amount) {
+			punishAsset.Amount = eos.Int64(punishFee)
 		}
 		if punishAsset.Amount > 0 {
-			_, err = self.eostx.DeducePledge(uint64(node.ID), &punishAsset, "")
+			_, err := self.eostx.DeducePledge(uint64(node.ID), &punishAsset, "")
 			if err != nil {
 				return "", err
 			}
-			assignedSpace := node.AssignedSpace - node.UsedSpace*int64(percent)/100
-			if assignedSpace < 0 {
-				assignedSpace = node.AssignedSpace
-			}
-			_, err = collection.UpdateOne(context.Background(), bson.M{"_id": id}, bson.M{"$set": bson.M{"assignedSpace": assignedSpace}})
-			if err != nil {
-				log.Printf("spotcheck: MinerQuit: warning when punishing %dYTA deposit of node %d: %s\n", punishAsset.Amount/10000, node.ID, err.Error())
-			}
 			resp = fmt.Sprintf("punish %dYTA deposit of node %d\n", punishAsset.Amount/10000, node.ID)
-			log.Printf("spotcheck: MinerQuit: %s", resp)
+			log.Printf("nodemgmt: MinerQuit: %s", resp)
 		}
 	}
 	_, err = collectionDel.InsertOne(context.Background(), node)
 	if err != nil {
-		log.Printf("spotcheck: MinerQuit: warning when moving node %d to delete table: %s\n", node.ID, err.Error())
+		log.Printf("nodemgmt: MinerQuit: warning when moving node %d to delete table: %s\n", node.ID, err.Error())
 	} else {
-		log.Printf("spotcheck: MinerQuit: moving node %d to delete table\n", node.ID)
+		log.Printf("nodemgmt: MinerQuit: moving node %d to delete table\n", node.ID)
 	}
 	nodelog := NewNodeLog(self.bpID, node.ID, node.Status, -1, "delete")
 	_, err = collectionLog.InsertOne(context.Background(), nodelog)
 	if err != nil {
-		log.Printf("spotcheck: MinerQuit: warning when add node log of miner %d: %s\n", node.ID, err.Error())
+		log.Printf("nodemgmt: MinerQuit: warning when add node log of miner %d: %s\n", node.ID, err.Error())
 	} else {
-		log.Printf("spotcheck: MinerQuit: adding node log of miner %d\n", node.ID)
+		log.Printf("nodemgmt: MinerQuit: adding node log of miner %d\n", node.ID)
 	}
 	_, err = collection.DeleteOne(context.Background(), bson.M{"_id": node.ID})
 	if err != nil {
-		log.Printf("spotcheck: MinerQuit: warning when deleting miner %d from node table: %s\n", id, err.Error())
+		log.Printf("nodemgmt: MinerQuit: warning when deleting miner %d from node table: %s\n", id, err.Error())
 	} else {
-		log.Printf("spotcheck: MinerQuit: deleting miner %d from node table\n", id)
+		log.Printf("nodemgmt: MinerQuit: deleting miner %d from node table\n", id)
 	}
 	return resp, nil
 }
@@ -2106,11 +2102,11 @@ func (self *NodeDaoImpl) BatchMinerQuit(id, percent int32) (string, error) {
 		log.Printf("nodemgmt: MinerQuit: warning: node %d do not belong to current SN\n", id)
 		return "", errors.New("miner do not belong to this SN")
 	}
-	rate, err := self.eostx.GetExchangeRate()
-	if err != nil {
-		log.Printf("nodemgmt: MinerQuit: error when fetching exchange rate from BP: %s\n", err.Error())
-		return "", err
-	}
+	// rate, err := self.eostx.GetExchangeRate()
+	// if err != nil {
+	// 	log.Printf("nodemgmt: MinerQuit: error when fetching exchange rate from BP: %s\n", err.Error())
+	// 	return "", err
+	// }
 	pledgeData, err := self.eostx.GetPledgeData(uint64(id))
 	if err != nil {
 		return "", err
@@ -2119,33 +2115,56 @@ func (self *NodeDaoImpl) BatchMinerQuit(id, percent int32) (string, error) {
 	punishAsset := pledgeData.Deposit
 	log.Printf("nodemgmt: BatchMinerQuit: deposit of miner %d is %dYTA, total %dYTA\n", id, punishAsset.Amount/10000, totalAsset.Amount/10000)
 	collection := self.client.Database(YottaDB).Collection(NodeTab)
+	collectionDel := self.client.Database(YottaDB).Collection(NodeDelTab)
+	collectionLog := self.client.Database(YottaDB).Collection(NodeLogTab)
 	node := new(Node)
 	err = collection.FindOne(context.Background(), bson.M{"_id": id}).Decode(node)
 	if err != nil {
 		log.Printf("nodemgmt: BatchMinerQuit: error when decoding information of miner %d: %s\n", id, err.Error())
 		return "", err
 	}
-	if node.AssignedSpace == 0 {
-		return fmt.Sprintf("AssignedSpace of miner %d is 0\n", node.ID), nil
-	}
+	// if node.AssignedSpace == 0 {
+	// 	return fmt.Sprintf("AssignedSpace of miner %d is 0\n", node.ID), nil
+	// }
 	punishAmount := int64(pledgeData.Deposit.Amount) * int64(percent) / 100 //node.AssignedSpace * int64(percent) * 10000 / int64(rate) / 65536
 	if punishAmount < int64(punishAsset.Amount) {
 		punishAsset.Amount = eos.Int64(punishAmount)
 	}
-	_, err = self.eostx.DeducePledge(uint64(node.ID), &punishAsset, "")
-	if err != nil {
-		return "", err
+	if punishAsset.Amount > 0 {
+		_, err = self.eostx.DeducePledge(uint64(node.ID), &punishAsset, "")
+		if err != nil {
+			return "", err
+		}
 	}
-	assignedSpace := node.AssignedSpace - int64(punishAsset.Amount)*65536*int64(rate)/1000000 //node.AssignedSpace*int64(percent)/100
-	if assignedSpace < 0 {
-		assignedSpace = node.AssignedSpace
-	}
-	_, err = collection.UpdateOne(context.Background(), bson.M{"_id": id}, bson.M{"$set": bson.M{"assignedSpace": assignedSpace}})
+	// assignedSpace := node.AssignedSpace - int64(punishAsset.Amount)*65536*int64(rate)/1000000 //node.AssignedSpace*int64(percent)/100
+	// if assignedSpace < 0 {
+	// 	assignedSpace = node.AssignedSpace
+	// }
+	// _, err = collection.UpdateOne(context.Background(), bson.M{"_id": id}, bson.M{"$set": bson.M{"assignedSpace": assignedSpace}})
+	// if err != nil {
+	// 	log.Printf("spotcheck: BatchMinerQuit: warning when punishing %dYTA deposit of node %d: %s\n", punishAsset.Amount/10000, node.ID, err.Error())
+	// }
+	_, err = collectionDel.InsertOne(context.Background(), node)
 	if err != nil {
-		log.Printf("spotcheck: BatchMinerQuit: warning when punishing %dYTA deposit of node %d: %s\n", punishAsset.Amount/10000, node.ID, err.Error())
+		log.Printf("nodemgmt: BatchMinerQuit: warning when moving node %d to delete table: %s\n", node.ID, err.Error())
+	} else {
+		log.Printf("nodemgmt: BatchMinerQuit: moving node %d to delete table\n", node.ID)
+	}
+	nodelog := NewNodeLog(self.bpID, node.ID, node.Status, -1, "delete")
+	_, err = collectionLog.InsertOne(context.Background(), nodelog)
+	if err != nil {
+		log.Printf("nodemgmt: BatchMinerQuit: warning when add node log of miner %d: %s\n", node.ID, err.Error())
+	} else {
+		log.Printf("nodemgmt: BatchMinerQuit: adding node log of miner %d\n", node.ID)
+	}
+	_, err = collection.DeleteOne(context.Background(), bson.M{"_id": node.ID})
+	if err != nil {
+		log.Printf("nodemgmt: BatchMinerQuit: warning when deleting miner %d from node table: %s\n", id, err.Error())
+	} else {
+		log.Printf("nodemgmt: BatchMinerQuit: deleting miner %d from node table\n", id)
 	}
 	resp := fmt.Sprintf("punish %dYTA deposit of node %d\n", punishAsset.Amount/10000, node.ID)
-	log.Printf("spotcheck: BatchMinerQuit: %s", resp)
+	log.Printf("nodemgmt: BatchMinerQuit: %s", resp)
 	return resp, nil
 }
 
