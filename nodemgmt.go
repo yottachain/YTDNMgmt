@@ -1182,6 +1182,10 @@ func (self *NodeDaoImpl) UpdateNodeStatus(node *Node) (*Node, error) {
 	var productiveSpaceBP int64 = -1
 	var quotaBP int64 = -1
 	var availableSpaceBP int64 = -1
+	var minerOwner = ""
+	var minerProficAcc = ""
+	var minerPoolID = ""
+	var minerPoolOwner = ""
 	if !self.disableBP && (n.ForceSync || rand.Int63n(int64(self.Config.Misc.BPSyncInterval)*100) < 100) {
 		// rate, err := self.eostx.GetExchangeRate()
 		// if err != nil {
@@ -1215,6 +1219,15 @@ func (self *NodeDaoImpl) UpdateNodeStatus(node *Node) (*Node, error) {
 					n.ProductiveSpace = productiveSpaceBP
 				}
 			}
+			minerOwner = string(minerInfo.Admin)
+			minerProficAcc = string(minerInfo.Owner)
+			minerPoolID = string(minerInfo.PoolID)
+			poolInfo, err := self.eostx.GetPoolInfoByPoolID(minerPoolID)
+			if err != nil {
+				log.Printf("nodemgmt: UpdateNodeStatus: error when get pool owner %d during force sync: %s\n", n.ID, err.Error())
+			} else {
+				minerPoolOwner = string(poolInfo.Owner)
+			}
 		} else {
 			minerInfo, err := self.eostx.GetMinerInfo2(uint64(node.ID))
 			if err != nil {
@@ -1240,6 +1253,15 @@ func (self *NodeDaoImpl) UpdateNodeStatus(node *Node) (*Node, error) {
 				log.Printf("nodemgmt: UpdateNodeStatus: error when parsing real space(%s) of miner %d from BP: %s\n", string(minerInfo.MaxSpace), node.ID, err.Error())
 			} else {
 				availableSpaceBP = availableSpace
+			}
+			minerOwner = string(minerInfo.Admin)
+			minerProficAcc = string(minerInfo.Owner)
+			minerPoolID = string(minerInfo.PoolID)
+			poolInfo, err := self.eostx.GetPoolInfoByPoolID(minerPoolID)
+			if err != nil {
+				log.Printf("nodemgmt: UpdateNodeStatus: error when get pool owner %d during force sync: %s\n", n.ID, err.Error())
+			} else {
+				minerPoolOwner = string(poolInfo.Owner)
 			}
 		}
 		// if node.ForceSync {
@@ -1429,6 +1451,38 @@ func (self *NodeDaoImpl) UpdateNodeStatus(node *Node) (*Node, error) {
 			s["assignedSpace"] = quotaBP
 		} else {
 			log.Printf("nodemgmt: UpdateNodeStatus: warning when set quota update condition of node %d\n", n.ID)
+		}
+	}
+	if minerOwner != "" {
+		s, ok := update["$set"].(bson.M)
+		if ok {
+			s["owner"] = minerOwner
+		} else {
+			log.Printf("nodemgmt: UpdateNodeStatus: warning when set owner of node %d\n", n.ID)
+		}
+	}
+	if minerProficAcc != "" {
+		s, ok := update["$set"].(bson.M)
+		if ok {
+			s["profitAcc"] = minerProficAcc
+		} else {
+			log.Printf("nodemgmt: UpdateNodeStatus: warning when set profitAcc of node %d\n", n.ID)
+		}
+	}
+	if minerPoolID != "" {
+		s, ok := update["$set"].(bson.M)
+		if ok {
+			s["poolID"] = minerPoolID
+		} else {
+			log.Printf("nodemgmt: UpdateNodeStatus: warning when set poolID of node %d\n", n.ID)
+		}
+	}
+	if minerPoolOwner != "" {
+		s, ok := update["$set"].(bson.M)
+		if ok {
+			s["poolOwner"] = minerPoolOwner
+		} else {
+			log.Printf("nodemgmt: UpdateNodeStatus: warning when set poolOwner of node %d\n", n.ID)
 		}
 	}
 	if availableSpaceBP != -1 {
