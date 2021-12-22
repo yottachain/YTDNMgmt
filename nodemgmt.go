@@ -23,11 +23,13 @@ import (
 	proto "github.com/golang/protobuf/proto"
 	"github.com/mr-tron/base58"
 
+	uuid "github.com/gofrs/uuid"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 
+	ytcrypto "github.com/yottachain/YTCrypto"
 	"github.com/yottachain/YTDNMgmt/eostx"
 	pb "github.com/yottachain/YTDNMgmt/pb"
 	nodesync "github.com/yottachain/YTDNMgmt/sync"
@@ -1661,7 +1663,7 @@ func (self *NodeDaoImpl) UpdateNodeStatus(node *Node) (*Node, error) {
 		}
 		err = self.eostx.DecreaseSpace(n.ProfitAcc, uint64(n.ID), uint64(decspace))
 		if err != nil {
-			log.Printf("nodemgmt: UpdateNodeStatus: error when decreasinging space for node %d: %s\n", n.ID, err.Error())
+			log.Printf("nodemgmt: UpdateNodeStatus: error when decreasing space for node %d: %s\n", n.ID, err.Error())
 			self.IncrProductiveSpace(n.ID, decspace)
 			n.Addrs = filteredAddrs
 			if n.Uspaces == nil {
@@ -2087,6 +2089,50 @@ func (self *NodeDaoImpl) Statistics() (*NodeStat, error) {
 	result.ActiveMiners = active
 	result.TotalMiners = total
 	return result, nil
+}
+
+//NodeQuit change status of node to 3
+func (self *NodeDaoImpl) NodeQuit(nodeID int32, nonce, signature string) error {
+	u, err := uuid.FromString(nonce)
+	if err != nil {
+		log.Printf("nodemgmt: NodeQuit: error when parsing uuidv1 of node %d: %s %s\n", nodeID, nonce, err.Error())
+		return err
+	}
+	ts, err := uuid.TimestampFromV1(u)
+	if err != nil {
+		log.Printf("nodemgmt: NodeQuit: error when extracting timestamp from uuidv1 of node %d: %s %s\n", nodeID, nonce, err.Error())
+		return err
+	}
+	t, err := ts.Time()
+	if err != nil {
+		log.Printf("nodemgmt: NodeQuit: error when extracting time from timestamp of node %d: %s %s\n", nodeID, nonce, err.Error())
+		return err
+	}
+	now := time.Now().Unix()
+	if t.Unix() < now-3600 || t.Unix() > now+3600 {
+		log.Printf("nodemgmt: NodeQuit: timestamp from uuidv1 %s of node %d is out of range: %d\n", nonce, nodeID, t.Unix())
+		return fmt.Errorf("timestamp from uuidv1 %s of node %d is out of range: %d", nonce, nodeID, t.Unix())
+	}
+	collection := self.client.Database(YottaDB).Collection(NodeTab)
+	node := new(Node)
+	err = collection.FindOne(context.Background(), bson.M{"_id": nodeID}).Decode(node)
+	if err != nil {
+		log.Printf("nodemgmt: NodeQuit: error when finding node by ID: %d %s\n", nodeID, err.Error())
+		return err
+	}
+	pubkey, err := self.eostx.GetPublicKey(node.Owner, "active")
+	if err != nil {
+		log.Printf("nodemgmt: NodeQuit: error when fetching public key of node: %d %s\n", nodeID, err.Error())
+		return err
+	}
+	if strings.HasPrefix(pubkey, "YTA") || strings.HasPrefix(pubkey, "EOS") {
+		pubkey = string(pubkey[3:])
+	}
+	if ytcrypto.Verify(pubkey, []byte(fmt.Sprintf("%d&%s", nodeID, nonce)), signature) {
+		return nil
+	} else {
+		return errors.New("signature verification failed")
+	}
 }
 
 //MinerQuit quit miner

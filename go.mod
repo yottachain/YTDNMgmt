@@ -5,6 +5,7 @@ go 1.13
 require (
 	github.com/aurawing/auramq v0.0.2-0.20200521072017-845ffa488ac8
 	github.com/aurawing/eos-go v0.9.1-0.20200517054114-c338bd5d1974
+	github.com/gofrs/uuid v4.2.0+incompatible
 	github.com/golang/protobuf v1.4.1
 	github.com/ipipdotnet/ipdb-go v1.2.0
 	github.com/libp2p/go-libp2p-core v0.3.0
