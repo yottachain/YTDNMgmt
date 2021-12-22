@@ -2129,6 +2129,11 @@ func (self *NodeDaoImpl) NodeQuit(nodeID int32, nonce, signature string) error {
 		pubkey = string(pubkey[3:])
 	}
 	if ytcrypto.Verify(pubkey, []byte(fmt.Sprintf("%d&%s", nodeID, nonce)), signature) {
+		_, err := collection.UpdateOne(context.Background(), bson.M{"_id": nodeID, "status": 1}, bson.M{"$set": bson.M{"status": 3}})
+		if err != nil {
+			log.Printf("nodemgmt: NodeQuit: error when update node status to 3 by ID: %d %s\n", nodeID, err.Error())
+			return err
+		}
 		return nil
 	} else {
 		return errors.New("signature verification failed")
