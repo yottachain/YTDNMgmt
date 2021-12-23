@@ -635,7 +635,6 @@ func NewInstance(mongoURL, eosURL, bpAccount, bpPrivkey, contractOwnerM, contrac
 			}
 			remarkstr := r.Form.Get("remark")
 			msg = dao.punish2(int32(minerid), percent, remarkstr)
-			return
 		})
 		mux.HandleFunc("/get_pledge", func(w http.ResponseWriter, r *http.Request) {
 			if dao.disableBP {
@@ -694,6 +693,192 @@ func NewInstance(mongoURL, eosURL, bpAccount, bpPrivkey, contractOwnerM, contrac
 				io.WriteString(w, fmt.Sprintf("修改注册开关为: %t", enable))
 			}
 		})
+		mux.HandleFunc("/sync_nodes_from_bp", func(w http.ResponseWriter, r *http.Request) {
+			if dao.disableBP {
+				io.WriteString(w, "无BP模式下无法执行该操作")
+				return
+			}
+			begin := time.Now().UnixNano()
+			collection := dao.client.Database(YottaDB).Collection(NodeTab)
+			cur, err := collection.Find(context.Background(), bson.M{})
+			if err != nil {
+				w.WriteHeader(http.StatusInternalServerError)
+				io.WriteString(w, fmt.Sprintf("同步失败：%s\n", err.Error()))
+				return
+			}
+			defer cur.Close(context.Background())
+			for cur.Next(context.Background()) {
+				node := new(Node)
+				err := cur.Decode(node)
+				if err != nil {
+					log.Printf("nodemgmt: sync_nodes_from_bp: error when decoding nodes: %s\n", err.Error())
+					continue
+				}
+				var productiveSpaceBP int64 = -1
+				var quotaBP int64 = -1
+				//var availableSpaceBP int64 = -1
+				var minerOwner = ""
+				var minerProficAcc = ""
+				var minerPoolID = ""
+				var minerPoolOwner = ""
+				if !dao.ns.Config.ContractUpgraded {
+					minerInfo, err := dao.eostx.GetMinerInfo(uint64(node.ID))
+					if err != nil {
+						log.Printf("nodemgmt: sync_nodes_from_bp: error when fetching miner info of node %d from BP: %s\n", node.ID, err.Error())
+						continue
+					}
+					maxspace, err := strconv.ParseInt(string(minerInfo.MaxSpace), 10, 64)
+					if err != nil {
+						log.Printf("nodemgmt: sync_nodes_from_bp: error when parsing max space(%s) of miner %d from BP: %s\n", string(minerInfo.MaxSpace), node.ID, err.Error())
+						continue
+					} else {
+						quotaBP = maxspace
+						spaceleft, err := strconv.ParseInt(string(minerInfo.SpaceLeft), 10, 64)
+						if err != nil {
+							log.Printf("nodemgmt: sync_nodes_from_bp: error when parsing space left(%s) of miner %d from BP: %s\n", string(minerInfo.SpaceLeft), node.ID, err.Error())
+							continue
+						} else {
+							productiveSpaceBP = maxspace - spaceleft
+							log.Printf("nodemgmt: sync_nodes_from_bp: sync productive space of miner %d from BP: %d -> %d\n", node.ID, node.ProductiveSpace, productiveSpaceBP)
+							//n.ProductiveSpace = productiveSpaceBP
+						}
+					}
+					minerOwner = string(minerInfo.Admin)
+					minerProficAcc = string(minerInfo.Owner)
+					minerPoolID = string(minerInfo.PoolID)
+					poolInfo, err := dao.eostx.GetPoolInfoByPoolID(minerPoolID)
+					if err != nil {
+						log.Printf("nodemgmt: sync_nodes_from_bp: error when get pool owner %d during force sync: %s\n", node.ID, err.Error())
+						continue
+					} else {
+						minerPoolOwner = string(poolInfo.Owner)
+					}
+				} else {
+					minerInfo, err := dao.eostx.GetMinerInfo2(uint64(node.ID))
+					if err != nil {
+						log.Printf("nodemgmt: sync_nodes_from_bp: error when fetching miner info 2 of miner %d from BP: %s\n", node.ID, err.Error())
+						continue
+					} else {
+						space, err := strconv.ParseInt(string(minerInfo.Space), 10, 64)
+						if err != nil {
+							log.Printf("nodemgmt: sync_nodes_from_bp: error when parsing space (%s) of miner %d from BP: %s\n", string(minerInfo.Space), node.ID, err.Error())
+							continue
+						} else {
+							productiveSpaceBP = space
+							log.Printf("nodemgmt: sync_nodes_from_bp: sync productive space of miner %d from BP: %d -> %d\n", node.ID, node.ProductiveSpace, productiveSpaceBP)
+							//n.ProductiveSpace = productiveSpaceBP
+						}
+					}
+					maxspace, err := strconv.ParseInt(string(minerInfo.MaxSpace), 10, 64)
+					if err != nil {
+						log.Printf("nodemgmt: sync_nodes_from_bp: error when parsing max space(%s) of miner %d from BP: %s\n", string(minerInfo.MaxSpace), node.ID, err.Error())
+						continue
+					} else {
+						quotaBP = maxspace
+					}
+					// availableSpace, err := strconv.ParseInt(string(minerInfo.RealSpace), 10, 64)
+					// if err != nil {
+					// 	log.Printf("nodemgmt: sync_nodes_from_bp: error when parsing real space(%s) of miner %d from BP: %s\n", string(minerInfo.MaxSpace), node.ID, err.Error())
+					// 	continue
+					// } else {
+					// 	availableSpaceBP = availableSpace
+					// }
+					minerOwner = string(minerInfo.Admin)
+					minerProficAcc = string(minerInfo.Owner)
+					minerPoolID = string(minerInfo.PoolID)
+					poolInfo, err := dao.eostx.GetPoolInfoByPoolID(minerPoolID)
+					if err != nil {
+						log.Printf("nodemgmt: sync_nodes_from_bp: error when get pool owner %d during force sync: %s\n", node.ID, err.Error())
+						continue
+					} else {
+						minerPoolOwner = string(poolInfo.Owner)
+					}
+				}
+				if quotaBP == 0 {
+					log.Printf("nodemgmt: sync_nodes_from_bp: max_space of node %d is 0, skip\n", node.ID)
+					continue
+				}
+				update := bson.M{}
+				if productiveSpaceBP != node.ProductiveSpace {
+					update["productiveSpace"] = productiveSpaceBP
+				}
+				if quotaBP != node.Quota || quotaBP != node.AssignedSpace {
+					update["quota"] = quotaBP
+					update["assignedSpace"] = quotaBP
+				}
+				if minerOwner != node.Owner {
+					update["owner"] = minerOwner
+				}
+				if minerProficAcc != node.ProfitAcc {
+					update["profitAcc"] = minerProficAcc
+				}
+				if minerPoolID != node.PoolID {
+					update["poolID"] = minerPoolID
+				}
+				if minerPoolOwner != node.PoolOwner {
+					update["poolOwner"] = minerPoolOwner
+				}
+				if len(update) > 0 {
+					opts := new(options.FindOneAndUpdateOptions)
+					opts = opts.SetReturnDocument(options.After)
+					result := collection.FindOneAndUpdate(context.Background(), bson.M{"_id": node.ID}, bson.M{"$set": update}, opts)
+					err = result.Decode(node)
+					if err != nil {
+						log.Printf("nodemgmt: sync_nodes_from_bp: error when decoding node %d: %s\n", node.ID, err.Error())
+						continue
+					}
+				}
+				if node.UsedSpace+dao.Config.Misc.PrePurchaseThreshold > node.ProductiveSpace {
+					assignable := Min(node.AssignedSpace, node.Quota, node.MaxDataSpace, node.AllocatedSpace) - node.ProductiveSpace
+					if assignable < dao.Config.Misc.PrePurchaseAmount {
+						log.Printf("nodemgmt: sync_nodes_from_bp: warning: node %d has no left space for allocating\n", node.ID)
+					} else {
+						if assignable >= dao.Config.Misc.PrePurchaseAmount {
+							assignable = dao.Config.Misc.PrePurchaseAmount
+						}
+						err = dao.IncrProductiveSpace(node.ID, assignable)
+						if err != nil {
+							log.Printf("nodemgmt: sync_nodes_from_bp: error when increasing productive space for node %d: %s\n", node.ID, err.Error())
+							continue
+						}
+						now := time.Now().UnixNano()
+						if now-begin < 200000000 {
+							time.Sleep(time.Duration(begin+200000000-now) * time.Nanosecond)
+							begin = time.Now().UnixNano()
+						}
+						err = dao.eostx.AddSpace(node.ProfitAcc, uint64(node.ID), uint64(assignable))
+						if err != nil {
+							log.Printf("nodemgmt: sync_nodes_from_bp: error when adding space for node %d: %s\n", node.ID, err.Error())
+							dao.IncrProductiveSpace(node.ID, -1*assignable)
+							continue
+						}
+						log.Printf("nodemgmt: sync_nodes_from_bp: pre-purchase productive space of node %d: %d\n", node.ID, assignable)
+					}
+				} else if node.ProductiveSpace-node.UsedSpace > 131072 {
+					decspace := (node.ProductiveSpace-node.UsedSpace)/65536*65536 - 65536
+					err = dao.IncrProductiveSpace(node.ID, -1*decspace)
+					if err != nil {
+						log.Printf("nodemgmt: sync_nodes_from_bp: error when decreasing productive space for node %d: %s\n", node.ID, err.Error())
+						continue
+					}
+					now := time.Now().UnixNano()
+					if now-begin < 200000000 {
+						time.Sleep(time.Duration(begin+200000000-now) * time.Nanosecond)
+						begin = time.Now().UnixNano()
+					}
+					err = dao.eostx.DecreaseSpace(node.ProfitAcc, uint64(node.ID), uint64(decspace))
+					if err != nil {
+						log.Printf("nodemgmt: sync_nodes_from_bp: error when decreasing space for node %d: %s\n", node.ID, err.Error())
+						dao.IncrProductiveSpace(node.ID, decspace)
+						continue
+					}
+					log.Printf("nodemgmt: sync_nodes_from_bp: decrease productive space of node %d: %d\n", node.ID, decspace)
+				}
+				log.Printf("nodemgmt: sync_nodes_from_bp: finished sync node %d\n", node.ID)
+			}
+			io.WriteString(w, "全部同步完成")
+		})
+
 		server := &http.Server{
 			Addr:    ":12345",
 			Handler: mux,
