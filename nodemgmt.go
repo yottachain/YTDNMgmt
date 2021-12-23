@@ -698,9 +698,25 @@ func NewInstance(mongoURL, eosURL, bpAccount, bpPrivkey, contractOwnerM, contrac
 				io.WriteString(w, "无BP模式下无法执行该操作")
 				return
 			}
+			var minerid int
+			r.ParseForm()
+			mineridstr := r.Form.Get("minerid")
+			if mineridstr != "" {
+				var err error
+				minerid, err = strconv.Atoi(mineridstr)
+				if err != nil {
+					w.WriteHeader(http.StatusInternalServerError)
+					io.WriteString(w, fmt.Sprintf("解析矿机ID失败：%s\n", err.Error()))
+					return
+				}
+			}
+			query := bson.M{}
+			if minerid != 0 {
+				query["_id"] = minerid
+			}
 			begin := time.Now().UnixNano()
 			collection := dao.client.Database(YottaDB).Collection(NodeTab)
-			cur, err := collection.Find(context.Background(), bson.M{})
+			cur, err := collection.Find(context.Background(), query)
 			if err != nil {
 				w.WriteHeader(http.StatusInternalServerError)
 				io.WriteString(w, fmt.Sprintf("同步失败：%s\n", err.Error()))
