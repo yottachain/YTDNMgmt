@@ -2332,10 +2332,22 @@ func (self *NodeDaoImpl) NodeQuit(nodeID int32, nonce, signature string) error {
 		pubkey = string(pubkey[3:])
 	}
 	if ytcrypto.Verify(pubkey, []byte(fmt.Sprintf("%d&%s", nodeID, nonce)), signature) {
-		_, err := collection.UpdateOne(context.Background(), bson.M{"_id": nodeID, "status": 1}, bson.M{"$set": bson.M{"status": 3}})
+		opts := new(options.FindOneAndUpdateOptions)
+		opts = opts.SetReturnDocument(options.After)
+		result := collection.FindOneAndUpdate(context.Background(), bson.M{"_id": nodeID, "status": 1}, bson.M{"$set": bson.M{"status": 3}}, opts)
+		node := new(Node)
+		err := result.Decode(node)
 		if err != nil {
 			log.Printf("nodemgmt: NodeQuit: error when update node status to 3 by ID: %d %s\n", nodeID, err.Error())
 			return err
+		}
+		if b, err := proto.Marshal(node.Convert()); err != nil {
+			log.Printf("nodemgmt: NodeQuit: marshal node %d failed: %s\n", node.ID, err)
+		} else {
+			if self.syncService != nil {
+				log.Println("nodemgmt: NodeQuit: publish information of node", node.ID)
+				self.syncService.Publish("sync", b)
+			}
 		}
 		return nil
 	} else {
