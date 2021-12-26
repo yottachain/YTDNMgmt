@@ -1689,7 +1689,7 @@ func (self *NodeDaoImpl) UpdateNodeStatus(node *Node) (*Node, error) {
 		}
 	}
 	if availableSpaceBP != -1 {
-		if availableSpaceBP == 0 {
+		if availableSpaceBP == 0 || availableSpaceBP == quotaBP {
 			if node.AvailableSpace == quotaBP {
 				s, ok := update["$set"].(bson.M)
 				if ok {
@@ -1703,7 +1703,6 @@ func (self *NodeDaoImpl) UpdateNodeStatus(node *Node) (*Node, error) {
 					log.Printf("nodemgmt: UpdateNodeStatus: error when changing real space for node %d: %s\n", n.ID, err.Error())
 				} else {
 					log.Printf("nodemgmt: UpdateNodeStatus: changing real space for node %d: %s\n", n.ID, txid)
-
 				}
 				s, ok := update["$set"].(bson.M)
 				if ok {
