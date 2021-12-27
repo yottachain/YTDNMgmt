@@ -1689,6 +1689,9 @@ func (self *NodeDaoImpl) UpdateNodeStatus(node *Node) (*Node, error) {
 		}
 	}
 	if availableSpaceBP != -1 {
+		if node.AvailableSpace > quotaBP {
+			node.AvailableSpace = quotaBP
+		}
 		if availableSpaceBP == 0 || availableSpaceBP == quotaBP {
 			if node.AvailableSpace == quotaBP {
 				s, ok := update["$set"].(bson.M)
@@ -1729,6 +1732,7 @@ func (self *NodeDaoImpl) UpdateNodeStatus(node *Node) (*Node, error) {
 				}
 			} else if node.AvailableSpace > 0 && node.AvailableSpace < quotaBP {
 				if node.AvailableSpace != availableSpaceBP {
+					//if node.AvailableSpace < availableSpaceBP || rand.Int63n(1200) < 100 {
 					txid, err := self.eostx.ChangeRealSpace(uint64(n.ID), uint64(node.AvailableSpace))
 					if err != nil {
 						log.Printf("nodemgmt: UpdateNodeStatus: error when changing real space for node %d: %s\n", n.ID, err.Error())
@@ -1741,6 +1745,7 @@ func (self *NodeDaoImpl) UpdateNodeStatus(node *Node) (*Node, error) {
 					} else {
 						log.Printf("nodemgmt: UpdateNodeStatus: warning when set availableSpace update condition of node %d\n", n.ID)
 					}
+					//}
 				}
 			} else {
 				log.Printf("nodemgmt: UpdateNodeStatus: warning availableSpace is equal to zero or bigger than quota of node %d\n", n.ID)
@@ -1753,6 +1758,9 @@ func (self *NodeDaoImpl) UpdateNodeStatus(node *Node) (*Node, error) {
 			}
 		}
 	} else {
+		if node.AvailableSpace > node.Quota {
+			node.AvailableSpace = node.Quota
+		}
 		if node.AvailableSpace == n.Quota && node.AvailableSpace != n.AvailableSpace {
 			txid, err := self.eostx.ChangeRealSpace(uint64(n.ID), uint64(node.AvailableSpace))
 			if err != nil {
