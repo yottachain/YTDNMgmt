@@ -1758,8 +1758,8 @@ func (self *NodeDaoImpl) UpdateNodeStatus(node *Node) (*Node, error) {
 			}
 		}
 	} else {
-		if node.AvailableSpace > node.Quota {
-			node.AvailableSpace = node.Quota
+		if node.AvailableSpace > n.Quota {
+			node.AvailableSpace = n.Quota
 		}
 		if node.AvailableSpace == n.Quota && node.AvailableSpace != n.AvailableSpace {
 			txid, err := self.eostx.ChangeRealSpace(uint64(n.ID), uint64(node.AvailableSpace))
@@ -1797,6 +1797,7 @@ func (self *NodeDaoImpl) UpdateNodeStatus(node *Node) (*Node, error) {
 			}
 		}
 	}
+
 	// if node.AvailableSpace != n.AvailableSpace {
 	// 	if node.AvailableSpace == n.Quota {
 
