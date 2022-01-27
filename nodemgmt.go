@@ -1291,17 +1291,6 @@ func (self *NodeDaoImpl) UpdateNodeStatus(node *Node) (*Node, error) {
 		log.Println("nodemgmt: UpdateNodeStatus: warning: node ID cannot be 0")
 		return nil, NewReportError(-99, errors.New("node ID cannot be 0"))
 	}
-	if node.ID%int32(incr) != index {
-		log.Printf("nodemgmt: UpdateNodeStatus: warning: node %d do not belong to current SN\n", node.ID)
-		return nil, NewReportError(-2, errors.New("node do not belong to this SN"))
-	}
-	if node.MaxDataSpace < self.Config.Misc.DataSpaceThreshold {
-		log.Printf("max dataspace of node %d not reach data space threshold: %d\n", node.ID, node.MaxDataSpace)
-		return nil, NewReportError(-9, fmt.Errorf("max dataspace of node %d not reach data space threshold: %d", node.ID, node.MaxDataSpace))
-	}
-	if node.AllocatedSpace == 0 {
-		node.AllocatedSpace = node.MaxDataSpace
-	}
 	log.Printf("nodemgmt: UpdateNodeStatus: receive addrs of miner %d: %v\n", node.ID, node.Addrs)
 	collection := self.client.Database(YottaDB).Collection(NodeTab)
 	n := new(Node)
@@ -1310,20 +1299,32 @@ func (self *NodeDaoImpl) UpdateNodeStatus(node *Node) (*Node, error) {
 		log.Printf("nodemgmt: UpdateNodeStatus: error when decoding node %d: %s\n", node.ID, err.Error())
 		return nil, NewReportError(-11, err)
 	}
+	if node.ID%int32(incr) != index {
+		log.Printf("nodemgmt: UpdateNodeStatus: warning: node %d do not belong to current SN\n", node.ID)
+		return n, NewReportError(-2, errors.New("node do not belong to this SN"))
+	}
+	if node.MaxDataSpace < self.Config.Misc.DataSpaceThreshold {
+		log.Printf("max dataspace of node %d not reach data space threshold: %d\n", node.ID, node.MaxDataSpace)
+		return n, NewReportError(-9, fmt.Errorf("max dataspace of node %d not reach data space threshold: %d", node.ID, node.MaxDataSpace))
+	}
+	if node.AllocatedSpace == 0 {
+		node.AllocatedSpace = node.MaxDataSpace
+	}
+
 	if time.Now().Unix()-n.Timestamp < 20 {
 		log.Printf("nodemgmt: UpdateNodeStatus: warning: reporting of node %d is too frequency\n", n.ID)
-		return nil, NewReportError(-3, errors.New("reporting is too frequency"))
+		return n, NewReportError(-3, errors.New("reporting is too frequency"))
 	}
 	//process hashID
 	if n.HashID != "" && n.HashID != node.HashID {
 		log.Printf("nodemgmt: UpdateNodeStatus: warning: identify of node %d is failed: %s\n", n.ID, node.HashID)
 		// return nil, IdentifyError
-		return nil, NewReportError(-1, errors.New("hash ID not matched"))
+		return n, NewReportError(-1, errors.New("hash ID not matched"))
 	}
 
 	if n.Quota == 0 || n.AssignedSpace == 0 {
 		log.Printf("nodemgmt: UpdateNodeStatus: warning: node %d has not been added to a pool\n", n.ID)
-		return nil, NewReportError(-4, fmt.Errorf("node %d has not been added to a pool", n.ID))
+		return n, NewReportError(-4, fmt.Errorf("node %d has not been added to a pool", n.ID))
 	}
 	// if n.AssignedSpace == 0 {
 	// 	// log.Printf("nodemgmt: UpdateNodeStatus: warning: node %d has not been pledged or punished all deposit\n", n.ID)
@@ -1482,13 +1483,13 @@ func (self *NodeDaoImpl) UpdateNodeStatus(node *Node) (*Node, error) {
 	relayURL, err := self.AddrCheck(n, node)
 	if err != nil {
 		log.Printf("nodemgmt: UpdateNodeStatus: error when checking public address of node %d: %s\n", n.ID, err.Error())
-		return nil, NewReportError(-5, err)
+		return n, NewReportError(-5, err)
 	}
 	if !self.disableBP && n.PoolID != "" && n.PoolOwner == "" {
 		poolInfo, err := self.eostx.GetPoolInfoByPoolID(n.PoolID)
 		if err != nil {
 			log.Printf("nodemgmt: UpdateNodeStatus: error when get pool owner %d: %s\n", n.ID, err.Error())
-			return nil, NewReportError(-6, err)
+			return n, NewReportError(-6, err)
 		}
 		node.PoolOwner = string(poolInfo.Owner)
 	} else {
@@ -1822,7 +1823,7 @@ func (self *NodeDaoImpl) UpdateNodeStatus(node *Node) (*Node, error) {
 	err = result.Decode(n)
 	if err != nil {
 		log.Printf("nodemgmt: UpdateNodeStatus: error when decoding node %d: %s\n", n.ID, err.Error())
-		return nil, NewReportError(-11, err)
+		return n, NewReportError(-11, err)
 	}
 	n.Ext = node.Ext
 	filteredAddrs := n.Addrs
@@ -1844,7 +1845,7 @@ func (self *NodeDaoImpl) UpdateNodeStatus(node *Node) (*Node, error) {
 			err = self.IncrProductiveSpace(n.ID, assignable)
 			if err != nil {
 				log.Printf("nodemgmt: UpdateNodeStatus: error when increasing productive space for node %d: %s\n", n.ID, err.Error())
-				return nil, NewReportError(-11, err)
+				return n, NewReportError(-11, err)
 			}
 			err = self.eostx.AddSpace(n.ProfitAcc, uint64(n.ID), uint64(assignable))
 			if err != nil {
@@ -1860,7 +1861,7 @@ func (self *NodeDaoImpl) UpdateNodeStatus(node *Node) (*Node, error) {
 					log.Println("nodemgmt: UpdateNodeStatus: publish information of node", n.ID)
 					self.syncService.Publish("sync", b)
 				}
-				return nil, NewReportError(-12, err)
+				return n, NewReportError(-12, err)
 			}
 			n.ProductiveSpace += assignable
 			log.Printf("nodemgmt: UpdateNodeStatus: pre-purchase productive space of node %d: %d\n", n.ID, assignable)
@@ -1870,7 +1871,7 @@ func (self *NodeDaoImpl) UpdateNodeStatus(node *Node) (*Node, error) {
 		err = self.IncrProductiveSpace(n.ID, -1*decspace)
 		if err != nil {
 			log.Printf("nodemgmt: UpdateNodeStatus: error when decreasing productive space for node %d: %s\n", n.ID, err.Error())
-			return nil, NewReportError(-11, err)
+			return n, NewReportError(-11, err)
 		}
 		err = self.eostx.DecreaseSpace(n.ProfitAcc, uint64(n.ID), uint64(decspace))
 		if err != nil {
@@ -1886,7 +1887,7 @@ func (self *NodeDaoImpl) UpdateNodeStatus(node *Node) (*Node, error) {
 				log.Println("nodemgmt: UpdateNodeStatus: publish information of node", n.ID)
 				self.syncService.Publish("sync", b)
 			}
-			return nil, NewReportError(-12, err)
+			return n, NewReportError(-12, err)
 		}
 		n.ProductiveSpace -= decspace
 		log.Printf("nodemgmt: UpdateNodeStatus: decrease productive space of node %d: %d\n", n.ID, decspace)
@@ -1902,7 +1903,7 @@ func (self *NodeDaoImpl) UpdateNodeStatus(node *Node) (*Node, error) {
 		self.syncService.Publish("sync", b)
 	}
 	if n.ManualWeight == 0 {
-		return nil, NewReportError(-7, fmt.Errorf("manual weight of miner %d is 0", n.ID))
+		return n, NewReportError(-7, fmt.Errorf("manual weight of miner %d is 0", n.ID))
 	}
 	// if leftSpace <= 655360 {
 	// 	return nil, NewReportError(-8, fmt.Errorf("no space for miner %d", n.ID))
