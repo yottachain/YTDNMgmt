@@ -1,18 +1,33 @@
 package main
 
 import (
+	"bufio"
 	"context"
+	"encoding/json"
 	"fmt"
+	"io"
+	"io/ioutil"
 	"log"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"strconv"
+	"strings"
+	"sync"
 	"time"
 
+	"github.com/aurawing/eos-go"
+	uuid "github.com/gofrs/uuid"
+	"github.com/mr-tron/base58"
+	ytcrypto "github.com/yottachain/YTCrypto"
 	nodemgmt "github.com/yottachain/YTDNMgmt"
+	"github.com/yottachain/YTDNMgmt/eostx"
 	pb "github.com/yottachain/YTDNMgmt/pb"
 	"go.etcd.io/etcd/clientv3"
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 	"google.golang.org/grpc"
 )
 
@@ -27,7 +42,38 @@ const NODEMGMT_SHADOWACCOUNT = NODEMGMT_ETCD_PREFIX + "shadowAccount"
 const NODEMGMT_BPID = NODEMGMT_ETCD_PREFIX + "bpid"
 const NODEMGMT_MASTER = NODEMGMT_ETCD_PREFIX + "master"
 
-func main() {
+func main1() {
+	api := eos.New("http://47.93.13.197:8888")
+	req := eos.GetTableRowsRequest{
+		Code:       "hddpool12345",
+		Scope:      "hddpool12345",
+		Table:      "miner",
+		LowerBound: fmt.Sprintf("%d", 22088),
+		UpperBound: fmt.Sprintf("%d", 22088),
+		Limit:      1,
+		KeyType:    "i64",
+		Index:      "1",
+		JSON:       true,
+	}
+	resp, err := api.GetTableRows(req)
+	if err != nil {
+		panic(err)
+	}
+	if resp.More {
+		panic(fmt.Errorf("more than one rows returned：get miner info 2"))
+	}
+	rows := make([]eostx.MinerInfo, 0)
+	err = json.Unmarshal(resp.Rows, &rows)
+	if err != nil {
+		panic(err)
+	}
+	if len(rows) == 0 {
+		panic(fmt.Errorf("no matched row found, minerid: %s", req.Scope))
+	}
+	fmt.Printf("%+v\n", &rows[0])
+}
+
+func main0() {
 	var enablePprof bool = true
 	var pprofPort int
 	enablePprofStr := os.Getenv("P2PHOST_ENABLEPPROF")
@@ -214,4 +260,189 @@ func main() {
 		log.Printf("GRPC server started\n")
 		break
 	}
+}
+
+func main() {
+	reader := bufio.NewReader(os.Stdin)
+	var id int
+	var sk string
+	var apiUrl string
+	var err error
+	fmt.Print("请输入矿机ID：")
+	idstr, _ := reader.ReadString('\n')
+	idstr = RemoveBlank(idstr)
+	if idstr == "" {
+		fmt.Println("矿机ID不可为空！")
+		return
+	}
+	id, err = strconv.Atoi(idstr)
+	if err != nil {
+		fmt.Printf("发生错误：%s\n", err.Error())
+		return
+	}
+	fmt.Print("请输入矿机所有者私钥：")
+	sk, _ = reader.ReadString('\n')
+	sk = RemoveBlank(sk)
+	fmt.Print("是否需要修改API入口地址（默认值为http://sn.yottachain.net:8082/NodeQuit）,不需修改请直接回车：")
+	apiUrl, _ = reader.ReadString('\n')
+	apiUrl = RemoveBlank(apiUrl)
+	if apiUrl == "" {
+		apiUrl = "http://sn.yottachain.net:8082/NodeQuit"
+	}
+	u := uuid.Must(uuid.NewV1())
+	nonce := u.String()
+	sig, err := ytcrypto.Sign(sk, []byte(fmt.Sprintf("%d&%s", id, nonce)))
+	if err != nil {
+		fmt.Printf("发生错误：%s\n", err.Error())
+		return
+	}
+	resp, err := http.PostForm(fmt.Sprintf("%s?nodeID=%d&nonce=%s&signature=%s", apiUrl, id, nonce, sig), url.Values{})
+	if err != nil {
+		fmt.Printf("发生错误：%s\n", err.Error())
+		return
+	}
+	defer resp.Body.Close()
+	//返回200表示成功
+	if resp.StatusCode != 200 {
+		body, err := ioutil.ReadAll(resp.Body)
+		if err != nil {
+			fmt.Printf("发生错误：%s\n", err.Error())
+			return
+		}
+		fmt.Printf("发生错误: %s\n", body)
+		return
+	}
+	fmt.Println("已将当前矿机加入退出队列，待矿机的Status变为99时表示退出操作完成")
+
+	// fmt.Println(uuid.Must(uuid.NewV1()).String())
+	// //获取矿机ID
+	// idstr := os.Args[2]
+	// id, err := strconv.Atoi(idstr)
+	// if err != nil {
+	// 	panic(err)
+	// }
+	// fmt.Printf("nodeID: %d\n", id)
+	// //生成UUIDv1
+	// u := uuid.Must(uuid.NewV1())
+	// nonce := u.String()
+	// fmt.Printf("nonce: %s\n", nonce)
+	// //使用矿机所有者私钥对“矿机ID&UUIDv1”字符串进行签名
+	// sig, err := ytcrypto.Sign(os.Args[3], []byte(fmt.Sprintf("%d&%s", id, nonce)))
+	// if err != nil {
+	// 	panic(err)
+	// }
+	// fmt.Printf("signature: %s\n", sig)
+	// //通过http接口将各参数发给SN
+	// resp, err := http.PostForm(fmt.Sprintf("%s?nodeID=%d&nonce=%s&signature=%s", os.Args[1], id, nonce, sig), url.Values{})
+	// if err != nil {
+	// 	panic(err)
+	// }
+	// fmt.Printf("Status: %d\n", resp.StatusCode)
+	// defer resp.Body.Close()
+	// //返回200表示成功
+	// if resp.StatusCode != 200 {
+	// 	body, err := ioutil.ReadAll(resp.Body)
+	// 	if err != nil {
+	// 		panic(err)
+	// 	}
+	// 	fmt.Printf("Error: %s\n", body)
+	// }
+}
+
+func RemoveBlank(str string) string {
+	str = strings.Replace(str, " ", "", -1)
+	str = strings.Replace(str, "\n", "", -1)
+	str = strings.Replace(str, "\r", "", -1)
+	return str
+}
+
+var lock sync.RWMutex
+
+func main3() {
+	mongoCli, err := mongo.Connect(context.Background(), options.Client().ApplyURI("mongodb://admin:SL*GAy6xL87@192.168.8.9:26078"))
+	if err != nil {
+		panic(err)
+	}
+	shardMap, err := refreshShardMap(mongoCli)
+	if err != nil {
+		panic(err)
+	}
+	go func() {
+		for {
+			time.Sleep(time.Duration(10) * time.Minute)
+			sm, err := refreshShardMap(mongoCli)
+			if err != nil {
+				fmt.Println(err.Error())
+				continue
+			}
+			lock.Lock()
+			shardMap = sm
+			lock.Unlock()
+		}
+	}()
+	mux := http.NewServeMux()
+	mux.HandleFunc("/node_shards", func(w http.ResponseWriter, r *http.Request) {
+		r.ParseForm()
+		mineridstr := r.Form.Get("minerid")
+		if mineridstr == "" {
+			w.WriteHeader(http.StatusInternalServerError)
+			io.WriteString(w, "矿机ID不存在！\n")
+			return
+		}
+		minerid, err := strconv.Atoi(mineridstr)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			io.WriteString(w, fmt.Sprintf("解析矿机ID失败：%s\n", err.Error()))
+			return
+		}
+		lock.RLock()
+		defer lock.RUnlock()
+		m := shardMap[int32(minerid)]
+		data, err := json.Marshal(m)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			io.WriteString(w, fmt.Sprintf("序列化分片哈希失败：%s\n", err.Error()))
+			return
+		}
+		io.WriteString(w, string(data))
+	})
+	server := &http.Server{
+		Addr:    ":22222",
+		Handler: mux,
+	}
+	server.ListenAndServe()
+}
+
+func refreshShardMap(mongoCli *mongo.Client) (map[int32][]string, error) {
+	fmt.Printf("%s: refreshing shard map...\n", time.Now().String())
+
+	shardMap := make(map[int32][]string)
+	collection := mongoCli.Database("metabase").Collection("shards")
+	cur, err := collection.Find(context.Background(), bson.M{})
+	if err != nil {
+		return nil, err
+	}
+	defer cur.Close(context.Background())
+	for cur.Next(context.Background()) {
+		shard := new(Shard)
+		err := cur.Decode(shard)
+		if err != nil {
+			panic(err)
+		}
+		if shard.NodeID != 0 {
+			shardMap[shard.NodeID] = append(shardMap[shard.NodeID], base58.Encode(shard.VHF))
+		}
+		if shard.NodeID2 != 0 {
+			shardMap[shard.NodeID2] = append(shardMap[shard.NodeID2], base58.Encode(shard.VHF))
+		}
+	}
+	fmt.Printf("%s: refreshing shard map finished, total %d miners\n", time.Now().String(), len(shardMap))
+	return shardMap, err
+}
+
+type Shard struct {
+	ID      int64  `bson:"_id"`
+	NodeID  int32  `bson:"nodeId"`
+	VHF     []byte `bson:"VHF"`
+	NodeID2 int32  `bson:"nodeId2"`
 }

@@ -157,6 +157,41 @@ func NewInstance(mongoURL, eosURL, bpAccount, bpPrivkey, contractOwnerM, contrac
 
 	go func() {
 		mux := http.NewServeMux()
+		mux.HandleFunc("/enable_rebuild", func(w http.ResponseWriter, r *http.Request) {
+			if dao.disableBP {
+				io.WriteString(w, "无BP模式下无法执行该操作")
+				return
+			}
+			r.ParseForm()
+			mineridstr := r.Form.Get("minerid")
+			if mineridstr == "" {
+				io.WriteString(w, "矿机ID不存在！\n")
+				return
+			}
+			minerid, err := strconv.Atoi(mineridstr)
+			if err != nil {
+				io.WriteString(w, fmt.Sprintf("解析矿机ID失败：%s\n", err.Error()))
+				return
+			}
+			enableStr := r.Form.Get("enable")
+			if enableStr == "" {
+				w.WriteHeader(http.StatusInternalServerError)
+				io.WriteString(w, "enable参数不存在！\n")
+				return
+			}
+			enable, err := strconv.ParseBool(enableStr)
+			if err != nil {
+				w.WriteHeader(http.StatusInternalServerError)
+				io.WriteString(w, fmt.Sprintf("解析enable参数失败：%s\n", err.Error()))
+				return
+			}
+			err = dao.NodeRebuild(int32(minerid), enable)
+			if err != nil {
+				io.WriteString(w, fmt.Sprintf("修改矿机状态失败：%s\n", err.Error()))
+				return
+			}
+			io.WriteString(w, fmt.Sprintln("修改矿机状态成功"))
+		})
 		mux.HandleFunc("/quit", func(w http.ResponseWriter, r *http.Request) {
 			if dao.disableBP {
 				io.WriteString(w, "无BP模式下无法执行该操作")
@@ -2301,6 +2336,33 @@ func (self *NodeDaoImpl) Statistics() (*NodeStat, error) {
 	result.ActiveMiners = active
 	result.TotalMiners = total
 	return result, nil
+}
+
+//NodeRebuild change status of node to 2
+func (self *NodeDaoImpl) NodeRebuild(nodeID int32, enable bool) error {
+	collection := self.client.Database(YottaDB).Collection(NodeTab)
+	node := new(Node)
+	opts := new(options.FindOneAndUpdateOptions)
+	opts = opts.SetReturnDocument(options.After)
+	status := 2
+	if !enable {
+		status = 1
+	}
+	result := collection.FindOneAndUpdate(context.Background(), bson.M{"_id": nodeID, "status": 1}, bson.M{"$set": bson.M{"status": status}}, opts)
+	err := result.Decode(node)
+	if err != nil {
+		log.Printf("nodemgmt: NodeRebuild: error when update node status to 3 by ID: %d %s\n", nodeID, err.Error())
+		return err
+	}
+	if b, err := proto.Marshal(node.Convert()); err != nil {
+		log.Printf("nodemgmt: NodeRebuild: marshal node %d failed: %s\n", node.ID, err)
+	} else {
+		if self.syncService != nil {
+			log.Println("nodemgmt: NodeRebuild: publish information of node", node.ID)
+			self.syncService.Publish("sync", b)
+		}
+	}
+	return nil
 }
 
 //NodeQuit change status of node to 3
