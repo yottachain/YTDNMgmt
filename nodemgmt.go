@@ -2348,7 +2348,7 @@ func (self *NodeDaoImpl) NodeRebuild(nodeID int32, enable bool) error {
 	if !enable {
 		status = 1
 	}
-	result := collection.FindOneAndUpdate(context.Background(), bson.M{"_id": nodeID, "status": 1}, bson.M{"$set": bson.M{"status": status}}, opts)
+	result := collection.FindOneAndUpdate(context.Background(), bson.M{"_id": nodeID}, bson.M{"$set": bson.M{"status": status}}, opts)
 	err := result.Decode(node)
 	if err != nil {
 		log.Printf("nodemgmt: NodeRebuild: error when update node status to 3 by ID: %d %s\n", nodeID, err.Error())
