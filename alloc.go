@@ -280,7 +280,7 @@ func (s *NodesSelector) refresh(nodeMgr *NodeDaoImpl) error {
 	nodeIDs := make([]int32, 0)
 	regionMap := make(map[string]*WRegion)
 	collection := nodeMgr.client.Database(YottaDB).Collection(NodeTab)
-	cond := bson.M{"valid": 1, "status": 1, "assignedSpace": bson.M{"$gt": 0}, "quota": bson.M{"$gt": 0}, "timestamp": bson.M{"$gt": time.Now().Unix() - IntervalTime*s.Config.AvaliableMinerTimeGap}, "weight": bson.M{"$gt": 0}, "version": bson.M{"$gte": s.Config.MinerVersionThreshold}}
+	cond := bson.M{"valid": 1, "status": 1, "assignedSpace": bson.M{"$gt": 0}, "quota": bson.M{"$gt": 0}, "timestamp": bson.M{"$gt": time.Now().Unix() - IntervalTime*s.Config.AvaliableMinerTimeGap}, "weight": bson.M{"$gt": 0}, "manualWeight": bson.M{"$gt": 0}, "version": bson.M{"$gte": s.Config.MinerVersionThreshold}}
 	cur, err := collection.Find(context.Background(), cond)
 	if err != nil {
 		log.Printf("alloc: refresh: error when refreshing NodeSelector: %s\n", err)
