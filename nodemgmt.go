@@ -1105,13 +1105,23 @@ func NewInstance(mongoURL, eosURL, bpAccount, bpPrivkey, contractOwnerM, contrac
 					}
 					log.Printf("nodemgmt: synccallback: received rebuilt message of node %d from %s to %s\n", pmsg.NodeID, msg.Sender, msg.Destination)
 					collection := dao.client.Database(YottaDB).Collection(NodeTab)
+					oldNode := new(Node)
+					err = collection.FindOne(context.Background(), bson.M{"_id": pmsg.NodeID}).Decode(oldNode)
+					if err != nil {
+						log.Printf("nodemgmt: synccallback: error when find old node %d: %s\n", pmsg.NodeID, err.Error())
+						return
+					}
+					newStatus := 99
+					if oldNode.Status == 3 {
+						newStatus = 100
+					}
 					opts := new(options.FindOneAndUpdateOptions)
 					opts = opts.SetReturnDocument(options.After)
-					result := collection.FindOneAndUpdate(context.Background(), bson.M{"_id": pmsg.NodeID}, bson.M{"$set": bson.M{"status": 99}}, opts)
+					result := collection.FindOneAndUpdate(context.Background(), bson.M{"_id": pmsg.NodeID}, bson.M{"$set": bson.M{"status": newStatus}}, opts)
 					updatedNode := new(Node)
 					err = result.Decode(updatedNode)
 					if err != nil {
-						log.Printf("nodemgmt: synccallback: error when updating status of node %d to 99: %s\n", pmsg.NodeID, err.Error())
+						log.Printf("nodemgmt: synccallback: error when updating status of node %d to %d: %s\n", pmsg.NodeID, newStatus, err.Error())
 						return
 					}
 					if b, err := proto.Marshal(updatedNode.Convert()); err != nil {
