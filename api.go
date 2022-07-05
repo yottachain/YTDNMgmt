@@ -211,16 +211,19 @@ func (self *NodeDaoImpl) PreRegisterNode2(trx string) error {
 		log.Printf("nodemgmt: PreRegisterNode2: error when generating ID from public key: %s\n", err.Error())
 		return err
 	}
+	log.Printf("nodemgmt: PreRegisterNode2: parse node ID: %s\n", nodeid)
 	poolInfo, err := self.eostx.GetPoolInfoByPoolID(poolID)
 	if err != nil {
 		log.Printf("nodemgmt: PreRegisterNode2: error when get pool owner: %d %s\n", minerID, err.Error())
 		return fmt.Errorf("error when get pool owner of miner %d: %w", minerID, err)
 	}
+	log.Printf("nodemgmt: PreRegisterNode2: get pool info: %v\n", poolInfo)
 	currID, err := self.NewNodeID()
 	if err != nil {
 		log.Printf("nodemgmt: PreRegisterNode2: error when calculating new node ID: %s\n", err.Error())
 		return err
 	}
+	log.Printf("nodemgmt: PreRegisterNode2: generate ID: %d\n", currID)
 	if currID != minerID {
 		log.Printf("nodemgmt: PreRegisterNode2: error: %s\n", "current ID is not equal to minerID")
 		return errors.New("node ID is invalid, please retry")
@@ -231,11 +234,13 @@ func (self *NodeDaoImpl) PreRegisterNode2(trx string) error {
 		log.Printf("nodemgmt: PreRegisterNode2: error when updating sequence of Node: %d %s\n", minerID, err.Error())
 		return err
 	}
+	log.Printf("nodemgmt: PreRegisterNode2: update sequence to: %d\n", minerID)
 	err = self.eostx.SendTrx(signedTrx)
 	if err != nil {
 		log.Printf("nodemgmt: PreRegisterNode2: error when sending transaction: %s\n", err.Error())
 		return err
 	}
+	log.Printf("nodemgmt: PreRegisterNode2: send trx to BP: %s\n", signedTrx)
 	node := new(Node)
 	node.ID = minerID
 	node.NodeID = nodeid
@@ -266,6 +271,7 @@ func (self *NodeDaoImpl) PreRegisterNode2(trx string) error {
 		log.Printf("nodemgmt: PreRegisterNode2: error when inserting node to database: %d %s\n", minerID, err.Error())
 		return err
 	}
+	log.Printf("nodemgmt: PreRegisterNode2: insert node info to DB: %v\n", node)
 	collectionLog := self.client.Database(YottaDB).Collection(NodeLogTab)
 	nodelog := NewNodeLog(self.bpID, node.ID, -1, node.Status, "new")
 	_, err = collectionLog.InsertOne(context.Background(), nodelog)
