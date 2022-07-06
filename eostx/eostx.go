@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 
 	"github.com/aurawing/eos-go"
 	"github.com/aurawing/eos-go/ecc"
@@ -56,6 +57,7 @@ func (eostx *EosTX) ChangeEosURL(eosURL string) {
 		return
 	}
 	eostx.Lock()
+	log.Printf("nodemgmt: ChangeEosURL: change EOS URL: %s\n", eosURL)
 	defer eostx.Unlock()
 	api := eos.New(eosURL)
 	keyBag := &eos.KeyBag{}
@@ -863,6 +865,7 @@ func (eostx *EosTX) SendTrx(signedTx *eos.SignedTransaction) error {
 		return nil
 	}
 	eostx.RLock()
+	log.Printf("nodemgmt: SendTrx: send trx toBP: %v\n", signedTx)
 	defer eostx.RUnlock()
 	packedTx, err := signedTx.Pack(eos.CompressionNone)
 	if err != nil {
