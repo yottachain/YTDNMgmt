@@ -403,6 +403,7 @@ func (s *NodesSelector) Alloc(shardCount int32, errids []int32) ([]*Node, error)
 		// 	continue
 		// }
 		// allcNodeIds[id] = true
+		nodeRegion.Nodes[n].Ext = nodeRegion.Name
 		nodes = append(nodes, nodeRegion.Nodes[n])
 	}
 	log.Printf("alloc: Alloc: allocated %d nodes\n", len(nodes))
