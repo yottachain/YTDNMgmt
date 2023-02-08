@@ -106,6 +106,8 @@ func NewInstance(mongoURL, eosURL, bpAccount, bpPrivkey, contractOwnerM, contrac
 	log.Println("nodemgmt: NewInstance: create host2")
 	dao := &NodeDaoImpl{client: client, eostx: etx, host1: host1, host2: host2, ns: &NodesSelector{Config: config.Misc}, bpID: bpID, master: isMaster, disableBP: disableBP}
 	log.Printf("nodemgmt: NewInstance: master status is %d\n", isMaster)
+	// dao.Config = config
+	// log.Printf("nodemgmt: NewInstance: config is: %v\n", config)
 	//dao.StartRecheck()
 	dao.ns.Start(context.Background(), dao)
 	if incr == 0 {
@@ -1112,9 +1114,14 @@ func NewInstance(mongoURL, eosURL, bpAccount, bpPrivkey, contractOwnerM, contrac
 						return
 					}
 					newStatus := 99
-					if oldNode.Status == 3 {
-						newStatus = 100
+					if pmsg.Status == 0 {
+						if oldNode.Status == 3 {
+							newStatus = 100
+						}
+					} else {
+						newStatus = int(pmsg.Status)
 					}
+
 					opts := new(options.FindOneAndUpdateOptions)
 					opts = opts.SetReturnDocument(options.After)
 					result := collection.FindOneAndUpdate(context.Background(), bson.M{"_id": pmsg.NodeID}, bson.M{"$set": bson.M{"status": newStatus}}, opts)
@@ -2364,7 +2371,9 @@ func (self *NodeDaoImpl) NodeRebuild(nodeID int32, enable bool) error {
 		log.Printf("nodemgmt: NodeRebuild: error when update node status to 3 by ID: %d %s\n", nodeID, err.Error())
 		return err
 	}
-	if b, err := proto.Marshal(node.Convert()); err != nil {
+	msg := node.Convert()
+	//msg.Vid = int32(self.Config.AuraMQ.Vid)
+	if b, err := proto.Marshal(msg); err != nil {
 		log.Printf("nodemgmt: NodeRebuild: marshal node %d failed: %s\n", node.ID, err)
 	} else {
 		if self.syncService != nil {
@@ -2422,7 +2431,9 @@ func (self *NodeDaoImpl) NodeQuit(nodeID int32, nonce, signature string) error {
 			log.Printf("nodemgmt: NodeQuit: error when update node status to 3 by ID: %d %s\n", nodeID, err.Error())
 			return err
 		}
-		if b, err := proto.Marshal(node.Convert()); err != nil {
+		msg := node.Convert()
+		//msg.Vid = int32(self.Config.AuraMQ.Vid)
+		if b, err := proto.Marshal(msg); err != nil {
 			log.Printf("nodemgmt: NodeQuit: marshal node %d failed: %s\n", node.ID, err)
 		} else {
 			if self.syncService != nil {
@@ -2604,7 +2615,9 @@ func (self *NodeDaoImpl) ChangeManualWeight(id, weight int32) error {
 		log.Printf("nodemgmt: ChangeManualWeight: error when decoding node %d: %s\n", id, err.Error())
 		return err
 	}
-	if b, err := proto.Marshal(updatedNode.Convert()); err != nil {
+	msg := updatedNode.Convert()
+	//msg.Vid = int32(self.Config.AuraMQ.Vid)
+	if b, err := proto.Marshal(msg); err != nil {
 		log.Printf("nodemgmt: ChangeManualWeight: marshal node %d failed: %s\n", updatedNode.ID, err)
 	} else {
 		if self.syncService != nil {
@@ -2632,7 +2645,9 @@ func (self *NodeDaoImpl) ChangeUnreadable(id int32, unreadable bool) error {
 		log.Printf("nodemgmt: ChangeUnreadable: error when decoding node %d: %s\n", id, err.Error())
 		return err
 	}
-	if b, err := proto.Marshal(updatedNode.Convert()); err != nil {
+	msg := updatedNode.Convert()
+	//msg.Vid = int32(self.Config.AuraMQ.Vid)
+	if b, err := proto.Marshal(msg); err != nil {
 		log.Printf("nodemgmt: ChangeUnreadable: marshal node %d failed: %s\n", updatedNode.ID, err)
 	} else {
 		if self.syncService != nil {
@@ -2660,7 +2675,9 @@ func (self *NodeDaoImpl) ChangeFiling(id int32, filing bool) error {
 		log.Printf("nodemgmt: ChangeFiling: error when decoding node %d: %s\n", id, err.Error())
 		return err
 	}
-	if b, err := proto.Marshal(updatedNode.Convert()); err != nil {
+	msg := updatedNode.Convert()
+	//msg.Vid = int32(self.Config.AuraMQ.Vid)
+	if b, err := proto.Marshal(msg); err != nil {
 		log.Printf("nodemgmt: ChangeFiling: marshal node %d failed: %s\n", updatedNode.ID, err)
 	} else {
 		if self.syncService != nil {
@@ -2720,7 +2737,9 @@ func (self *NodeDaoImpl) BulkPunish(punishTimes []int64, punishPercent []int32, 
 			if err != nil {
 				log.Printf("nodemgmt: BulkPunish: error when updating status of miner %d to 2 of type 0: %s\n", node.ID, err.Error())
 			}
-			if b, err := proto.Marshal(node.Convert()); err != nil {
+			msg := node.Convert()
+			//msg.Vid = int32(self.Config.AuraMQ.Vid)
+			if b, err := proto.Marshal(msg); err != nil {
 				log.Printf("nodemgmt: BulkPunish: marshal node %d failed: %s\n", node.ID, err)
 			} else {
 				if self.syncService != nil {

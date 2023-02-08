@@ -42,6 +42,8 @@ const (
 	AuramqMinerSyncTopicField       = "auramq.miner-sync-topic"
 	AuramqAllSNURLsField            = "auramq.all-sn-urls"
 	AuramqAllowedAccountsField      = "auramq.allowed-accounts"
+	// AuramqVidField                  = "auramq.vid"
+	// AuramqWriteDBField              = "auramq.write-db"
 
 	//Misc config
 	MiscExcludeAddrPrefixField                 = "misc.exclude-addr-prefix"
@@ -108,6 +110,8 @@ type AuraMQConfig struct {
 	MinerSyncTopic       string   `mapstructure:"miner-sync-topic"`
 	AllSNURLs            []string `mapstructure:"all-sn-urls"`
 	AllowedAccounts      []string `mapstructure:"allowed-accounts"`
+	// Vid                  int      `mapstructure:"vid"`
+	// WriteDB              bool     `mapstructure:"write-db"`
 }
 
 //MiscConfig miscellaneous configuration
@@ -159,6 +163,8 @@ func InitConfig(eosURL, bpAccount, bpPrivkey, contractOwnerM, contractOwnerD, sh
 	viper.SetDefault(AuramqMinerSyncTopicField, "sync")
 	viper.SetDefault(AuramqAllSNURLsField, []string{})
 	viper.SetDefault(AuramqAllowedAccountsField, []string{})
+	// viper.SetDefault(AuramqVidField, -1)
+	// viper.SetDefault(AuramqWriteDBField, true)
 	viper.SetDefault(MiscExcludeAddrPrefixField, "")
 	viper.SetDefault(MiscPrePurchaseThresholdField, 32768)
 	viper.SetDefault(MiscPrePurchaseAmountField, 65536)

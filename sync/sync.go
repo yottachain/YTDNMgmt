@@ -26,6 +26,7 @@ type Service struct {
 	accountMap map[string]string
 	master     *int32
 	disableBP  bool
+	//vid        int32
 }
 
 //StartSync start syncing
@@ -46,6 +47,7 @@ func StartSync(etx *eostx.EosTX, bindAddr string, routerBufferSize, subscriberBu
 	syncService.master = isMaster
 	syncService.accountMap = accountMap
 	syncService.disableBP = disableBP
+	//syncService.vid = vid
 
 	router := auramq.NewRouter(routerBufferSize)
 	go router.Run()
@@ -69,6 +71,10 @@ func StartSync(etx *eostx.EosTX, bindAddr string, routerBufferSize, subscriberBu
 		return nil, err
 	}
 
+	// curID := snID
+	// if vid >= 0 {
+	// 	curID = int(vid)
+	// }
 	for i, url := range urls {
 		if i != snID {
 			wsurl := url

@@ -64,7 +64,7 @@ message NodeMsg {
   string poolOwner = 7;          //Owner of associated miner pool
 	int64 quota = 8;               //quota allocated by associated miner pool
 	repeated string addrs = 9;     //listening addresses of data node
-	int32 cPU = 10;                 //CPU usage of data node
+	int32 cPU = 10;                //CPU usage of data node
 	int32 memory = 11;             //memory usage of data node
 	int32 bandwidth = 12;          //bandwidth usage of data node
 	int64 maxDataSpace = 13;       //max space of data node
@@ -82,14 +82,15 @@ message NodeMsg {
   int64 tx = 25;                 //tx
   int64 rx = 26;                 //rx
   string ext = 27;               //other
-  map<string, int64> uspaces = 28; //used spaces on each SN
+  map<string, int64> uspaces = 28;//used spaces on each SN
   int32 manualWeight = 29;       //control weight manually
   bool unreadable = 30;          //whether node is readable
   string hash = 31;              //hash identity
   int32 blCount = 32;            //count of inserted into black list
   bool filing = 33;              //filing miner will not be punished
-  int64 allocatedSpace = 34;      //allocate space of miner
-  int64 availableSpace = 35;      //available space of miner
+  int64 allocatedSpace = 34;     //allocate space of miner
+  int64 availableSpace = 35;     //available space of miner
+  //int32 vid = 36;                //virtual id of sn
 }
 
 // SuperNode message
@@ -224,4 +225,5 @@ message PunishMessage {
 
 message RebuiltMessage {
   int32 nodeID = 1;
+  int32 status = 2;
 }
